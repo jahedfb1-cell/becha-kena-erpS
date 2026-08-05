@@ -1,0 +1,522 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\QuotationRequest;
+use App\Models\AuditLog;
+use App\Models\Quotation;
+use App\Services\QuotationService;
+use App\Services\NotificationService;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class QuotationController extends Controller
+{
+    use ApiResponse;
+
+    protected QuotationService $quotationService;
+    protected NotificationService $notificationService;
+
+    public function __construct(QuotationService $quotationService, NotificationService $notificationService)
+    {
+        $this->quotationService = $quotationService;
+        $this->notificationService = $notificationService;
+    }
+
+    /**
+     * GET /api/quotations/preferred-supplier/{productId}
+     * Helper endpoint to get priority_rank=1 supplier and min_billing_sqft.
+     */
+    public function preferredSupplier(int $productId): JsonResponse
+    {
+        $supplierInfo = $this->quotationService->getPreferredSupplier($productId);
+
+        if (!$supplierInfo) {
+            return $this->errorResponse('No active supplier link found for this product.', 404);
+        }
+
+        return $this->successResponse($supplierInfo, 'Preferred supplier retrieved successfully.');
+    }
+
+    /**
+     * GET /api/quotations
+     * Role-based visibility and filters (status, date_range, customer, salesman).
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $query = Quotation::with(['customer:id,customer_code,name,phone', 'salesman:id,name,email'])
+            ->withCount('items');
+
+        // Archived filter
+        if ($request->boolean('archived')) {
+            $query->archived();
+        } else {
+            $query->active();
+        }
+
+        // Role-based visibility
+        $isSalesman = $user->role === 'salesman' || (method_exists($user, 'hasRole') && $user->hasRole('salesman'));
+        $isManager  = $user->role === 'manager' || (method_exists($user, 'hasRole') && $user->hasRole('manager'));
+        $isAdmin    = $user->role === 'admin' || (method_exists($user, 'hasRole') && $user->hasRole('admin'));
+
+        if ($isAdmin || $request->boolean('all')) {
+            // Admin or explicit all=1 parameter sees all quotations
+        } elseif ($isSalesman) {
+            $query->where(function ($q) use ($user) {
+                $q->where('salesman_id', $user->id)
+                  ->orWhere('created_by', $user->id);
+            });
+        } elseif ($isManager) {
+            $teamUserIds = \App\Models\User::where('manager_id', $user->id)->pluck('id')->push($user->id);
+            $query->whereIn('salesman_id', $teamUserIds);
+        }
+
+        // Filters
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('customer_id')) {
+            $query->where('customer_id', $request->customer_id);
+        }
+
+        if ($request->filled('salesman_id')) {
+            $query->where('salesman_id', $request->salesman_id);
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', $request->to_date);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('quotation_number', 'LIKE', "%{$search}%")
+                  ->orWhereHas('customer', function ($cq) use ($search) {
+                      $cq->where('name', 'LIKE', "%{$search}%")
+                         ->orWhere('customer_code', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        $perPage = (int) $request->get('per_page', 15);
+        $quotations = $query->orderBy('id', 'desc')->paginate($perPage);
+
+        return $this->paginatedResponse($quotations, 'Quotations retrieved successfully.');
+    }
+
+    /**
+     * POST /api/quotations
+     * Store new quotation with items & calculations.
+     */
+    public function store(QuotationRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        return DB::transaction(function () use ($request, $user) {
+            $quotationNumber = $this->quotationService->generateQuotationNumber();
+            $status = $request->get('status', 'quotation');
+
+            $quotation = Quotation::create([
+                'quotation_number'   => $quotationNumber,
+                'customer_id'        => $request->customer_id,
+                'salesman_id'        => $request->get('salesman_id', $user->id),
+                'status'             => $status,
+                'convenience_charge' => $request->get('convenience_charge', 0),
+                'other_charge'       => $request->get('other_charge', 0),
+                'other_charge_label' => $request->get('other_charge_label', null),
+                'vat_percentage'     => $request->get('vat_percentage', 0),
+                'discount_type'      => $request->get('discount_type', 'flat'),
+                'discount_value'     => $request->get('discount_value', 0),
+                'note'               => $request->note,
+                'delivery_address'   => $request->delivery_address,
+                'created_by'         => $user->id,
+                'approved_at'        => $status === 'approved' ? now() : null,
+            ]);
+
+            // Save line items & get subtotal
+            $subtotal = $this->quotationService->processAndSaveItems($quotation, $request->items, $user->id);
+
+            // Summary calculations
+            $summary = $this->quotationService->calculateSummary(
+                $subtotal,
+                (float) $quotation->convenience_charge,
+                (float) $quotation->other_charge,
+                (float) $quotation->vat_percentage,
+                $quotation->discount_type,
+                (float) $quotation->discount_value
+            );
+
+            $quotation->update($summary);
+
+            // If direct order created with approved status, generate purchase entries
+            if ($status === 'approved') {
+                $this->quotationService->createPurchaseEntries($quotation, $user->id);
+                $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'approved');
+            } else {
+                $this->notificationService->notifyQuotationCreated($quotation);
+            }
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'create',
+                Quotation::class,
+                $quotation->id,
+                null,
+                $quotation->load('items')->toArray(),
+                "Created {$status} {$quotation->quotation_number}"
+            );
+            return $this->createdResponse(
+                $quotation->load(['items.product', 'items.variant', 'items.supplier', 'customer', 'salesman']),
+                "Record {$quotation->quotation_number} created successfully."
+            );
+        });
+    }
+
+    /**
+     * GET /api/quotations/{id}
+     * Full quotation details with items and supplier info.
+     */
+    public function show(int $id): JsonResponse
+    {
+        $quotation = Quotation::with([
+            'customer',
+            'salesman:id,name,email,phone',
+            'creator:id,name',
+            'approver:id,name',
+            'items.product',
+            'items.variant',
+            'items.supplier',
+            'purchaseEntries',
+        ])->find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        return $this->successResponse($quotation, 'Quotation details retrieved.');
+    }
+
+    /**
+     * PUT /api/quotations/{id}
+     * Update quotation header & items with edit rules.
+     */
+    public function update(QuotationRequest $request, int $id): JsonResponse
+    {
+        $quotation = Quotation::with('items')->find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        // Edit rules
+        if ($quotation->status === 'invoiced') {
+            return $this->errorResponse('Invoiced quotations cannot be edited.', 422);
+        }
+
+        $user = $request->user();
+        $oldSnapshot = $quotation->toArray();
+
+        return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot) {
+            $newStatus = $quotation->status;
+
+            if ($quotation->status === 'approved') {
+                $newStatus = 'pending_reapproval';
+            }
+
+            $quotation->update([
+                'customer_id'        => $request->customer_id,
+                'salesman_id'        => $request->get('salesman_id', $quotation->salesman_id),
+                'status'             => $newStatus,
+                'convenience_charge' => $request->get('convenience_charge', $quotation->convenience_charge),
+                'other_charge'       => $request->get('other_charge', $quotation->other_charge),
+                'other_charge_label' => $request->get('other_charge_label', $quotation->other_charge_label),
+                'vat_percentage'     => $request->get('vat_percentage', $quotation->vat_percentage),
+                'discount_type'      => $request->get('discount_type', $quotation->discount_type),
+                'discount_value'     => $request->get('discount_value', $quotation->discount_value),
+                'note'               => $request->get('note', $quotation->note),
+                'delivery_address'   => $request->get('delivery_address', $quotation->delivery_address),
+            ]);
+
+            // Re-process line items
+            $subtotal = $this->quotationService->processAndSaveItems($quotation, $request->items, $user->id);
+
+            // Summary calculations
+            $summary = $this->quotationService->calculateSummary(
+                $subtotal,
+                (float) $quotation->convenience_charge,
+                (float) $quotation->other_charge,
+                (float) $quotation->vat_percentage,
+                $quotation->discount_type,
+                (float) $quotation->discount_value
+            );
+
+            $quotation->update($summary);
+
+            // If pending_reapproval, re-sync purchase entries
+            if ($newStatus === 'pending_reapproval') {
+                $this->quotationService->reversePurchaseEntries($quotation, $user->id);
+            }
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'update',
+                Quotation::class,
+                $quotation->id,
+                $oldSnapshot,
+                $quotation->fresh('items')->toArray(),
+                "Updated quotation {$quotation->quotation_number}"
+            );
+
+            return $this->successResponse(
+                $quotation->load(['items.product', 'items.variant', 'items.supplier', 'customer', 'salesman']),
+                "Quotation {$quotation->quotation_number} updated successfully."
+            );
+        });
+    }
+
+    /**
+     * POST /api/quotations/{id}/convert-to-order
+     * Convert status to 'pending_approval' with optional discount update.
+     */
+    public function convertToOrder(Request $request, int $id): JsonResponse
+    {
+        $quotation = Quotation::with('items')->find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        if (in_array($quotation->status, ['invoiced', 'approved'])) {
+            return $this->errorResponse("Quotation cannot be converted to order from status '{$quotation->status}'.", 422);
+        }
+
+        $request->validate([
+            'discount_type'  => 'nullable|in:percentage,flat',
+            'discount_value' => 'nullable|numeric|min:0',
+        ]);
+
+        $user = $request->user();
+        $oldSnapshot = $quotation->toArray();
+
+        return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot) {
+            $discountType = $request->get('discount_type', $quotation->discount_type);
+            $discountValue = (float) $request->get('discount_value', $quotation->discount_value);
+
+            $summary = $this->quotationService->calculateSummary(
+                (float) $quotation->subtotal,
+                (float) $quotation->convenience_charge,
+                (float) $quotation->other_charge,
+                (float) $quotation->vat_percentage,
+                $discountType,
+                $discountValue
+            );
+
+            $quotation->update(array_merge($summary, [
+                'status'         => 'pending_approval',
+                'discount_type'  => $discountType,
+                'discount_value' => $discountValue,
+            ]));
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'convert',
+                Quotation::class,
+                $quotation->id,
+                $oldSnapshot,
+                $quotation->toArray(),
+                "Converted quotation {$quotation->quotation_number} to order (pending approval)"
+            );
+
+            return $this->successResponse(
+                $quotation->load(['items', 'customer']),
+                "Quotation {$quotation->quotation_number} converted to order pending approval."
+            );
+        });
+    }
+
+    /**
+     * POST /api/quotations/{id}/approve
+     * Admin/Manager approves quotation -> status 'approved', creates PurchaseEntries.
+     */
+    public function approve(Request $request, int $id): JsonResponse
+    {
+        $quotation = Quotation::with('items')->find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        if (!in_array($quotation->status, ['pending_approval', 'pending_reapproval', 'quotation'])) {
+            return $this->errorResponse("Quotation in status '{$quotation->status}' cannot be approved.", 422);
+        }
+
+        $user = $request->user();
+        $oldSnapshot = $quotation->toArray();
+
+        return DB::transaction(function () use ($quotation, $user, $oldSnapshot) {
+            $quotation->update([
+                'status'      => 'approved',
+                'approved_by' => $user->id,
+                'approved_at' => now(),
+            ]);
+
+            // Auto-create Purchase Entries & Supplier Ledger credits
+            $this->quotationService->createPurchaseEntries($quotation, $user->id);
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'approve',
+                Quotation::class,
+                $quotation->id,
+                $oldSnapshot,
+                $quotation->toArray(),
+                "Approved quotation {$quotation->quotation_number}"
+            );
+
+            // Trigger Notification Event: Order Approved -> Notify Salesman + Suppliers
+            $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'approved');
+
+            return $this->successResponse(
+                $quotation->load(['items', 'purchaseEntries', 'customer']),
+                "Quotation {$quotation->quotation_number} approved successfully and purchase entries generated."
+            );
+        });
+    }
+
+    /**
+     * POST /api/quotations/{id}/reject
+     * Reject quotation order with reason.
+     */
+    public function reject(Request $request, int $id): JsonResponse
+    {
+        $quotation = Quotation::find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        $request->validate([
+            'rejection_reason' => 'required|string|max:1000',
+        ]);
+
+        $user = $request->user();
+        $oldSnapshot = $quotation->toArray();
+
+        return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot) {
+            $quotation->update([
+                'status'           => 'rejected',
+                'rejection_reason' => $request->rejection_reason,
+            ]);
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'reject',
+                Quotation::class,
+                $quotation->id,
+                $oldSnapshot,
+                $quotation->toArray(),
+                "Rejected quotation {$quotation->quotation_number}"
+            );
+
+            // Trigger Notification Event: Order Rejected -> Notify Salesman + Suppliers
+            $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'rejected');
+
+            return $this->successResponse(
+                $quotation,
+                "Quotation {$quotation->quotation_number} has been rejected."
+            );
+        });
+    }
+
+    /**
+     * DELETE /api/quotations/{id}
+     * Archive quotation & reverse purchase entries.
+     */
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $quotation = Quotation::find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        if ($quotation->status === 'invoiced') {
+            return $this->errorResponse('Invoiced quotations cannot be archived.', 422);
+        }
+
+        $user = $request->user();
+        $reason = $request->get('reason', 'Archived via API');
+
+        return DB::transaction(function () use ($quotation, $user, $reason) {
+            $oldSnapshot = $quotation->toArray();
+
+            $quotation->archive($user->id, $reason);
+            $this->quotationService->reversePurchaseEntries($quotation, $user->id);
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'archive',
+                Quotation::class,
+                $quotation->id,
+                $oldSnapshot,
+                $quotation->fresh()->toArray(),
+                "Archived quotation {$quotation->quotation_number}"
+            );
+
+            return $this->successResponse(null, "Quotation {$quotation->quotation_number} archived successfully.");
+        });
+    }
+
+    /**
+     * POST /api/quotations/{id}/restore
+     * Restore archived quotation & restore purchase entries.
+     */
+    public function restore(Request $request, int $id): JsonResponse
+    {
+        $quotation = Quotation::archived()->find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Archived quotation not found.');
+        }
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($quotation, $user) {
+            $oldSnapshot = $quotation->toArray();
+
+            $quotation->restore();
+            $this->quotationService->restorePurchaseEntries($quotation, $user->id);
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'restore',
+                Quotation::class,
+                $quotation->id,
+                $oldSnapshot,
+                $quotation->fresh()->toArray(),
+                "Restored quotation {$quotation->quotation_number}"
+            );
+
+            return $this->successResponse(
+                $quotation->fresh(),
+                "Quotation {$quotation->quotation_number} restored successfully."
+            );
+        });
+    }
+}

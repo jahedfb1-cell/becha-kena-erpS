@@ -1,0 +1,166 @@
+import React from 'react';
+import { formatDate } from '../utils/format';
+
+const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
+  if (!isOpen || !challan) return null;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const customer = challan.customer || challan.invoice?.customer || {};
+  const invoice = challan.invoice || {};
+  const items = invoice.quotation?.items || [];
+
+  return (
+    <>
+      <div className="custom-modal-overlay no-print" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '820px', maxHeight: '92vh' }}>
+          
+          {/* Header Action Bar */}
+          <div className="custom-modal-header no-print" style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            <h2 className="custom-modal-title" style={{ fontSize: '18px', color: '#0f172a' }}>
+              🚚 Delivery Challan ({challan.challan_number})
+            </h2>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={handlePrint}
+                style={{ padding: '6px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <span>🖨️</span> Print PDF
+              </button>
+              {onSendEmail && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => onSendEmail(challan.id)}
+                  style={{ padding: '6px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span>✉️</span> Email PDF
+                </button>
+              )}
+              <button
+                type="button"
+                className="logout-btn"
+                onClick={onClose}
+                style={{ padding: '6px 12px', fontSize: '13px' }}
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+
+          {/* Printable Document Body */}
+          <div style={{ padding: '24px', overflowY: 'auto', background: '#fff' }} className="printable-area">
+            
+            {/* Header / Brand */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
+              <div>
+                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>
+                  BECHA KENA ERP
+                </h1>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                  Dhaka Blinds & Interior Solutions<br />
+                  House 12, Road 5, Block B, Dhaka | Phone: +880 1700-000000
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ display: 'inline-block', background: '#0f172a', color: '#fff', padding: '6px 16px', borderRadius: '6px', fontSize: '14px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  DELIVERY CHALLAN
+                </div>
+                <div style={{ marginTop: '8px', fontSize: '13px', color: '#334155' }}>
+                  Challan No: <strong>{challan.challan_number}</strong><br />
+                  Date: <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Info Grid: Customer & Delivery Address */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Customer Information</span>
+                <h4 style={{ margin: '4px 0 2px', fontSize: '15px', color: '#0f172a' }}>{customer.company_name || customer.name || 'N/A'}</h4>
+                <p style={{ margin: 0, fontSize: '13px', color: '#475569' }}>
+                  Contact: {customer.name} ({customer.phone || 'N/A'})<br />
+                  Email: {customer.email || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Delivery Details</span>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#0f172a', fontWeight: 500 }}>
+                  <strong>Address:</strong> {challan.delivery_address || customer.address || 'Site Address'}<br />
+                  <strong>Invoice Ref:</strong> {invoice.invoice_number || 'N/A'}<br />
+                  <strong>Driver:</strong> {challan.driver_name || 'Assigned Delivery Agent'} ({challan.driver_phone || 'N/A'})
+                </p>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
+              <thead>
+                <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                  <th style={{ padding: '10px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#334155' }}>SN</th>
+                  <th style={{ padding: '10px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Product / Color Code</th>
+                  <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Dimensions (W &times; H)</th>
+                  <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Pcs</th>
+                  <th style={{ padding: '10px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Billed Sq.Ft</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>No line items found.</td>
+                  </tr>
+                ) : (
+                  items.map((item, idx) => (
+                    <tr key={item.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px', fontSize: '13px', fontWeight: 600 }}>{idx + 1}</td>
+                      <td style={{ padding: '10px', fontSize: '13px' }}>
+                        <strong>{item.product?.product_code || 'PROD'}</strong> - {item.product?.name}
+                        {item.notes && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Note: {item.notes}</div>}
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center', fontSize: '13px' }}>
+                        {item.width} &times; {item.height} in
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
+                        {item.pcs}
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                        {item.billed_sqft} sqft
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+
+            {/* Terms & Signatures */}
+            <div style={{ marginTop: '60px', paddingTop: '20px', borderTop: '1px dashed #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+              <div style={{ textAlign: 'center', width: '200px' }}>
+                <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '8px' }}></div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Receiver's Signature & Seal</span>
+              </div>
+              <div style={{ textAlign: 'center', width: '200px' }}>
+                <div style={{ borderBottom: '1px solid #0f172a', marginBottom: '8px' }}></div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Authorized Signature</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Modal Footer */}
+          <div className="custom-modal-footer no-print" style={{ background: '#f8fafc' }}>
+            <button type="button" className="btn-modal-cancel" onClick={onClose}>
+              Close
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default ChallanPrintModal;
