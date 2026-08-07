@@ -62,13 +62,33 @@ class ImportLegacyData extends Command
                 $this->legacyProductId = $this->createLegacyPlaceholderProduct();
             }
 
+            $supplierMap = [];
+            $categoryMap = [];
+            $productMap = [];
+
+            if (DB::getSchemaBuilder()->hasTable('legacy_suppliers')) {
+                $supplierMap = $this->importSuppliers($dryRun);
+                $this->info('Suppliers imported: '.count($supplierMap));
+
+                $categoryMap = $this->importProductCategories($dryRun);
+                $this->info('Product categories imported: '.count($categoryMap));
+
+                $productMap = $this->importProducts($categoryMap, $dryRun);
+                $this->info('Products imported: '.count($productMap));
+
+                $linkCount = $this->importProductSupplierLinks($productMap, $supplierMap, $dryRun);
+                $this->info('Product-supplier links imported: '.$linkCount);
+            } else {
+                $this->warn('legacy_suppliers/categories/products not found — skipping product catalog import.');
+            }
+
             $customerMap = $this->importCustomers($dryRun);
             $this->info('Customers imported: '.count($customerMap));
 
             $quotationMap = $this->importQuotations($customerMap, $dryRun);
             $this->info('Quotations imported: '.count($quotationMap));
 
-            $itemCount = $this->importQuotationItems($quotationMap, $dryRun);
+            $itemCount = $this->importQuotationItems($quotationMap, $productMap, $dryRun);
             $this->info('Quotation items imported: '.$itemCount);
 
             $invoiceCount = $this->importInvoicesAndDues($customerMap, $quotationMap, $dryRun);
@@ -105,10 +125,16 @@ class ImportLegacyData extends Command
     {
         // DELETE (not TRUNCATE) — TRUNCATE is DDL and causes an implicit commit in
         // MySQL, which would silently end the transaction this whole import runs in.
-        foreach (['payments', 'customer_ledgers', 'invoices', 'quotation_items', 'quotations', 'customers'] as $t) {
+        // Children before parents.
+        foreach ([
+            'payments', 'customer_ledgers', 'invoices', 'quotation_items',
+            'product_supplier_links', 'product_variants',
+            'quotations', 'customers',
+            'products', 'product_categories', 'suppliers',
+        ] as $t) {
             DB::table($t)->delete();
         }
-        $this->info('Cleared existing demo customers/quotations/invoices/payments/ledgers.');
+        $this->info('Cleared existing demo customers/quotations/invoices/payments/ledgers/products/suppliers.');
     }
 
     private function createLegacyPlaceholderProduct(): int
@@ -125,6 +151,157 @@ class ImportLegacyData extends Command
             'default_unit_price' => 0,
             'created_by' => $this->adminId,
         ])->id;
+    }
+
+    /** @return array<int,int> old supid => new suppliers.id (same value, kept for clarity) */
+    private function importSuppliers(bool $dryRun): array
+    {
+        $rows = DB::table('legacy_suppliers')->orderBy('supid')->get();
+        $map = [];
+        $now = now();
+        $batch = [];
+        $seenCodes = [];
+
+        foreach ($rows as $row) {
+            $code = $row->supCode ?: ('LEGACY-SUP-'.$row->supid);
+            if (isset($seenCodes[$code])) {
+                $code .= '-'.$row->supid;
+            }
+            $seenCodes[$code] = true;
+
+            $batch[] = [
+                'id' => $row->supid,
+                'supplier_code' => $code,
+                'name' => trim((string) $row->supName) ?: 'Unknown Supplier',
+                'company_name' => $row->supCompany ?: null,
+                'phone' => $row->supMobile ?: null,
+                'email' => $row->supEmail ?: null,
+                'address' => $row->supAddress ?: null,
+                'opening_balance' => $row->balance ?: 0,
+                'created_by' => $this->adminId,
+                'is_archived' => strtolower((string) $row->status) !== 'active',
+                'created_at' => $row->regdate ?: $now,
+                'updated_at' => $row->up_date ?: $now,
+            ];
+            $map[$row->supid] = $row->supid;
+        }
+
+        if (! $dryRun) {
+            foreach (array_chunk($batch, 200) as $chunk) {
+                DB::table('suppliers')->insert($chunk);
+            }
+        }
+
+        return $map;
+    }
+
+    /** @return array<int,int> old catid => new product_categories.id (same value, kept for clarity) */
+    private function importProductCategories(bool $dryRun): array
+    {
+        $rows = DB::table('legacy_categories')->orderBy('catid')->get();
+        $map = [];
+        $now = now();
+        $batch = [];
+
+        foreach ($rows as $row) {
+            $batch[] = [
+                'id' => $row->catid,
+                'name' => trim((string) $row->catName) ?: ('Category '.$row->catid),
+                'created_by' => $this->adminId,
+                'is_archived' => strtolower((string) $row->status) !== 'active',
+                'created_at' => $row->regdate ?: $now,
+                'updated_at' => $row->up_date ?: $now,
+            ];
+            $map[$row->catid] = $row->catid;
+        }
+
+        if (! $dryRun) {
+            foreach (array_chunk($batch, 200) as $chunk) {
+                DB::table('product_categories')->insert($chunk);
+            }
+        }
+
+        return $map;
+    }
+
+    /** @return array<int,int> old pid => new products.id (same value, kept for clarity) */
+    private function importProducts(array $categoryMap, bool $dryRun): array
+    {
+        $units = DB::table('legacy_sma_units')->pluck('untName', 'untid');
+        $rows = DB::table('legacy_products')->orderBy('pid')->get();
+        $map = [];
+        $now = now();
+        $batch = [];
+        $seenCodes = [];
+
+        foreach ($rows as $row) {
+            $unitName = $units[$row->untid] ?? '';
+            $unit = str_contains(strtolower($unitName), 'pcs') ? 'pcs' : 'sqft';
+
+            $code = $row->pCode ?: ('LEGACY-PROD-'.$row->pid);
+            if (isset($seenCodes[$code])) {
+                $code .= '-'.$row->pid;
+            }
+            $seenCodes[$code] = true;
+
+            $batch[] = [
+                'id' => $row->pid,
+                'product_code' => $code,
+                'name' => trim((string) $row->pName) ?: ('Product '.$row->pid),
+                'unit' => $unit,
+                'product_category_id' => $categoryMap[$row->catid] ?? null,
+                'default_unit_price' => $row->sprice ?? 0,
+                'details' => $row->pDetails ? strip_tags($row->pDetails) : null,
+                'created_by' => $this->adminId,
+                'is_archived' => strtolower((string) $row->status) !== 'active',
+                'created_at' => $row->regdate ?: $now,
+                'updated_at' => $row->up_date ?: $now,
+            ];
+            $map[$row->pid] = $row->pid;
+        }
+
+        if (! $dryRun) {
+            foreach (array_chunk($batch, 200) as $chunk) {
+                DB::table('products')->insert($chunk);
+            }
+        }
+
+        return $map;
+    }
+
+    private function importProductSupplierLinks(array $productMap, array $supplierMap, bool $dryRun): int
+    {
+        $rows = DB::table('legacy_products')->orderBy('pid')->get();
+        $now = now();
+        $batch = [];
+        $count = 0;
+
+        foreach ($rows as $row) {
+            if (! isset($productMap[$row->pid]) || ! isset($supplierMap[$row->supid])) {
+                $this->skipped[] = "product_supplier_link for product {$row->pid}: missing product or supplier {$row->supid}";
+                continue;
+            }
+
+            $batch[] = [
+                'product_id' => $row->pid,
+                'supplier_id' => $row->supid,
+                'priority_rank' => 1,
+                'cost_price' => $row->pprice ?? 0,
+                'min_billing_sqft' => $row->psfLimit ?? 0,
+                'created_by' => $this->adminId,
+                'created_at' => $row->regdate ?: $now,
+                'updated_at' => $row->up_date ?: $now,
+            ];
+            $count++;
+        }
+
+        if (! $dryRun) {
+            foreach (array_chunk($batch, 200) as $chunk) {
+                DB::table('product_supplier_links')->insert($chunk);
+            }
+        }
+
+        return $count;
     }
 
     /** @return array<int,int> old custid => new customers.id (same value, kept for clarity) */
@@ -240,7 +417,7 @@ class ImportLegacyData extends Command
         return $map;
     }
 
-    private function importQuotationItems(array $quotationMap, bool $dryRun): int
+    private function importQuotationItems(array $quotationMap, array $productMap, bool $dryRun): int
     {
         $productNames = DB::table('legacy_products')->pluck('pName', 'pid');
         $rows = DB::table('legacy_quotation_product')->orderBy('qutpid')->get();
@@ -261,15 +438,19 @@ class ImportLegacyData extends Command
                 ? round(($width * $height * $pcs) / 144, 2)
                 : (float) $row->tSFeet;
 
+            // Use the real imported product when we have one; fall back to the
+            // generic placeholder for line items whose old product id is missing.
+            $productId = $productMap[$row->pid] ?? ($this->legacyProductId ?? 0);
             $productName = $productNames[$row->pid] ?? 'Unknown legacy product (id '.$row->pid.')';
-            $notes = 'Original product: '.$productName;
+            $notes = isset($productMap[$row->pid]) ? null : ('Original product: '.$productName);
             if (! empty($row->qpDetails)) {
-                $notes .= "\n".strip_tags($row->qpDetails);
+                $stripped = strip_tags($row->qpDetails);
+                $notes = $notes ? $notes."\n".$stripped : $stripped;
             }
 
             $batch[] = [
                 'quotation_id' => $row->qutid,
-                'product_id' => $this->legacyProductId ?? 0,
+                'product_id' => $productId,
                 'product_variant_id' => null,
                 'supplier_id' => null,
                 'width' => $width,
