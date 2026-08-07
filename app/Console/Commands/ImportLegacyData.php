@@ -134,13 +134,20 @@ class ImportLegacyData extends Command
         $map = [];
         $now = now();
         $batch = [];
+        $seenCodes = [];
 
         foreach ($rows as $row) {
             $name = trim((string) $row->custName) ?: (trim((string) $row->custCompany) ?: 'Unknown Customer');
 
+            $customerCode = $row->custCode ?: ('LEGACY-'.$row->custid);
+            if (isset($seenCodes[$customerCode])) {
+                $customerCode .= '-'.$row->custid;
+            }
+            $seenCodes[$customerCode] = true;
+
             $batch[] = [
                 'id' => $row->custid,
-                'customer_code' => $row->custCode ?: ('LEGACY-'.$row->custid),
+                'customer_code' => $customerCode,
                 'name' => Str::limit($name, 250, ''),
                 'company_name' => $row->custCompany ?: null,
                 'phone' => $row->custMobile ?: null,
@@ -177,12 +184,21 @@ class ImportLegacyData extends Command
         $map = [];
         $now = now();
         $batch = [];
+        $seenNumbers = [];
 
         foreach ($rows as $row) {
             if (! isset($customerMap[$row->custid])) {
                 $this->skipped[] = "quotation {$row->qutid}: unknown customer {$row->custid}";
                 continue;
             }
+
+            // A handful of legacy rows share the same qinvoice (old software bug).
+            // Keep the original for the first occurrence and disambiguate the rest.
+            $quotationNumber = $row->qinvoice ?: ('LEGACY-QT-'.$row->qutid);
+            if (isset($seenNumbers[$quotationNumber])) {
+                $quotationNumber .= '-'.$row->qutid;
+            }
+            $seenNumbers[$quotationNumber] = true;
 
             $vat = is_numeric($row->vat) ? (float) $row->vat : 0;
             $note = trim((string) $row->note);
@@ -192,7 +208,7 @@ class ImportLegacyData extends Command
 
             $batch[] = [
                 'id' => $row->qutid,
-                'quotation_number' => $row->qinvoice ?: ('LEGACY-QT-'.$row->qutid),
+                'quotation_number' => $quotationNumber,
                 'customer_id' => $row->custid,
                 'salesman_id' => null,
                 'status' => 'quotation',
@@ -293,12 +309,19 @@ class ImportLegacyData extends Command
         // Running balance per customer for the ledger (chronological order already applied above)
         $runningBalance = [];
         $count = 0;
+        $seenInvoiceNumbers = [];
 
         foreach ($rows as $row) {
             if (! isset($customerMap[$row->custid])) {
                 $this->skipped[] = "invoice {$row->invoice}: unknown customer {$row->custid}";
                 continue;
             }
+
+            $invoiceNumber = $row->invoice ?: ('LEGACY-INV-'.$row->said);
+            if (isset($seenInvoiceNumbers[$invoiceNumber])) {
+                $invoiceNumber .= '-'.$row->said;
+            }
+            $seenInvoiceNumbers[$invoiceNumber] = true;
 
             $qinvoice = $orderToQinvoice[$row->oCode] ?? null;
             $qutid = $qinvoice ? ($qinvoiceToQutid[$qinvoice] ?? null) : null;
@@ -321,7 +344,7 @@ class ImportLegacyData extends Command
             }
 
             $invoiceId = DB::table('invoices')->insertGetId([
-                'invoice_number' => $row->invoice ?: ('LEGACY-INV-'.$row->said),
+                'invoice_number' => $invoiceNumber,
                 'quotation_id' => $qutid,
                 'customer_id' => $row->custid,
                 'salesman_id' => null,
