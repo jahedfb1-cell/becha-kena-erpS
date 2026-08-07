@@ -125,14 +125,19 @@ class ImportLegacyData extends Command
     {
         // DELETE (not TRUNCATE) — TRUNCATE is DDL and causes an implicit commit in
         // MySQL, which would silently end the transaction this whole import runs in.
-        // Children before parents.
+        // Children before parents, following every FK that ultimately points at
+        // customers/quotations/invoices/products/suppliers.
         foreach ([
-            'payments', 'customer_ledgers', 'invoices', 'quotation_items',
+            'delivery_challans', 'payments', 'customer_ledgers',
+            'purchase_entries', 'complaint_tickets', 'supplier_ledgers',
+            'invoices', 'quotation_items',
             'product_supplier_links', 'product_variants',
             'quotations', 'customers',
             'products', 'product_categories', 'suppliers',
         ] as $t) {
-            DB::table($t)->delete();
+            if (DB::getSchemaBuilder()->hasTable($t)) {
+                DB::table($t)->delete();
+            }
         }
         $this->info('Cleared existing demo customers/quotations/invoices/payments/ledgers/products/suppliers.');
     }
