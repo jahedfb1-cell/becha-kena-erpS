@@ -211,31 +211,14 @@ const CompanyProfile = () => {
           </span>
         </div>
 
-        <div style={{ background: '#ffffff', color: '#1e293b', padding: '16px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-          {/* Logo & Company Name */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <img
-              src={invoiceLogoPreview || companyLogoPreview}
-              alt="Live Logo Preview"
-              style={{ height: '56px', maxWidth: '200px', objectFit: 'contain' }}
-              onError={(e) => { e.target.src = '/logo-demo.svg'; }}
-            />
-            <div>
-              <div style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
-                {form.company_name || 'Your Company Name'}
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                {form.company_address || 'Address Line'}
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Details & VAT */}
-          <div style={{ textAlign: 'right', fontSize: '12px', color: '#475569', lineHeight: 1.6 }}>
-            <div>Mobile: <strong>{form.mobile || '01XXXXXXXXX'}</strong></div>
-            <div>Email: <strong>{form.email || 'info@company.com'}</strong></div>
-            {form.vat_reg_no && <div>VAT Reg No: <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{form.vat_reg_no}</strong></div>}
-          </div>
+        <div style={{ background: '#ffffff', color: '#1e293b', padding: '16px', borderRadius: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', boxSizing: 'border-box' }}>
+          {/* Invoice & Print Header Logo (Full Banner Scale 2491x356) */}
+          <img
+            src={invoiceLogoPreview || companyLogoPreview}
+            alt="Invoice & Print Header Logo Preview"
+            style={{ width: '100%', maxWidth: '100%', height: 'auto', maxHeight: '180px', objectFit: 'contain', display: 'block' }}
+            onError={(e) => { e.target.src = '/logo-demo.svg'; }}
+          />
         </div>
       </div>
 

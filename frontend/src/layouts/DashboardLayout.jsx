@@ -4,14 +4,13 @@ import { useAuth } from '../store/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 
 const DashboardLayout = () => {
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = React.useRef(null);
 
-  // Close dropdown on outside click
   React.useEffect(() => {
     const handler = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
@@ -27,23 +26,32 @@ const DashboardLayout = () => {
     navigate('/login');
   };
 
+  const quickSwitchRole = async (email, pass) => {
+    setUserMenuOpen(false);
+    await logout();
+    const result = await login(email, pass);
+    if (result.success) {
+      navigate('/dashboard');
+    }
+  };
+
   const getMenuLinks = () => {
-    const role = user?.role || 'salesman';
+    const role = user?.role || 'staff';
 
     const links = [
-      { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'manager', 'salesman'], icon: 'grid' },
+      { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'grid' },
       { path: '/customers', label: 'Customers', roles: ['admin', 'manager', 'salesman'], icon: 'users' },
       { path: '/suppliers', label: 'Suppliers', roles: ['admin', 'manager'], icon: 'truck' },
       { path: '/purchases', label: 'Purchases', roles: ['admin', 'manager'], icon: 'box' },
-      { path: '/products', label: 'Products', roles: ['admin', 'manager', 'salesman'], icon: 'box' },
+      { path: '/products', label: 'Products & Stock', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'box' },
       { path: '/quotations', label: 'Quotations', roles: ['admin', 'manager', 'salesman'], icon: 'file-text' },
       { path: '/orders', label: role === 'salesman' ? 'My Orders' : 'Orders', roles: ['admin', 'manager', 'salesman'], icon: 'shopping-cart' },
-      { path: '/invoices', label: 'Invoices', roles: ['admin', 'manager', 'salesman'], icon: 'invoice' },
+      { path: '/invoices', label: 'Invoices & Deliveries', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'invoice' },
       { path: '/payments', label: 'Payments', roles: ['admin'], icon: 'credit-card' },
-      { path: '/vouchers-expenses', label: 'Vouchers & Expenses', roles: ['admin', 'manager'], icon: 'file-text' },
+      { path: '/vouchers-expenses', label: 'Vouchers & Expenses', roles: ['admin', 'manager', 'staff'], icon: 'file-text' },
       { path: '/reports', label: role === 'manager' ? 'Reports (Ltd)' : 'Reports', roles: ['admin', 'manager'], icon: 'bar-chart' },
+      { path: '/admin-access', label: 'Admin Access', roles: ['admin'], icon: 'key' },
       { path: '/audit-logs', label: 'Audit Logs', roles: ['admin'], icon: 'shield' },
-      { path: '/access-setup', label: 'Access Setup', roles: ['admin'], icon: 'key' },
       { path: '/database-backup', label: 'Database Backup', roles: ['admin'], icon: 'database' },
       { path: '/settings', label: 'Setting', roles: ['admin'], icon: 'cog' },
     ];
@@ -102,7 +110,7 @@ const DashboardLayout = () => {
       ),
       'credit-card': (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
       ),
       'bar-chart': (
@@ -119,180 +127,185 @@ const DashboardLayout = () => {
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="20" height="20">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
         </svg>
-      ),
+      )
     };
 
-    return icons[type] || null;
+    return icons[type] || icons.grid;
   };
 
-  const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+  const roleColors = {
+    admin: '#ef4444',
+    manager: '#3b82f6',
+    salesman: '#10b981',
+    staff: '#f59e0b',
+  };
+
+  const userRole = user?.role || 'staff';
+  const roleColor = roleColors[userRole] || '#00f2fe';
 
   return (
     <div className="dashboard-container">
-      {/* Sidebar - Persistent on desktop, responsive slideout on mobile */}
-      <aside className={`dashboard-sidebar ${mobileOpen ? 'open' : ''}`}>
-        <div className="sidebar-brand">
-          <span className="logo-icon">BK</span>
-          <h2>Becha Kena ERP</h2>
+      {/* Sidebar Overlay for Mobile */}
+      {mobileOpen && (
+        <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="brand-logo" style={{ background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)', borderRadius: '10px', color: '#0f172a', fontWeight: '900', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>DB</div>
+            <div style={{ flex: 1, marginLeft: '10px' }}>
+              <div style={{ fontWeight: '800', fontSize: '15px', color: '#f8fafc' }}>Dhaka Blinds</div>
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>IMS & ERP Portal</div>
+            </div>
+            <button className="mobile-close-btn" onClick={() => setMobileOpen(false)}>×</button>
+          </div>
+          <Link
+            to={userRole === 'admin' ? '/admin-access' : '/my-profile'}
+            style={{
+              alignSelf: 'flex-start',
+              background: `${roleColor}20`,
+              border: `1px solid ${roleColor}60`,
+              color: roleColor,
+              fontSize: '10px',
+              fontWeight: '800',
+              textTransform: 'uppercase',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              letterSpacing: '0.5px',
+              textDecoration: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            ● {userRole} Access
+          </Link>
         </div>
 
-        <nav className="sidebar-nav">
-          <ul>
-            {getMenuLinks().map((link) => {
-              const isActive = location.pathname === link.path;
-              return (
-                <li key={link.path}>
-                  <Link
-                    to={link.path}
-                    className={`sidebar-link ${isActive ? 'active' : ''}`}
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <span className="link-icon">{renderIcon(link.icon)}</span>
-                    <span className="link-label">{link.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="user-profile-summary">
-            <div className="avatar-circle">
-              {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-            </div>
-            <div className="user-details">
-              <h4>{user?.name}</h4>
-              <span className="role-tag">{capitalize(user?.role)}</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Overlay for mobile sidebar */}
-      {mobileOpen && <div className="sidebar-overlay" onClick={() => setMobileOpen(false)}></div>}
-
-      {/* Main Content Area */}
-      <div className="dashboard-main">
-        {/* Top Navbar Header */}
-        <header className="dashboard-header">
-          <button className="mobile-menu-btn" onClick={() => setMobileOpen(!mobileOpen)}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="24" height="24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-
-          <div className="header-breadcrumbs">
-            <span>Home</span> &gt; <span className="active-breadcrumb">{capitalize(location.pathname.substring(1))}</span>
-          </div>
-
-          <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <NotificationBell />
-
-            {/* ── User Dropdown Menu ── */}
-            <div ref={userMenuRef} style={{ position: 'relative' }}>
-              <button
-                onClick={() => setUserMenuOpen(o => !o)}
+        <nav className="sidebar-nav" style={{ padding: '12px 8px' }}>
+          {getMenuLinks().map((link) => {
+            const isActive = location.pathname === link.path;
+            return (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => setMobileOpen(false)}
                 style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  color: '#2d3748',
+                  gap: '12px',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  color: isActive ? '#fff' : '#94a3b8',
+                  background: isActive ? `linear-gradient(135deg, ${roleColor}aa, ${roleColor}dd)` : 'transparent',
+                  fontWeight: isActive ? 700 : 500,
+                  fontSize: '14px',
+                  marginBottom: '4px',
+                  textDecoration: 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span className="nav-icon" style={{ opacity: isActive ? 1 : 0.7 }}>{renderIcon(link.icon)}</span>
+                <span className="nav-label">{link.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="main-wrapper">
+        {/* Header Bar */}
+        <header className="header">
+          <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button className="mobile-toggle-btn" onClick={() => setMobileOpen(!mobileOpen)}>
+              ☰
+            </button>
+            <div className="page-title" style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc', textTransform: 'capitalize' }}>
+              {location.pathname.replace('/', '').replace('-', ' ') || 'Dashboard'}
+            </div>
+          </div>
+
+          <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <NotificationBell />
+
+            {/* User Dropdown */}
+            <div style={{ position: 'relative' }} ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  color: '#f8fafc',
                   fontWeight: 600,
                   fontSize: '14px',
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  transition: 'background .15s',
+                  padding: '6px 12px',
+                  borderRadius: '10px',
+                  cursor: 'pointer'
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <div style={{
                   width: '32px', height: '32px',
                   borderRadius: '50%',
-                  background: 'linear-gradient(135deg,#007bff,#0056b3)',
+                  background: `linear-gradient(135deg, ${roleColor}, ${roleColor}aa)`,
                   color: '#fff',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700, fontSize: '14px', flexShrink: 0
+                  fontWeight: 800, fontSize: '13px', flexShrink: 0
                 }}>
                   {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <span>{user?.name || 'User'}</span>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  width="14" height="14"
-                  style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ lineHeight: '1.2', fontSize: '13px' }}>{user?.name || 'User'}</div>
+                  <div style={{ fontSize: '10px', color: roleColor, fontWeight: 700, textTransform: 'uppercase' }}>{userRole}</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14" height="14" style={{ transform: userMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
-              {/* Dropdown Panel */}
               {userMenuOpen && (
                 <div style={{
                   position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                  background: '#fff',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '10px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,.12)',
-                  minWidth: '190px',
+                  background: '#0f172a',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '12px',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+                  minWidth: '240px',
                   zIndex: 1000,
-                  overflow: 'hidden',
-                  animation: 'fadeIn .15s ease'
+                  overflow: 'hidden'
                 }}>
                   {/* User Info Header */}
-                  <div style={{
-                    padding: '14px 16px',
-                    borderBottom: '1px solid #f0f0f0',
-                    background: '#f8f9fa'
-                  }}>
-                    <div style={{ fontWeight: 700, fontSize: '14px', color: '#1a2f5a' }}>{user?.name}</div>
-                    <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '2px', textTransform: 'capitalize' }}>
-                      {user?.role}
+                  <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: '#f8fafc' }}>{user?.name}</div>
+                    <div style={{ fontSize: '12px', color: roleColor, marginTop: '2px', fontWeight: '700', textTransform: 'capitalize' }}>
+                      {userRole} Account
                     </div>
                   </div>
 
-                  {/* Menu Items */}
-                  {[
-                    { label: '⚙️ Setting',           path: '/settings',        show: user?.role === 'admin' },
-                    { label: '👤 My Profile',        path: '/my-profile',      show: true },
-                    { label: '🏢 Company Profile',   path: '/company-profile', show: user?.role === 'admin' },
-                    { label: '🔑 Change Password',   path: '/my-profile',      show: true },
-                  ].filter(m => m.show).map((item, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setUserMenuOpen(false);
-                        if (item.path) navigate(item.path);
-                      }}
-                      style={{
-                        display: 'block', width: '100%', textAlign: 'left',
-                        padding: '11px 16px', background: 'transparent', border: 'none',
-                        fontSize: '14px', color: '#374151', cursor: 'pointer',
-                        transition: 'background .12s',
-                        borderBottom: '1px solid #f9f9f9'
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  {/* Role Switcher Section */}
+                  <div style={{ padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      ⚡ Switch Role Demo
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                      <button onClick={() => quickSwitchRole('admin@bechakenarp.com', 'Admin@1234')} style={{ background: userRole === 'admin' ? '#ef4444' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '6px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Admin</button>
+                      <button onClick={() => quickSwitchRole('kamal@bechakenarp.com', 'Manager@1234')} style={{ background: userRole === 'manager' ? '#3b82f6' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '6px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Manager</button>
+                      <button onClick={() => quickSwitchRole('rahim@bechakenarp.com', 'Password1234')} style={{ background: userRole === 'salesman' ? '#10b981' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '6px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Salesman</button>
+                      <button onClick={() => quickSwitchRole('staff@bechakenarp.com', 'Staff@1234')} style={{ background: userRole === 'staff' ? '#f59e0b' : 'rgba(255,255,255,0.05)', color: '#fff', border: 'none', padding: '6px', borderRadius: '6px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Staff</button>
+                    </div>
+                  </div>
 
-                  {/* Logout */}
-                  <button
-                    onClick={() => { setUserMenuOpen(false); handleLogout(); }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '11px 16px', background: 'transparent', border: 'none',
-                      fontSize: '14px', color: '#dc3545', cursor: 'pointer',
-                      fontWeight: 600,
-                      transition: 'background .12s',
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#fff5f5'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
+                  {/* Navigation links */}
+                  <button onClick={() => { setUserMenuOpen(false); navigate('/my-profile'); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', background: 'transparent', border: 'none', fontSize: '13px', color: '#cbd5e1', cursor: 'pointer' }}>👤 My Profile</button>
+                  {userRole === 'admin' && (
+                    <button onClick={() => { setUserMenuOpen(false); navigate('/access-setup'); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', background: 'transparent', border: 'none', fontSize: '13px', color: '#cbd5e1', cursor: 'pointer' }}>🔑 User & Access Matrix</button>
+                  )}
+
+                  <button onClick={() => { setUserMenuOpen(false); handleLogout(); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', border: 'none', fontSize: '13px', color: '#fca5a5', cursor: 'pointer', fontWeight: 700, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                     🚪 Logout
                   </button>
                 </div>
@@ -301,7 +314,7 @@ const DashboardLayout = () => {
           </div>
         </header>
 
-        {/* Content Outlet */}
+        {/* Page Content */}
         <main className="dashboard-content">
           <Outlet />
         </main>

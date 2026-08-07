@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\CompanyProfileController;
 use App\Http\Controllers\Api\DatabaseBackupController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\UserController;
 
 // Auth Routes
 Route::prefix('auth')->group(function () {
@@ -93,6 +94,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/update', [AccessSetupController::class, 'update']);
     });
 
+    // Users Management
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::post('/', [UserController::class, 'store']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
+    });
+
     // Database Backups
     Route::prefix('database-backup')->group(function () {
         Route::get('/', [DatabaseBackupController::class, 'index']);
@@ -124,6 +133,11 @@ Route::middleware('auth:sanctum')->group(function () {
         // Balance Transfers
         Route::get('/balance-transfers', [SettingController::class, 'getBalanceTransfers']);
         Route::post('/balance-transfers', [SettingController::class, 'storeBalanceTransfer']);
+
+        // Departments
+        Route::get('/departments', [SettingController::class, 'getDepartments']);
+        Route::post('/departments', [SettingController::class, 'storeDepartment']);
+        Route::delete('/departments/{id}', [SettingController::class, 'deleteDepartment']);
     });
 
     // Purchases & Supplier Ledger
@@ -224,6 +238,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Company Profile
     Route::get('/company-profile', [CompanyProfileController::class, 'show']);
     Route::post('/company-profile', [CompanyProfileController::class, 'update']);
+    Route::get('/company-profile/logo/{filename}', [CompanyProfileController::class, 'getLogoFile']);
 
     // Master Reports API Endpoints (Section 13.13)
     Route::prefix('reports')->group(function () {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -8,6 +9,7 @@ import ChallanPrintModal from '../components/ChallanPrintModal';
 import InvoicePrintModal from '../components/InvoicePrintModal';
 
 const Invoices = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { can } = usePermission();
   const [view, setView] = useState('list'); // 'list' or 'detail'
@@ -105,19 +107,11 @@ const Invoices = () => {
     }
   };
 
-  const handlePrintClick = async (inv, type = 'detailed') => {
-    setPrintType(type);
-    let fullInv = inv;
-    try {
-      const res = await api.get(`/invoices/${inv.id}`);
-      if (res.data && res.data.data) {
-        fullInv = res.data.data;
-      }
-    } catch (e) {
-      console.warn('Using list item fallback for print:', e);
-    }
-    setPrintingInvoice(fullInv);
-    setIsPrintModalOpen(true);
+  const handlePrintClick = (inv, type = 'detailed') => {
+    let typeParam = type;
+    if (type === 'pad-detailed') typeParam = 'pad-sizes';
+    if (type === 'pad-simplified') typeParam = 'pad';
+    navigate(`/invoices/print/${inv.id}?type=${typeParam}`);
   };
 
   const handleSendChallanEmail = async (challanId) => {

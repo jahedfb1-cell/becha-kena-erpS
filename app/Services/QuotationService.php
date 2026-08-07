@@ -153,6 +153,17 @@ class QuotationService
      */
     public function processAndSaveItems(Quotation $quotation, array $items, int $userId): float
     {
+        // Auto-heal/migrate schema if new columns are not yet in database
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('quotation_items', 'section_name')) {
+            \Illuminate\Support\Facades\Schema::table('quotation_items', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->string('section_name')->nullable()->after('quotation_id');
+                $table->string('option_group_id')->nullable()->after('section_name');
+                $table->boolean('is_optional')->default(false)->after('option_group_id');
+                $table->boolean('is_selected')->default(true)->after('is_optional');
+                $table->boolean('is_enabled_for_print')->default(true)->after('is_selected');
+            });
+        }
+
         // Delete existing items (for update scenario)
         $quotation->items()->delete();
 
@@ -175,7 +186,16 @@ class QuotationService
             // Calculate line item
             $calc = $this->calculateLineItem($itemData, $preferredSupplier);
 
+            $isEnabledForPrint = filter_var($itemData['is_enabled_for_print'] ?? true, FILTER_VALIDATE_BOOLEAN);
+            $isSelected = filter_var($itemData['is_selected'] ?? true, FILTER_VALIDATE_BOOLEAN);
+            $isOptional = filter_var($itemData['is_optional'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
             $quotation->items()->create([
+                'section_name'           => $itemData['section_name'] ?? null,
+                'option_group_id'        => $itemData['option_group_id'] ?? null,
+                'is_optional'            => $isOptional,
+                'is_selected'            => $isSelected,
+                'is_enabled_for_print'   => $isEnabledForPrint,
                 'product_id'             => $productId,
                 'product_variant_id'     => $itemData['product_variant_id'] ?? null,
                 'supplier_id'            => $supplierId,
@@ -192,7 +212,10 @@ class QuotationService
                 'notes'                  => $itemData['notes'] ?? null,
             ]);
 
-            $subtotal += $calc['line_total'];
+            // Only add to subtotal if item is enabled for print and selected
+            if ($isEnabledForPrint && $isSelected) {
+                $subtotal += $calc['line_total'];
+            }
         }
 
         return round($subtotal, 2);

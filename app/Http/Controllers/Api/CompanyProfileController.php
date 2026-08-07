@@ -14,6 +14,27 @@ class CompanyProfileController extends Controller
     // Settings file path (stored in storage/app/company_profile.json)
     private string $filePath = 'company_profile.json';
 
+    /** Helper to format public logo URL */
+    private function getLogoUrl(?string $path): string
+    {
+        if (empty($path)) {
+            return url('logo-demo.svg');
+        }
+        
+        $filename = basename($path);
+        $publicFile = public_path('uploads/logos/' . $filename);
+        if (file_exists($publicFile)) {
+            return url('uploads/logos/' . $filename);
+        }
+
+        // Fallback to storage or fallback controller endpoint
+        if (Storage::exists('public/' . $path)) {
+            return url('api/company-profile/logo/' . $filename);
+        }
+
+        return url('logo-demo.svg');
+    }
+
     /** GET /api/company-profile */
     public function show()
     {
@@ -36,14 +57,26 @@ class CompanyProfileController extends Controller
             ];
         }
 
-        $data['company_logo_url'] = !empty($data['company_logo'])
-            ? url('storage/' . $data['company_logo'])
-            : url('logo-demo.svg');
-        $data['invoice_logo_url'] = !empty($data['invoice_logo'])
-            ? url('storage/' . $data['invoice_logo'])
-            : url('logo-demo.svg');
+        $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
+        $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
 
         return $this->successResponse($data, 'Company profile loaded.');
+    }
+
+    /** GET /api/company-profile/logo/{filename} */
+    public function getLogoFile($filename)
+    {
+        $publicPath = public_path('uploads/logos/' . $filename);
+        if (file_exists($publicPath)) {
+            return response()->file($publicPath);
+        }
+
+        $storagePath = storage_path('app/public/logos/' . $filename);
+        if (file_exists($storagePath)) {
+            return response()->file($storagePath);
+        }
+
+        return response()->file(public_path('logo-demo.svg'));
     }
 
     /** POST /api/company-profile */
@@ -59,8 +92,8 @@ class CompanyProfileController extends Controller
             'company_facebook'=> 'nullable|string|max:200',
             'vat_reg_no'      => 'nullable|string|max:100',
             'terms_conditions'=> 'nullable|string|max:3000',
-            'company_logo'    => 'nullable|file|mimes:jpg,jpeg,png,svg|max:2048',
-            'invoice_logo'    => 'nullable|file|mimes:jpg,jpeg,png,svg|max:2048',
+            'company_logo'    => 'nullable|file|mimes:jpg,jpeg,png,svg|max:5120',
+            'invoice_logo'    => 'nullable|file|mimes:jpg,jpeg,png,svg|max:5120',
         ]);
 
         // Load existing data
@@ -83,34 +116,40 @@ class CompanyProfileController extends Controller
             'invoice_logo'     => $existing['invoice_logo'] ?? null,
         ];
 
+        // Ensure public/uploads/logos directory exists
+        $uploadDir = public_path('uploads/logos');
+        if (!file_exists($uploadDir)) {
+            @mkdir($uploadDir, 0777, true);
+        }
+
         // Handle company_logo upload
         if ($request->hasFile('company_logo')) {
-            // Delete old file
-            if (!empty($existing['company_logo'])) {
-                Storage::delete('public/' . $existing['company_logo']);
-            }
-            $path = $request->file('company_logo')->store('logos', 'public');
-            $data['company_logo'] = $path;
+            $file = $request->file('company_logo');
+            $filename = 'company_logo_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($uploadDir, $filename);
+            
+            // Also keep storage copy for backup
+            @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
+            
+            $data['company_logo'] = 'logos/' . $filename;
         }
 
         // Handle invoice_logo upload
         if ($request->hasFile('invoice_logo')) {
-            if (!empty($existing['invoice_logo'])) {
-                Storage::delete('public/' . $existing['invoice_logo']);
-            }
-            $path = $request->file('invoice_logo')->store('logos', 'public');
-            $data['invoice_logo'] = $path;
+            $file = $request->file('invoice_logo');
+            $filename = 'invoice_logo_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($uploadDir, $filename);
+
+            @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
+
+            $data['invoice_logo'] = 'logos/' . $filename;
         }
 
         Storage::put($this->filePath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         // Attach public URLs
-        $data['company_logo_url'] = $data['company_logo']
-            ? url('storage/' . $data['company_logo'])
-            : null;
-        $data['invoice_logo_url'] = $data['invoice_logo']
-            ? url('storage/' . $data['invoice_logo'])
-            : null;
+        $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
+        $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
 
         return $this->successResponse($data, 'Company profile updated successfully.');
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -8,6 +9,7 @@ import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
 
 const Quotations = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { can } = usePermission();
   const [view, setView] = useState('list'); // 'list' or 'form'
@@ -17,10 +19,20 @@ const Quotations = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // List Filters
-  const [filterStatus, setFilterStatus] = useState('');
+  // List Filters & Reporting Period
+  const [reportPeriodType, setReportPeriodType] = useState('monthly');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [filterYear, setFilterYear] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
+  const [filterEmployee, setFilterEmployee] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  const [employees, setEmployees] = useState([]);
+
+  // Pagination & Display Limit
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Form State
   const [isEditMode, setIsEditMode] = useState(false);
@@ -29,10 +41,10 @@ const Quotations = () => {
   // Print & Modal States
   const [printingQuotation, setPrintingQuotation] = useState(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [printType, setPrintType] = useState('detailed'); // 'detailed' | 'simplified'
+  const [printType, setPrintType] = useState('detailed');
   const [selectedTopProductId, setSelectedTopProductId] = useState('');
 
-  // Simple Confirmation Modals
+  // Confirmation Modals
   const [convertConfirmTarget, setConvertConfirmTarget] = useState(null);
   const [approveConfirmTarget, setApproveConfirmTarget] = useState(null);
   
@@ -48,12 +60,20 @@ const Quotations = () => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [sameAsCustomerAddress, setSameAsCustomerAddress] = useState(false);
   
-  const [productBlocks, setProductBlocks] = useState([]);
+  // Dynamic Section-based Form State
+  const [sections, setSections] = useState([
+    {
+      id: 'sec_default',
+      name: 'Section A: Main Items',
+      blocks: []
+    }
+  ]);
+
   const [convenienceCharge, setConvenienceCharge] = useState(0);
   const [otherCharge, setOtherCharge] = useState(0);
   const [otherChargeLabel, setOtherChargeLabel] = useState('');
   const [vatPercentage, setVatPercentage] = useState(0);
-  const [discountType, setDiscountType] = useState('flat'); // 'flat' or 'percentage'
+  const [discountType, setDiscountType] = useState('flat');
   const [discountValue, setDiscountValue] = useState(0);
   
   const [remark, setRemark] = useState('');
@@ -66,24 +86,28 @@ const Quotations = () => {
   // Modal Dialog States
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [excelPasteTargetBlock, setExcelPasteTargetBlock] = useState(null);
+  const [excelPasteText, setExcelPasteText] = useState('');
 
-  // Load basic data
+  // Load basic list data fast
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const [quotesRes, custRes, prodRes] = await Promise.all([
-        api.get('/quotations?all=1'),
-        api.get('/customers?all=1'),
-        api.get('/products')
+      const [quotesRes, custRes, empRes] = await Promise.all([
+        api.get('/quotations?all=1').catch(err => { console.warn('Quotations load error:', err); return { data: { data: [] } }; }),
+        api.get('/customers?all=1').catch(err => { console.warn('Customers load error:', err); return { data: { data: [] } }; }),
+        api.get('/users').catch(err => { console.warn('Users load error:', err); return { data: { data: [] } }; })
       ]);
 
       const quotesData = quotesRes.data?.data?.data || quotesRes.data?.data || [];
       const custsData = custRes.data?.data?.data || custRes.data?.data || [];
-      const prodsData = prodRes.data?.data?.data || prodRes.data?.data || [];
+      const empRaw = empRes.data?.data || (Array.isArray(empRes.data) ? empRes.data : []);
+      const empData = Array.isArray(empRaw) ? empRaw.filter(u => u.role === 'salesman' || u.role === 'manager' || u.role === 'admin') : [];
 
       setQuotations(Array.isArray(quotesData) ? quotesData : []);
       setCustomers(Array.isArray(custsData) ? custsData : []);
-      setProducts(Array.isArray(prodsData) ? prodsData : []);
+      setEmployees(empData);
     } catch (err) {
       console.error('Error loading quotation data:', err);
       setError('Failed to retrieve system records. Please try again.');
@@ -92,47 +116,91 @@ const Quotations = () => {
     }
   }, []);
 
+  // Lazy load products when opening form
+  const loadProducts = useCallback(async () => {
+    if (products.length > 0) return;
+    try {
+      const prodRes = await api.get('/products');
+      const prodsData = prodRes.data?.data?.data || prodRes.data?.data || [];
+      setProducts(Array.isArray(prodsData) ? prodsData : []);
+    } catch (err) {
+      console.warn('Products lazy load error:', err);
+    }
+  }, [products.length]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Ensure customers and products are loaded when opening form view
   useEffect(() => {
-    if (view === 'form' && (customers.length === 0 || products.length === 0)) {
-      loadData();
+    if (view === 'form') {
+      loadProducts();
     }
-  }, [view, customers.length, products.length, loadData]);
+  }, [view, loadProducts]);
 
-  // Selected Customer Details
   const selectedCustomerObj = useMemo(() => {
     return customers.find(c => c.id === parseInt(selectedCustomerId));
   }, [selectedCustomerId, customers]);
 
-  // Sync delivery address if checkbox checked
   useEffect(() => {
     if (sameAsCustomerAddress && selectedCustomerObj) {
       setDeliveryAddress(selectedCustomerObj.address || '');
     }
   }, [sameAsCustomerAddress, selectedCustomerObj]);
 
-  // Filter list view quotations
+  // Filter list view quotations safely
   const filteredQuotations = useMemo(() => {
+    if (!Array.isArray(quotations)) return [];
     return quotations.filter(q => {
+      if (!q) return false;
       const matchesStatus = filterStatus ? q.status === filterStatus : true;
       const matchesCustomer = filterCustomer ? q.customer_id === parseInt(filterCustomer) : true;
-      const matchesSearch = filterSearch 
-        ? (q.quotation_number && q.quotation_number.toLowerCase().includes(filterSearch.toLowerCase())) || 
-          (q.customer?.name && q.customer.name.toLowerCase().includes(filterSearch.toLowerCase()))
-        : true;
-      return matchesStatus && matchesCustomer && matchesSearch;
-    });
-  }, [quotations, filterStatus, filterCustomer, filterSearch]);
+      const matchesEmployee = filterEmployee ? q.salesman_id === parseInt(filterEmployee) : true;
 
-  // Filtered customer list for searchable dropdown (null-safe & display-safe)
+      let matchesPeriod = true;
+      const qDateStr = q.created_at || q.date || '';
+
+      if (qDateStr) {
+        const qDate = new Date(qDateStr);
+        if (!isNaN(qDate.getTime())) {
+          if (reportPeriodType === 'daily' && filterDate) {
+            const dateOnly = qDateStr.substring(0, 10);
+            matchesPeriod = (dateOnly === filterDate);
+          } else if (reportPeriodType === 'monthly') {
+            const qYear = String(qDate.getFullYear());
+            const qMonth = String(qDate.getMonth() + 1).padStart(2, '0');
+            const matchY = filterYear ? qYear === String(filterYear) : true;
+            const matchM = filterMonth ? qMonth === String(filterMonth).padStart(2, '0') : true;
+            matchesPeriod = matchY && matchM;
+          } else if (reportPeriodType === 'yearly') {
+            const qYear = String(qDate.getFullYear());
+            matchesPeriod = filterYear ? qYear === String(filterYear) : true;
+          }
+        }
+      }
+
+      const searchQ = (filterSearch || '').toLowerCase().trim();
+      const matchesSearch = searchQ 
+        ? (q.quotation_number && String(q.quotation_number).toLowerCase().includes(searchQ)) || 
+          (q.customer?.name && String(q.customer.name).toLowerCase().includes(searchQ)) ||
+          (q.customer?.phone && String(q.customer.phone).toLowerCase().includes(searchQ)) ||
+          (q.salesman?.name && String(q.salesman.name).toLowerCase().includes(searchQ)) ||
+          (q.status && String(q.status).toLowerCase().includes(searchQ))
+        : true;
+
+      return matchesStatus && matchesCustomer && matchesEmployee && matchesPeriod && matchesSearch;
+    });
+  }, [quotations, filterStatus, filterCustomer, filterEmployee, reportPeriodType, filterDate, filterMonth, filterYear, filterSearch]);
+
+  const paginatedQuotations = useMemo(() => {
+    const startIndex = (currentPage - 1) * entriesPerPage;
+    return filteredQuotations.slice(startIndex, startIndex + entriesPerPage);
+  }, [filteredQuotations, currentPage, entriesPerPage]);
+
+  const totalPages = Math.ceil(filteredQuotations.length / entriesPerPage) || 1;
+
   const filteredCustomersDropdown = useMemo(() => {
     if (!customerSearchQuery) return customers;
-    
-    // If query matches current selected customer's formatted label, show full list
     if (selectedCustomerObj) {
       const selectedDisplay = `${selectedCustomerObj.company_name || selectedCustomerObj.name} ( ${selectedCustomerObj.phone} )`;
       if (customerSearchQuery === selectedDisplay) {
@@ -150,7 +218,6 @@ const Quotations = () => {
     });
   }, [customers, customerSearchQuery, selectedCustomerObj]);
 
-  // Callback to handle newly created customer
   const handleCustomerCreated = (newCustomer) => {
     setCustomers(prev => [newCustomer, ...prev]);
     setSelectedCustomerId(newCustomer.id);
@@ -160,18 +227,51 @@ const Quotations = () => {
     }
   };
 
-  // Callback to handle newly created product
   const handleProductCreated = (newProduct) => {
     setProducts(prev => [newProduct, ...prev]);
     if (newProduct && newProduct.id) {
-      addProductBlock(newProduct.id);
+      // Add to first section by default
+      if (sections.length > 0) {
+        addProductBlockToSection(sections[0].id, newProduct.id);
+      }
     }
   };
 
-  // Add Product Block
-  const addProductBlock = (targetProductId = null) => {
-    const pId = targetProductId || selectedTopProductId;
-    if (!pId) return;
+  // ----------------------------------------------------
+  // Dynamic Section & Option Helper Methods
+  // ----------------------------------------------------
+
+  const addSection = () => {
+    const char = String.fromCharCode(65 + sections.length);
+    const newSec = {
+      id: 'sec_' + Date.now() + Math.random(),
+      name: `Section ${char}: New Category`,
+      blocks: []
+    };
+    setSections(prev => [...prev, newSec]);
+  };
+
+  const removeSection = (sectionId) => {
+    if (sections.length <= 1) {
+      alert('At least 1 section must remain.');
+      return;
+    }
+    setSections(prev => prev.filter(s => s.id !== sectionId));
+  };
+
+  const updateSectionName = (sectionId, newName) => {
+    setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name: newName } : s));
+  };
+
+  const addProductBlockToSection = (sectionId, targetProductId = null, isOptional = false, optionGroupId = null, initialSelected = true) => {
+    let pId = targetProductId || selectedTopProductId;
+    if (!pId && products.length > 0) {
+      pId = products[0].id;
+    }
+    if (!pId) {
+      alert('Please wait for products to load or add a product first.');
+      return;
+    }
     const prod = products.find(p => p.id === parseInt(pId));
     if (!prod) return;
 
@@ -184,6 +284,11 @@ const Quotations = () => {
 
     const newBlock = {
       id: Date.now() + Math.random(),
+      section_id: sectionId,
+      option_group_id: optionGroupId,
+      is_optional: isOptional,
+      is_selected: initialSelected,
+      is_enabled_for_print: true,
       product_id: prod.id,
       product_code: prod.product_code || '',
       product_name: prod.name,
@@ -206,118 +311,284 @@ const Quotations = () => {
       ]
     };
 
-    setProductBlocks(prev => [...prev, newBlock]);
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: [...sec.blocks, newBlock]
+      };
+    }));
     setSelectedTopProductId('');
   };
 
-  // Add Size Row to Product Block
-  const addSizeRowToBlock = (blockId) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
+  const addOptionGroupToSection = (sectionId) => {
+    const optGrpId = 'opt_' + Date.now() + Math.random();
+    if (products.length > 0) {
+      addProductBlockToSection(sectionId, products[0].id, true, optGrpId, true);
+    } else {
+      alert('Please add products to system first.');
+    }
+  };
+
+  const addOptionVariantToGroup = (sectionId, optionGroupId) => {
+    if (products.length > 0) {
+      addProductBlockToSection(sectionId, products[0].id, true, optionGroupId, false);
+    }
+  };
+
+  const toggleOptionSelected = (sectionId, optionGroupId, blockId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
       return {
-        ...block,
-        sizes: [
-          ...block.sizes,
-          {
+        ...sec,
+        blocks: sec.blocks.map(b => {
+          if (b.option_group_id === optionGroupId) {
+            return { ...b, is_selected: b.id === blockId };
+          }
+          return b;
+        })
+      };
+    }));
+  };
+
+  const toggleBlockPrintEnabled = (sectionId, blockId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(b => {
+          if (b.id === blockId) {
+            return { ...b, is_enabled_for_print: !b.is_enabled_for_print };
+          }
+          return b;
+        })
+      };
+    }));
+  };
+
+  const addSizeRowToBlock = (sectionId, blockId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+          return {
+            ...block,
+            sizes: [
+              ...block.sizes,
+              {
+                id: Date.now() + Math.random(),
+                width: '',
+                height: '',
+                pcs: 1,
+                actual_sqft: 0,
+                billed_sqft: 0,
+                line_total: 0
+              }
+            ]
+          };
+        })
+      };
+    }));
+  };
+
+  const removeSizeRowFromBlock = (sectionId, blockId, sizeId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+          const updatedSizes = block.sizes.filter(s => s.id !== sizeId);
+          if (updatedSizes.length === 0) {
+            updatedSizes.push({
+              id: Date.now() + Math.random(),
+              width: '',
+              height: '',
+              pcs: 1,
+              actual_sqft: 0,
+              billed_sqft: 0,
+              line_total: 0
+            });
+          }
+          return {
+            ...block,
+            sizes: updatedSizes
+          };
+        })
+      };
+    }));
+  };
+
+  const removeProductBlock = (sectionId, blockId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.filter(b => b.id !== blockId)
+      };
+    }));
+  };
+
+  const handleImportExcelSizes = () => {
+    if (!excelPasteTargetBlock || !excelPasteText.trim()) return;
+    const { sectionId, blockId } = excelPasteTargetBlock;
+
+    const lines = excelPasteText.split('\n');
+    const newSizeRows = [];
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const parts = trimmed.split(/[\t,;\s]+/).map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const w = parseFloat(parts[0]) || 0;
+        const h = parseFloat(parts[1]) || 0;
+        const pcs = parts[2] ? (parseInt(parts[2]) || 1) : 1;
+
+        if (w > 0 && h > 0) {
+          newSizeRows.push({
             id: Date.now() + Math.random(),
-            width: '',
-            height: '',
-            pcs: 1,
+            width: w,
+            height: h,
+            pcs: pcs,
             actual_sqft: 0,
             billed_sqft: 0,
             line_total: 0
+          });
+        }
+      }
+    });
+
+    if (newSizeRows.length === 0) {
+      alert('No valid measurements found. Please ensure you copied Width and Height columns (e.g. 60 [Tab] 80 [Tab] 2).');
+      return;
+    }
+
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+
+          const unitPrice = parseFloat(block.unit_price) || 0;
+          const minSqft = parseFloat(block.min_billing_sqft) || 0;
+
+          const calculatedRows = newSizeRows.map(row => {
+            const w = parseFloat(row.width) || 0;
+            const h = parseFloat(row.height) || 0;
+            const pcs = parseInt(row.pcs) || 1;
+            const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
+            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+            const totalBilledSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+            const lineTotal = Math.round((totalBilledSqft * unitPrice) * 100) / 100;
+
+            return {
+              ...row,
+              actual_sqft: singlePieceSqft,
+              billed_sqft: totalBilledSqft,
+              line_total: lineTotal
+            };
+          });
+
+          const existingValidSizes = block.sizes.filter(s => parseFloat(s.width) > 0 && parseFloat(s.height) > 0);
+          return {
+            ...block,
+            sizes: [...existingValidSizes, ...calculatedRows]
+          };
+        })
+      };
+    }));
+
+    setExcelPasteTargetBlock(null);
+    setExcelPasteText('');
+  };
+
+  const handleSizeChange = (sectionId, blockId, sizeId, field, value) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+
+          const unitPrice = parseFloat(block.unit_price) || 0;
+          const minSqft = parseFloat(block.min_billing_sqft) || 0;
+
+          const updatedSizes = block.sizes.map(size => {
+            if (size.id !== sizeId) return size;
+            const updatedSize = { ...size, [field]: value };
+
+            const w = parseFloat(updatedSize.width) || 0;
+            const h = parseFloat(updatedSize.height) || 0;
+            const pcs = parseInt(updatedSize.pcs) || 1;
+
+            const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
+            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+            const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+            const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
+
+            return {
+              ...updatedSize,
+              actual_sqft: singlePieceSqft,
+              billed_sqft: billedSqft,
+              line_total: lineTotal
+            };
+          });
+
+          return {
+            ...block,
+            sizes: updatedSizes
+          };
+        })
+      };
+    }));
+  };
+
+  const handleBlockChange = (sectionId, blockId, field, value) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+          
+          let updatedBlock = { ...block, [field]: value };
+
+          if (field === 'product_id') {
+            const prod = products.find(p => p.id === parseInt(value));
+            if (prod) {
+              const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
+              updatedBlock.product_name = prod.name;
+              updatedBlock.product_code = prod.product_code || '';
+              updatedBlock.unit_price = parseFloat(prod.default_unit_price) || 0;
+              updatedBlock.min_billing_sqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
+              updatedBlock.cost_price = priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0;
+              updatedBlock.supplier_id = priorityLink ? priorityLink.supplier_id : '';
+            }
           }
-        ]
+
+          if (field === 'unit_price' || field === 'product_id') {
+            const unitPrice = parseFloat(updatedBlock.unit_price) || 0;
+            const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
+            updatedBlock.sizes = updatedBlock.sizes.map(size => {
+              const w = parseFloat(size.width) || 0;
+              const h = parseFloat(size.height) || 0;
+              const pcs = parseInt(size.pcs) || 1;
+              const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
+              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+              const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+              const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
+              return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
+            });
+          }
+
+          return updatedBlock;
+        })
       };
-    }));
-  };
-
-  // Remove Size Row from Product Block
-  const removeSizeRowFromBlock = (blockId, sizeId) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
-      const updatedSizes = block.sizes.filter(s => s.id !== sizeId);
-      if (updatedSizes.length === 0) {
-        updatedSizes.push({
-          id: Date.now() + Math.random(),
-          width: '',
-          height: '',
-          pcs: 1,
-          actual_sqft: 0,
-          billed_sqft: 0,
-          line_total: 0
-        });
-      }
-      return {
-        ...block,
-        sizes: updatedSizes
-      };
-    }));
-  };
-
-  // Remove Product Block
-  const removeProductBlock = (blockId) => {
-    setProductBlocks(prev => prev.filter(b => b.id !== blockId));
-  };
-
-  // Handle inner size changes
-  const handleSizeChange = (blockId, sizeId, field, value) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
-
-      const unitPrice = parseFloat(block.unit_price) || 0;
-      const minSqft = parseFloat(block.min_billing_sqft) || 0;
-
-      const updatedSizes = block.sizes.map(size => {
-        if (size.id !== sizeId) return size;
-        const updatedSize = { ...size, [field]: value };
-
-        const w = parseFloat(updatedSize.width) || 0;
-        const h = parseFloat(updatedSize.height) || 0;
-        const pcs = parseInt(updatedSize.pcs) || 1;
-
-        const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-        const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-        const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
-        const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
-
-        return {
-          ...updatedSize,
-          actual_sqft: singlePieceSqft,
-          billed_sqft: billedSqft,
-          line_total: lineTotal
-        };
-      });
-
-      return {
-        ...block,
-        sizes: updatedSizes
-      };
-    }));
-  };
-
-  // Handle block field changes (e.g. unit_price, notes)
-  const handleBlockChange = (blockId, field, value) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
-      const updatedBlock = { ...block, [field]: value };
-
-      if (field === 'unit_price') {
-        const unitPrice = parseFloat(value) || 0;
-        const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
-        updatedBlock.sizes = updatedBlock.sizes.map(size => {
-          const w = parseFloat(size.width) || 0;
-          const h = parseFloat(size.height) || 0;
-          const pcs = parseInt(size.pcs) || 1;
-          const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-          const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-          const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
-          const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
-          return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
-        });
-      }
-
-      return updatedBlock;
     }));
   };
 
@@ -325,9 +596,13 @@ const Quotations = () => {
   const financialSummary = useMemo(() => {
     let subtotal = 0;
 
-    productBlocks.forEach(block => {
-      block.sizes.forEach(size => {
-        subtotal += parseFloat(size.line_total) || 0;
+    sections.forEach(sec => {
+      sec.blocks.forEach(block => {
+        if (block.is_enabled_for_print !== false && block.is_selected !== false) {
+          block.sizes.forEach(size => {
+            subtotal += parseFloat(size.line_total) || 0;
+          });
+        }
       });
     });
 
@@ -350,9 +625,9 @@ const Quotations = () => {
       discountAmount: discAmt,
       netAmount: net,
     };
-  }, [productBlocks, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
+  }, [sections, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
 
-  // Form Validation & Save
+  // Save Quotation
   const saveQuotation = async (statusOverride = null) => {
     setFormError('');
     
@@ -361,49 +636,60 @@ const Quotations = () => {
       return;
     }
 
-    if (productBlocks.length === 0) {
+    let totalBlockCount = 0;
+    sections.forEach(s => totalBlockCount += s.blocks.length);
+
+    if (totalBlockCount === 0) {
       setFormError('At least 1 product line item is required.');
       return;
     }
 
     const items = [];
-    for (let i = 0; i < productBlocks.length; i++) {
-      const block = productBlocks[i];
-      if (!block.product_id) {
-        setFormError(`Block #${i + 1}: Product must be selected.`);
-        return;
-      }
-      if (parseFloat(block.unit_price) <= 0) {
-        setFormError(`Block #${i + 1} (${block.product_name}): Unit price must be greater than 0.`);
-        return;
-      }
-
-      let validSizeCount = 0;
-      block.sizes.forEach((s) => {
-        const w = parseFloat(s.width) || 0;
-        const h = parseFloat(s.height) || 0;
-        const pcs = parseInt(s.pcs) || 1;
-
-        if (w > 0 && h > 0 && pcs > 0) {
-          validSizeCount++;
-          items.push({
-            product_id: block.product_id,
-            product_variant_id: block.product_variant_id || null,
-            supplier_id: block.supplier_id || null,
-            width: w,
-            height: h,
-            pcs: pcs,
-            unit_price: parseFloat(block.unit_price) || 0,
-            cost_price: block.cost_price || 0,
-            min_billing_sqft: block.min_billing_sqft || 0,
-            notes: block.notes || '',
-          });
+    for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+      const sec = sections[sIdx];
+      for (let i = 0; i < sec.blocks.length; i++) {
+        const block = sec.blocks[i];
+        if (!block.product_id) {
+          setFormError(`[${sec.name}] Block #${i + 1}: Product must be selected.`);
+          return;
         }
-      });
+        if (parseFloat(block.unit_price) <= 0) {
+          setFormError(`[${sec.name}] Product "${block.product_name}": Unit price must be greater than 0.`);
+          return;
+        }
 
-      if (validSizeCount === 0) {
-        setFormError(`Product "${block.product_name}": At least 1 valid size (Length & Height greater than 0) is required.`);
-        return;
+        let validSizeCount = 0;
+        block.sizes.forEach((s) => {
+          const w = parseFloat(s.width) || 0;
+          const h = parseFloat(s.height) || 0;
+          const pcs = parseInt(s.pcs) || 1;
+
+          if (w > 0 && h > 0 && pcs > 0) {
+            validSizeCount++;
+            items.push({
+              section_name: sec.name,
+              option_group_id: block.option_group_id || null,
+              is_optional: block.is_optional || false,
+              is_selected: block.is_selected !== false,
+              is_enabled_for_print: block.is_enabled_for_print !== false,
+              product_id: block.product_id,
+              product_variant_id: block.product_variant_id || null,
+              supplier_id: block.supplier_id || null,
+              width: w,
+              height: h,
+              pcs: pcs,
+              unit_price: parseFloat(block.unit_price) || 0,
+              cost_price: block.cost_price || 0,
+              min_billing_sqft: block.min_billing_sqft || 0,
+              notes: block.notes || '',
+            });
+          }
+        });
+
+        if (validSizeCount === 0) {
+          setFormError(`[${sec.name}] Product "${block.product_name}": At least 1 valid size (Width & Height greater than 0) is required.`);
+          return;
+        }
       }
     }
 
@@ -472,14 +758,19 @@ const Quotations = () => {
       setDiscountValue(parseFloat(fullQ.discount_value) || 0);
       setRemark(fullQ.note || '');
 
-      // Group items by product_id + unit_price + notes
-      const blockMap = new Map();
+      // Group items by section_name -> option_group_id / product_id / unit_price / notes
+      const sectionMap = new Map();
 
       (fullQ.items || []).forEach(item => {
-        const key = `${item.product_id}_${item.unit_price}_${item.notes || ''}`;
-        const prod = products.find(p => p.id === item.product_id) || item.product;
-        const prodName = prod ? `${prod.name} ${prod.product_code ? `( ${prod.product_code} )` : ''}` : `Product #${item.product_id}`;
+        const secName = item.section_name || 'Section A: Main Items';
+        if (!sectionMap.has(secName)) {
+          sectionMap.set(secName, new Map());
+        }
+        const blockMap = sectionMap.get(secName);
+        const optGrpId = item.option_group_id || null;
+        const key = `${optGrpId}_${item.product_id}_${item.unit_price}_${item.notes || ''}`;
 
+        const prod = products.find(p => p.id === item.product_id) || item.product;
         const width = parseFloat(item.width) || 0;
         const height = parseFloat(item.height) || 0;
         const pcs = parseInt(item.pcs) || 1;
@@ -505,6 +796,10 @@ const Quotations = () => {
         } else {
           blockMap.set(key, {
             id: Date.now() + Math.random(),
+            option_group_id: optGrpId,
+            is_optional: item.is_optional || false,
+            is_selected: item.is_selected !== false,
+            is_enabled_for_print: item.is_enabled_for_print !== false,
             product_id: item.product_id,
             product_code: prod?.product_code || '',
             product_name: prod?.name || `Product #${item.product_id}`,
@@ -519,7 +814,27 @@ const Quotations = () => {
         }
       });
 
-      setProductBlocks(Array.from(blockMap.values()));
+      const loadedSections = [];
+      let sCounter = 1;
+      sectionMap.forEach((blockMap, secName) => {
+        const sId = 'sec_' + sCounter++;
+        const blocks = Array.from(blockMap.values()).map(b => ({ ...b, section_id: sId }));
+        loadedSections.push({
+          id: sId,
+          name: secName,
+          blocks: blocks
+        });
+      });
+
+      if (loadedSections.length === 0) {
+        loadedSections.push({
+          id: 'sec_default',
+          name: 'Section A: Main Items',
+          blocks: []
+        });
+      }
+
+      setSections(loadedSections);
       setView('form');
     } catch (err) {
       console.error('Error opening quotation edit form:', err);
@@ -529,19 +844,11 @@ const Quotations = () => {
     }
   };
 
-  const handlePrintClick = async (q, type = 'detailed') => {
-    setPrintType(type);
-    let fullQ = q;
-    try {
-      const res = await api.get(`/quotations/${q.id}`);
-      if (res.data && res.data.data) {
-        fullQ = res.data.data;
-      }
-    } catch (e) {
-      console.warn('Using list item fallback for print:', e);
-    }
-    setPrintingQuotation(fullQ);
-    setIsPrintModalOpen(true);
+  const handlePrintClick = (q, type = 'detailed') => {
+    let typeParam = type;
+    if (type === 'pad-detailed') typeParam = 'pad-sizes';
+    if (type === 'pad-simplified') typeParam = 'pad';
+    navigate(`/quotations/print/${q.id}?type=${typeParam}`);
   };
 
   const resetForm = () => {
@@ -553,7 +860,13 @@ const Quotations = () => {
     setCustomerSearchQuery('');
     setDeliveryAddress('');
     setSameAsCustomerAddress(false);
-    setProductBlocks([]);
+    setSections([
+      {
+        id: 'sec_default',
+        name: 'Section A: Main Items',
+        blocks: []
+      }
+    ]);
     setConvenienceCharge(0);
     setOtherCharge(0);
     setVatPercentage(0);
@@ -619,29 +932,272 @@ const Quotations = () => {
             </button>
           </div>
 
-          {/* Filters Row */}
-          <div className="welcome-banner" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '16px' }}>
-            <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '150px' }}>
-              <label style={{ fontSize: '12px' }}>Search ID/Customer</label>
-              <input type="text" placeholder="Search..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px' }} />
+          {/* Top Filter Card Section */}
+          <div style={{
+            background: 'var(--bg-card, #ffffff)',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+            padding: '20px',
+            marginBottom: '20px',
+            border: '1px solid var(--border, #e2e8f0)'
+          }}>
+            <div style={{ display: 'flex', gap: '28px', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'var(--text-main, #2d3748)' }}>
+                <input
+                  type="radio"
+                  name="reportPeriodType"
+                  value="daily"
+                  checked={reportPeriodType === 'daily'}
+                  onChange={() => setReportPeriodType('daily')}
+                  style={{ width: '16px', height: '16px', accentColor: '#00a699', cursor: 'pointer' }}
+                />
+                Daily Reports
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'var(--text-main, #2d3748)' }}>
+                <input
+                  type="radio"
+                  name="reportPeriodType"
+                  value="monthly"
+                  checked={reportPeriodType === 'monthly'}
+                  onChange={() => setReportPeriodType('monthly')}
+                  style={{ width: '16px', height: '16px', accentColor: '#00a699', cursor: 'pointer' }}
+                />
+                Monthly Reports
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'var(--text-main, #2d3748)' }}>
+                <input
+                  type="radio"
+                  name="reportPeriodType"
+                  value="yearly"
+                  checked={reportPeriodType === 'yearly'}
+                  onChange={() => setReportPeriodType('yearly')}
+                  style={{ width: '16px', height: '16px', accentColor: '#00a699', cursor: 'pointer' }}
+                />
+                Yearly Reports
+              </label>
             </div>
 
-            <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '150px' }}>
-              <label style={{ fontSize: '12px' }}>Status</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }}>
-                <option value="">All Statuses</option>
-                <option value="quotation">Quotation Draft</option>
-                <option value="pending_approval">Pending Approval</option>
-                <option value="pending_reapproval">Pending Re-Approval</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="invoiced">Invoiced</option>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              {reportPeriodType === 'daily' && (
+                <div style={{ flex: '1 1 160px', minWidth: '150px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main, #1a202c)', marginBottom: '6px', display: 'block' }}>
+                    Select Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '14px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '6px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+                  />
+                </div>
+              )}
+
+              {reportPeriodType === 'monthly' && (
+                <>
+                  <div style={{ flex: '1 1 160px', minWidth: '140px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main, #1a202c)', marginBottom: '6px', display: 'block' }}>
+                      Select Month *
+                    </label>
+                    <select
+                      value={filterMonth}
+                      onChange={(e) => setFilterMonth(e.target.value)}
+                      style={{ width: '100%', padding: '8px 12px', fontSize: '14px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '6px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+                    >
+                      <option value="">Select One</option>
+                      <option value="01">01 - January</option>
+                      <option value="02">02 - February</option>
+                      <option value="03">03 - March</option>
+                      <option value="04">04 - April</option>
+                      <option value="05">05 - May</option>
+                      <option value="06">06 - June</option>
+                      <option value="07">07 - July</option>
+                      <option value="08">08 - August</option>
+                      <option value="09">09 - September</option>
+                      <option value="10">10 - October</option>
+                      <option value="11">11 - November</option>
+                      <option value="12">12 - December</option>
+                    </select>
+                  </div>
+
+                  <div style={{ flex: '1 1 140px', minWidth: '130px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main, #1a202c)', marginBottom: '6px', display: 'block' }}>
+                      Select Year *
+                    </label>
+                    <select
+                      value={filterYear}
+                      onChange={(e) => setFilterYear(e.target.value)}
+                      style={{ width: '100%', padding: '8px 12px', fontSize: '14px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '6px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+                    >
+                      <option value="">Select One</option>
+                      <option value="2024">2024</option>
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                      <option value="2027">2027</option>
+                      <option value="2028">2028</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {reportPeriodType === 'yearly' && (
+                <div style={{ flex: '1 1 160px', minWidth: '140px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main, #1a202c)', marginBottom: '6px', display: 'block' }}>
+                    Select Year *
+                  </label>
+                  <select
+                    value={filterYear}
+                    onChange={(e) => setFilterYear(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '14px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '6px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+                  >
+                    <option value="">Select One</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main, #1a202c)', marginBottom: '6px', display: 'block' }}>
+                  Select Customer *
+                </label>
+                <select
+                  value={filterCustomer}
+                  onChange={(e) => setFilterCustomer(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: '14px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '6px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+                >
+                  <option value="">All Customer</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.phone || c.company_name || 'N/A'})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main, #1a202c)', marginBottom: '6px', display: 'block' }}>
+                  Select Employee *
+                </label>
+                <select
+                  value={filterEmployee}
+                  onChange={(e) => setFilterEmployee(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: '14px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '6px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+                >
+                  <option value="">All Employee</option>
+                  {employees.map(e => (
+                    <option key={e.salesperson_id || e.id} value={e.salesperson_id || e.id}>{e.salesperson_name || e.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ flex: '1 1 160px', minWidth: '140px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main, #1a202c)', marginBottom: '6px', display: 'block' }}>
+                  Status
+                </label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', fontSize: '14px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '6px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="quotation">Quotation Draft</option>
+                  <option value="pending_approval">Pending Approval</option>
+                  <option value="pending_reapproval">Pending Re-Approval</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="invoiced">Invoiced</option>
+                </select>
+              </div>
+
+              <div style={{ flex: '0 0 auto' }}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  style={{
+                    background: '#00a699',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '9px 20px',
+                    borderRadius: '6px',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 4px rgba(0,166,153,0.3)'
+                  }}
+                >
+                  🔍 Search
+                </button>
+              </div>
+
+              <div style={{ flex: '0 0 auto' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterDate('');
+                    setFilterMonth('');
+                    setFilterYear('');
+                    setFilterCustomer('');
+                    setFilterEmployee('');
+                    setFilterStatus('');
+                    setFilterSearch('');
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    background: '#64748b',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '9px 16px',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🔄 Reset
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-main, #475569)' }}>
+              <span>Show</span>
+              <select
+                value={entriesPerPage}
+                onChange={(e) => {
+                  setEntriesPerPage(parseInt(e.target.value));
+                  setCurrentPage(1);
+                }}
+                style={{ padding: '5px 10px', borderRadius: '4px', border: '1px solid var(--border, #cbd5e1)', fontSize: '14px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
               </select>
+              <span>entries</span>
             </div>
 
-            <button className="logout-btn" onClick={() => { setFilterSearch(''); setFilterStatus(''); }} style={{ alignSelf: 'flex-end', height: '34px' }}>
-              Reset Filters
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-main, #475569)' }}>
+              <span>Search:</span>
+              <input
+                type="text"
+                placeholder="Type to filter..."
+                value={filterSearch}
+                onChange={(e) => {
+                  setFilterSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border, #cbd5e1)', fontSize: '14px', width: '220px', background: 'var(--bg-base, #fff)', color: 'var(--text-main)' }}
+              />
+            </div>
           </div>
 
           {loading ? (
@@ -660,12 +1216,12 @@ const Quotations = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredQuotations.length === 0 ? (
+                  {paginatedQuotations.length === 0 ? (
                     <tr>
                       <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-main)' }}>No quotations found.</td>
                     </tr>
                   ) : (
-                    filteredQuotations.map((q) => (
+                    paginatedQuotations.map((q) => (
                       <tr key={q.id}>
                         <td><strong>{q.quotation_number}</strong></td>
                         <td>{q.customer?.name}</td>
@@ -717,7 +1273,7 @@ const Quotations = () => {
                               <button className="text-btn" onClick={() => setApproveConfirmTarget(q)} style={{ marginLeft: '8px', color: 'var(--success)', fontWeight: 700 }}>
                                 ✅ Approve
                               </button>
-                              <button className="text-btn" onClick={() => handleReject(q.id)} style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 700 }}>
+                              <button className="text-btn" onClick={() => handleArchive(q.id)} style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 700 }}>
                                 ❌ Reject
                               </button>
                             </>
@@ -734,23 +1290,79 @@ const Quotations = () => {
                   )}
                 </tbody>
               </table>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 16px', borderTop: '1px solid var(--border, #e2e8f0)', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                  Showing {filteredQuotations.length === 0 ? 0 : (currentPage - 1) * entriesPerPage + 1} to {Math.min(currentPage * entriesPerPage, filteredQuotations.length)} of {filteredQuotations.length} entries
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border, #cbd5e1)', background: currentPage === 1 ? 'var(--bg-subtle, #f1f5f9)' : 'var(--bg-base, #fff)', color: 'var(--text-main)', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2)).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setCurrentPage(p)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '13px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border, #cbd5e1)',
+                        background: p === currentPage ? '#00a699' : 'var(--bg-base, #fff)',
+                        color: p === currentPage ? '#ffffff' : 'var(--text-main)',
+                        fontWeight: p === currentPage ? 'bold' : 'normal',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    disabled={currentPage === totalPages || filteredQuotations.length === 0}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    style={{ padding: '6px 14px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border, #cbd5e1)', background: currentPage === totalPages || filteredQuotations.length === 0 ? 'var(--bg-subtle, #f1f5f9)' : 'var(--bg-base, #fff)', color: 'var(--text-main)', cursor: currentPage === totalPages || filteredQuotations.length === 0 ? 'not-allowed' : 'pointer' }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </>
       ) : (
-        /* Create/Edit Form View matching sample attached screenshot */
+        /* Create/Edit Form View */
         <div className="animate-fade-in">
           <div className="page-header-row">
             <div>
-              <h1>{isEditMode ? 'Edit Quotation' : 'New Quotation'}</h1>
-              <p>Fill out the quotation details matching the Dhaka Blinds standard order form</p>
+              <h1>{isEditMode ? 'Edit Quotation' : 'New Quotation (Dynamic Builder)'}</h1>
+              <p>Organize items into dynamic sections, options variations, and print toggles</p>
             </div>
-            <button className="btn-outline-back" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                type="button"
+                className="primary-btn" 
+                onClick={addSection}
+                style={{ background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: '#fff', fontWeight: 'bold' }}
+              >
+                ➕ Add Section / Group
+              </button>
+              <button className="btn-outline-back" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
+            </div>
           </div>
+
+          {formError && (
+            <div className="alert alert-danger" style={{ marginBottom: '16px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px 16px', borderRadius: '8px' }}>
+              <strong>⚠️ Validation Error:</strong> {formError}
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
             <div>
-              {/* TOP HEADER SECTION: 3 Columns (Quotation Date, Select Customer, Select Product) */}
+              {/* TOP HEADER SECTION */}
               <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quotation Date *</label>
@@ -806,12 +1418,14 @@ const Quotations = () => {
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Select Product *</label>
+                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quick Add Product to Section *</label>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <select 
                       value={selectedTopProductId} 
                       onChange={(e) => {
-                        if (e.target.value) addProductBlock(e.target.value);
+                        if (e.target.value && sections.length > 0) {
+                          addProductBlockToSection(sections[0].id, e.target.value);
+                        }
                       }}
                       className="modern-form-control"
                     >
@@ -855,260 +1469,460 @@ const Quotations = () => {
                 />
               </div>
 
-              {/* PRODUCT LINE ITEMS TABLE MATCHING SAMPLE ATTACHED SCREENSHOT */}
-              <div className="form-card-section" style={{ overflowX: 'auto' }}>
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '180px', minWidth: '160px' }}>Product Code *</th>
-                      <th style={{ width: '130px', minWidth: '120px' }}>Unit Price</th>
-                      <th style={{ width: '90px', minWidth: '85px' }}>Length</th>
-                      <th style={{ width: '90px', minWidth: '85px' }}>Height</th>
-                      <th style={{ width: '70px', minWidth: '65px' }}>Pcs</th>
-                      <th style={{ width: '120px', minWidth: '110px' }}>Sq.Ft</th>
-                      <th style={{ width: '130px', minWidth: '120px' }}>Quantity</th>
-                      <th style={{ width: '150px', minWidth: '140px' }}>Total Price</th>
-                      <th style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productBlocks.length === 0 ? (
-                      <tr>
-                        <td colSpan="9" style={{ textAlign: 'center', padding: '28px', color: 'var(--text-main)' }}>
-                          No items added yet. Select a product from the <strong>"Select Product *"</strong> dropdown above to add items.
-                        </td>
-                      </tr>
+              {/* DYNAMIC SECTIONS BUILDER LIST */}
+              {sections.map((sec, secIdx) => {
+                // Group blocks in section by option_group_id
+                const normalBlocks = sec.blocks.filter(b => !b.option_group_id);
+                const optionGroups = {};
+                sec.blocks.filter(b => b.option_group_id).forEach(b => {
+                  if (!optionGroups[b.option_group_id]) optionGroups[b.option_group_id] = [];
+                  optionGroups[b.option_group_id].push(b);
+                });
+
+                return (
+                  <div key={sec.id} className="form-card-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '12px', padding: '20px', marginBottom: '24px', position: 'relative' }}>
+                    {/* Section Card Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: 'var(--bg-subtle, #f8fafc)', padding: '12px 16px', borderRadius: '8px', borderLeft: '4px solid #0284c7' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                        <span style={{ fontSize: '18px' }}>📂</span>
+                        <input
+                          type="text"
+                          value={sec.name}
+                          onChange={(e) => updateSectionName(sec.id, e.target.value)}
+                          style={{ fontSize: '16px', fontWeight: 'bold', border: '1px solid transparent', background: 'transparent', padding: '4px 8px', borderRadius: '4px', color: 'var(--text-main)', width: '320px' }}
+                          onFocus={(e) => e.target.style.border = '1px solid #0284c7'}
+                          onBlur={(e) => e.target.style.border = '1px solid transparent'}
+                        />
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => addProductBlockToSection(sec.id)}
+                          style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                          ➕ Add Item
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addOptionGroupToSection(sec.id)}
+                          style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                          🔀 Add Option Group
+                        </button>
+                        {sections.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeSection(sec.id)}
+                            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '7px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            🗑️ Delete Section
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {sec.blocks.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic', background: 'var(--bg-base)', borderRadius: '8px' }}>
+                        No items in this section yet. Click <strong>"+ Add Item"</strong> or <strong>"+ Add Option Group"</strong> above.
+                      </div>
                     ) : (
-                      productBlocks.map((block) => {
-                        const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
-                        const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        
+                        {/* 1. Normal Standard Items Table */}
+                        {normalBlocks.length > 0 && (
+                          <div style={{ overflowX: 'auto' }}>
+                            <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ width: '180px' }}>Product Code / Name *</th>
+                                  <th style={{ width: '120px' }}>Unit Price</th>
+                                  <th style={{ width: '90px' }}>Width</th>
+                                  <th style={{ width: '90px' }}>Height</th>
+                                  <th style={{ width: '70px' }}>Pcs</th>
+                                  <th style={{ width: '120px' }}>Sq.Ft</th>
+                                  <th style={{ width: '140px' }}>Total Price</th>
+                                  <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {normalBlocks.map((block) => {
+                                  const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
+                                  const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
 
-                        return (
-                          <React.Fragment key={block.id}>
-                            {/* Main Product Rows & Inner Size Rows */}
-                            {block.sizes.map((sizeRow, sIdx) => (
-                              <tr key={sizeRow.id} style={{ background: '#fff' }}>
-                                {/* Product Code * ONLY (Rowspan across size rows) */}
-                                {sIdx === 0 && (
-                                  <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', minWidth: '160px', padding: '12px 10px' }}>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => setActiveSupplierPopoverBlockId(prev => prev === block.id ? null : block.id)}
-                                      style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', outline: 'none' }}
-                                      title="Click to view linked Supplier details"
-                                    >
-                                      <span style={{ 
-                                        display: 'inline-flex', 
-                                        alignItems: 'center', 
-                                        gap: '6px', 
-                                        fontWeight: 'bold', 
-                                        fontSize: '14px', 
-                                        color: 'var(--primary)', 
-                                        padding: '4px 8px', 
-                                        backgroundColor: 'rgba(37, 99, 235, 0.08)', 
-                                        borderRadius: '6px',
-                                        border: '1px solid rgba(37, 99, 235, 0.2)'
-                                      }}>
-                                        🏷️ {block.product_code || block.product_name}
-                                      </span>
-                                    </button>
+                                  return (
+                                    <React.Fragment key={block.id}>
+                                      {block.sizes.map((sizeRow, sIdx) => (
+                                        <tr key={sizeRow.id} style={{ background: '#fff' }}>
+                                          
+                                          {/* Product Code / Selection */}
+                                          {sIdx === 0 && (
+                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 10px' }}>
+                                              <select
+                                                value={block.product_id}
+                                                onChange={(e) => handleBlockChange(sec.id, block.id, 'product_id', e.target.value)}
+                                                className="modern-form-control"
+                                                style={{ fontWeight: 'bold', fontSize: '13px' }}
+                                              >
+                                                {products.map(p => (
+                                                  <option key={p.id} value={p.id}>{p.product_code ? `${p.product_code} - ${p.name}` : p.name}</option>
+                                                ))}
+                                              </select>
+                                            </td>
+                                          )}
 
-                                    {/* Linked Supplier Popover Card */}
-                                    {activeSupplierPopoverBlockId === block.id && (
-                                      <div style={{ marginTop: '8px', padding: '10px 12px', background: '#ffffff', border: '1px solid #3b82f6', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.12)', fontSize: '11px', textAlign: 'left', zIndex: 10 }}>
-                                        <div style={{ fontWeight: 'bold', color: '#1e40af', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                          <span>🏢 Linked Supplier Info:</span>
-                                          <span style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => setActiveSupplierPopoverBlockId(null)}>✖</span>
-                                        </div>
-                                        {(() => {
-                                          const prod = products.find(p => p.id === block.product_id);
-                                          const links = prod?.supplier_links || [];
-                                          if (links.length === 0) return <div style={{ color: '#64748b' }}>No direct supplier linked</div>;
-                                          return links.map((link, lIdx) => (
-                                            <div key={lIdx} style={{ padding: '4px 0', borderBottom: lIdx < links.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
-                                              <div style={{ fontWeight: '600', color: '#0f172a' }}>
-                                                Rank #{link.priority_rank}: {link.supplier?.name || `Supplier #${link.supplier_id}`}
-                                              </div>
-                                              <div style={{ color: '#475569', fontSize: '10px' }}>
-                                                Cost Price: <strong>৳{link.cost_price || 0}</strong> | MOQ: <strong>{link.min_billing_sqft || 0} Sq.Ft</strong>
-                                              </div>
-                                              {link.supplier?.phone && <div style={{ color: '#2563eb', fontSize: '10px' }}>📞 {link.supplier.phone}</div>}
+                                          {/* Unit Price */}
+                                          {sIdx === 0 && (
+                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                              <input 
+                                                type="number" 
+                                                value={block.unit_price} 
+                                                onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)} 
+                                                className="modern-form-control"
+                                                style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px' }}
+                                              />
+                                            </td>
+                                          )}
+
+                                          {/* Length */}
+                                          <td style={{ padding: '6px' }}>
+                                            <input 
+                                              type="number" 
+                                              value={sizeRow.width} 
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)} 
+                                              placeholder="Width" 
+                                              className="modern-form-control"
+                                            />
+                                          </td>
+
+                                          {/* Height */}
+                                          <td style={{ padding: '6px' }}>
+                                            <input 
+                                              type="number" 
+                                              value={sizeRow.height} 
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)} 
+                                              placeholder="Height" 
+                                              className="modern-form-control"
+                                            />
+                                          </td>
+
+                                          {/* Pcs */}
+                                          <td style={{ padding: '6px' }}>
+                                            <input 
+                                              type="number" 
+                                              value={sizeRow.pcs} 
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)} 
+                                              className="modern-form-control"
+                                              style={{ textAlign: 'center' }}
+                                            />
+                                          </td>
+
+                                          {/* Sq.Ft */}
+                                          <td style={{ padding: '6px' }}>
+                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                              <input 
+                                                type="text" 
+                                                value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'} 
+                                                readOnly 
+                                                className="modern-form-control"
+                                                style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
+                                              />
+                                              {block.sizes.length > 1 && (
+                                                <button 
+                                                  type="button" 
+                                                  onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
+                                                  className="btn-action-circle btn-action-delete"
+                                                  style={{ padding: '4px 6px', fontSize: '12px' }}
+                                                >
+                                                  🗑️
+                                                </button>
+                                              )}
                                             </div>
-                                          ));
-                                        })()}
-                                      </div>
-                                    )}
-                                  </td>
-                                )}
+                                          </td>
 
-                                {/* Unit Price (Rowspan across size rows) */}
-                                {sIdx === 0 && (
-                                  <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', minWidth: '120px', padding: '12px 8px' }}>
-                                    <input 
-                                      type="number" 
-                                      value={block.unit_price} 
-                                      onChange={(e) => handleBlockChange(block.id, 'unit_price', e.target.value)} 
-                                      className="modern-form-control"
-                                      style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px', width: '100%', minWidth: '90px' }}
-                                    />
-                                  </td>
-                                )}
+                                          {/* Total Price */}
+                                          {sIdx === 0 && (
+                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                              <input 
+                                                type="text" 
+                                                value={totalPrice.toFixed(2)} 
+                                                readOnly 
+                                                className="modern-form-control"
+                                                style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '13px' }}
+                                              />
+                                            </td>
+                                          )}
 
-                                {/* Length */}
-                                <td style={{ padding: '6px' }}>
-                                  <input 
-                                    type="number" 
-                                    value={sizeRow.width} 
-                                    onChange={(e) => handleSizeChange(block.id, sizeRow.id, 'width', e.target.value)} 
-                                    placeholder="Length" 
-                                    className="modern-form-control"
-                                  />
-                                </td>
+                                          {/* Block Actions */}
+                                          {sIdx === 0 && (
+                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                              <button 
+                                                type="button" 
+                                                onClick={() => removeProductBlock(sec.id, block.id)} 
+                                                className="btn-action-circle btn-action-delete"
+                                                style={{ marginRight: '6px' }}
+                                                title="Remove Block"
+                                              >
+                                                🗑️
+                                              </button>
+                                              <button 
+                                                type="button" 
+                                                onClick={() => addSizeRowToBlock(sec.id, block.id)} 
+                                                className="btn-action-circle btn-action-add"
+                                                title="Add Size Row"
+                                              >
+                                                ➕
+                                              </button>
+                                              <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                  setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                                  setExcelPasteText('');
+                                                }} 
+                                                style={{
+                                                  background: '#059669',
+                                                  color: '#ffffff',
+                                                  border: 'none',
+                                                  borderRadius: '4px',
+                                                  padding: '4px 8px',
+                                                  fontSize: '11px',
+                                                  fontWeight: 'bold',
+                                                  cursor: 'pointer',
+                                                  marginLeft: '6px'
+                                                }}
+                                                title="Paste Width, Height, Pcs from Excel"
+                                              >
+                                                📋 Excel
+                                              </button>
+                                            </td>
+                                          )}
+                                        </tr>
+                                      ))}
 
-                                {/* Height */}
-                                <td style={{ padding: '6px' }}>
-                                  <input 
-                                    type="number" 
-                                    value={sizeRow.height} 
-                                    onChange={(e) => handleSizeChange(block.id, sizeRow.id, 'height', e.target.value)} 
-                                    placeholder="Height" 
-                                    className="modern-form-control"
-                                  />
-                                </td>
+                                      {/* Product Specification Box */}
+                                      <tr style={{ background: '#f8fafc' }}>
+                                        <td colSpan="8" style={{ padding: '8px 14px' }}>
+                                          <textarea 
+                                            value={block.notes || ''} 
+                                            onChange={(e) => handleBlockChange(sec.id, block.id, 'notes', e.target.value)}
+                                            rows="2" 
+                                            style={{ width: '100%', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', resize: 'vertical', background: '#fff' }}
+                                            placeholder="Enter specification details..."
+                                          />
+                                        </td>
+                                        <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                                          <button 
+                                            type="button" 
+                                            onClick={() => handleBlockChange(sec.id, block.id, 'notes', '')} 
+                                            className="btn-action-circle btn-action-delete"
+                                            title="Clear Specification"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
-                                {/* Pcs */}
-                                <td style={{ padding: '6px' }}>
-                                  <input 
-                                    type="number" 
-                                    value={sizeRow.pcs} 
-                                    onChange={(e) => handleSizeChange(block.id, sizeRow.id, 'pcs', e.target.value)} 
-                                    className="modern-form-control"
-                                    style={{ textAlign: 'center' }}
-                                  />
-                                </td>
+                        {/* 2. Option Groups Cards (Variations Selector) */}
+                        {Object.keys(optionGroups).map((ogId, ogIdx) => {
+                          const optionBlocks = optionGroups[ogId];
 
-                                {/* Sq.Ft + Delete Size Row button */}
-                                <td style={{ padding: '6px' }}>
-                                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                    <input 
-                                      type="text" 
-                                      value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'} 
-                                      readOnly 
-                                      className="modern-form-control"
-                                      style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
-                                      title={sizeRow.actual_sqft < block.min_billing_sqft ? `MOQ (${block.min_billing_sqft} Sq.Ft/pc) Applied` : `Total Sq.Ft for ${sizeRow.pcs} pcs`}
-                                    />
-                                    {block.sizes.length > 1 && (
-                                      <button 
-                                        type="button" 
-                                        onClick={() => removeSizeRowFromBlock(block.id, sizeRow.id)}
-                                        className="btn-action-circle btn-action-delete"
-                                        style={{ padding: '4px 6px', fontSize: '12px' }}
-                                        title="Delete Size Line"
-                                      >
-                                        🗑️
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-
-                                {/* Quantity / Total Billed Sq.Ft (Rowspan across size rows) */}
-                                {sIdx === 0 && (
-                                  <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', minWidth: '120px', padding: '12px 8px' }}>
-                                    <input 
-                                      type="text" 
-                                      value={totalBilledSqft.toFixed(2)} 
-                                      readOnly 
-                                      className="modern-form-control"
-                                      style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '8px 10px', fontSize: '13px', width: '100%', minWidth: '90px' }}
-                                    />
-                                  </td>
-                                )}
-
-                                {/* Total Price (Rowspan across size rows) */}
-                                {sIdx === 0 && (
-                                  <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', minWidth: '140px', padding: '12px 8px' }}>
-                                    <input 
-                                      type="text" 
-                                      value={totalPrice.toFixed(2)} 
-                                      readOnly 
-                                      className="modern-form-control"
-                                      style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '14px', width: '100%', minWidth: '110px' }}
-                                    />
-                                  </td>
-                                )}
-
-                                {/* Block Action Buttons (Rowspan across size rows) */}
-                                {sIdx === 0 && (
-                                  <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => removeProductBlock(block.id)} 
-                                      className="btn-action-circle btn-action-delete"
-                                      title="Delete Product Block"
-                                      style={{ marginRight: '6px' }}
-                                    >
-                                      🗑️
-                                    </button>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => addSizeRowToBlock(block.id)} 
-                                      className="btn-action-circle btn-action-add"
-                                      title="Add Size Measurement Row"
-                                    >
-                                      ➕
-                                    </button>
-                                  </td>
-                                )}
-                              </tr>
-                            ))}
-
-                            {/* Rich Specification / Description Box (Only ONCE per Product Block) */}
-                            <tr style={{ background: '#f8fafc' }}>
-                              <td colSpan="8" style={{ padding: '10px 14px' }}>
-                                <div className="spec-editor-card">
-                                  {/* Formatting Toolbar */}
-                                  <div className="spec-editor-toolbar">
-                                    <span className="spec-editor-btn" title="Undo">↩️</span>
-                                    <span className="spec-editor-btn" title="Redo">↪️</span>
-                                    <span className="spec-editor-btn" style={{ fontWeight: 'bold' }}>Paragraph ▾</span>
-                                    <span className="spec-editor-btn" style={{ fontWeight: 'bold' }}>B</span>
-                                    <span className="spec-editor-btn" style={{ fontStyle: 'italic' }}>I</span>
-                                    <span className="spec-editor-btn">🔗</span>
-                                    <span className="spec-editor-btn">🖼️</span>
-                                    <span className="spec-editor-btn">📊</span>
-                                    <span className="spec-editor-btn">🎬</span>
-                                    <span className="spec-editor-btn">≡ ▾</span>
-                                  </div>
-                                  <textarea 
-                                    value={block.notes || ''} 
-                                    onChange={(e) => handleBlockChange(block.id, 'notes', e.target.value)}
-                                    rows="4" 
-                                    style={{ width: '100%', border: 'none', padding: '10px 14px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', background: '#fff' }}
-                                    placeholder="Enter product specification details..."
-                                  />
+                          return (
+                            <div key={ogId} style={{ border: '2px dashed #8b5cf6', borderRadius: '10px', padding: '16px', background: 'rgba(139, 92, 246, 0.03)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                                <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#7c3aed', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span>🔀 Option Group #{ogIdx + 1}</span>
+                                  <span style={{ fontSize: '11px', color: '#6b21a8', background: '#f3e8ff', padding: '2px 8px', borderRadius: '12px' }}>
+                                    Customer selects 1 Option
+                                  </span>
                                 </div>
-                              </td>
-                              <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '14px' }}>
-                                <button 
-                                  type="button" 
-                                  onClick={() => handleBlockChange(block.id, 'notes', '')} 
-                                  className="btn-action-circle btn-action-delete"
-                                  title="Clear Description"
+                                <button
+                                  type="button"
+                                  onClick={() => addOptionVariantToGroup(sec.id, ogId)}
+                                  style={{ background: '#7c3aed', color: '#fff', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
                                 >
-                                  🗑️
+                                  ➕ Add Option Variation
                                 </button>
-                              </td>
-                            </tr>
-                          </React.Fragment>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                              </div>
 
-              {/* BOTTOM SUMMARY FIELDS MATCHING SAMPLE ATTACHED SCREENSHOT */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                {optionBlocks.map((b, optIdx) => {
+                                  const isSelected = b.is_selected;
+                                  const isEnabled = b.is_enabled_for_print !== false;
+                                  const totalSqft = b.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
+                                  const totalPrice = b.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
+
+                                  return (
+                                    <div 
+                                      key={b.id} 
+                                      style={{
+                                        border: isSelected ? '2px solid #7c3aed' : '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        padding: '14px',
+                                        background: isSelected ? '#ffffff' : '#f8fafc',
+                                        boxShadow: isSelected ? '0 2px 8px rgba(124, 58, 237, 0.15)' : 'none',
+                                        transition: 'all 0.2s'
+                                      }}
+                                    >
+                                      {/* Option Variant Header Bar */}
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', color: isSelected ? '#7c3aed' : '#475569' }}>
+                                          <input
+                                            type="radio"
+                                            name={`opt_radio_${ogId}`}
+                                            checked={isSelected}
+                                            onChange={() => toggleOptionSelected(sec.id, ogId, b.id)}
+                                            style={{ width: '16px', height: '16px', accentColor: '#7c3aed', cursor: 'pointer' }}
+                                          />
+                                          Option {optIdx + 1}: {b.product_name} {isSelected ? '(Active Selected)' : ''}
+                                        </label>
+
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => removeProductBlock(sec.id, b.id)}
+                                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '14px' }}
+                                            title="Delete Option"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Option Product Selector & Inputs */}
+                                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                                        <div>
+                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Product Variant</label>
+                                          <select
+                                            value={b.product_id}
+                                            onChange={(e) => handleBlockChange(sec.id, b.id, 'product_id', e.target.value)}
+                                            className="modern-form-control"
+                                            style={{ fontSize: '13px', fontWeight: 'bold' }}
+                                          >
+                                            {products.map(p => (
+                                              <option key={p.id} value={p.id}>{p.product_code ? `${p.product_code} - ${p.name}` : p.name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+
+                                        <div>
+                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Unit Price (৳)</label>
+                                          <input
+                                            type="number"
+                                            value={b.unit_price}
+                                            onChange={(e) => handleBlockChange(sec.id, b.id, 'unit_price', e.target.value)}
+                                            className="modern-form-control"
+                                            style={{ textAlign: 'center' }}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Total Sq.Ft</label>
+                                          <input
+                                            type="text"
+                                            value={totalSqft.toFixed(2)}
+                                            readOnly
+                                            className="modern-form-control"
+                                            style={{ textAlign: 'center', background: '#f1f5f9', fontWeight: 'bold' }}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Option Total Price</label>
+                                          <input
+                                            type="text"
+                                            value={isSelected ? `৳${totalPrice.toFixed(2)}` : '৳0.00 (Unselected)'}
+                                            readOnly
+                                            className="modern-form-control"
+                                            style={{ textAlign: 'center', background: '#f1f5f9', fontWeight: 'bold', color: isSelected ? '#7c3aed' : '#94a3b8' }}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Option Size Rows */}
+                                      {b.sizes.map((sz, szIdx) => (
+                                        <div key={sz.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr 40px', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
+                                          <input
+                                            type="number"
+                                            placeholder="Width"
+                                            value={sz.width}
+                                            onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'width', e.target.value)}
+                                            className="modern-form-control"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                          <input
+                                            type="number"
+                                            placeholder="Height"
+                                            value={sz.height}
+                                            onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'height', e.target.value)}
+                                            className="modern-form-control"
+                                            style={{ fontSize: '12px' }}
+                                          />
+                                          <input
+                                            type="number"
+                                            placeholder="Pcs"
+                                            value={sz.pcs}
+                                            onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'pcs', e.target.value)}
+                                            className="modern-form-control"
+                                            style={{ fontSize: '12px', textAlign: 'center' }}
+                                          />
+                                          <input
+                                            type="text"
+                                            value={`${sz.billed_sqft.toFixed(2)} sqft`}
+                                            readOnly
+                                            className="modern-form-control"
+                                            style={{ fontSize: '12px', background: '#f1f5f9', textAlign: 'center' }}
+                                          />
+                                          {szIdx === 0 ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => addSizeRowToBlock(sec.id, b.id)}
+                                              className="btn-action-circle btn-action-add"
+                                              title="Add Size"
+                                            >
+                                              ➕
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => removeSizeRowFromBlock(sec.id, b.id, sz.id)}
+                                              className="btn-action-circle btn-action-delete"
+                                              title="Delete Size"
+                                            >
+                                              🗑️
+                                            </button>
+                                          )}
+                                        </div>
+                                      ))}
+
+                                      <textarea
+                                        placeholder="Option notes/specifications..."
+                                        value={b.notes || ''}
+                                        onChange={(e) => handleBlockChange(sec.id, b.id, 'notes', e.target.value)}
+                                        rows="2"
+                                        style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', marginTop: '6px' }}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* BOTTOM SUMMARY FIELDS */}
               <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Total Amount *</label>
@@ -1122,7 +1936,7 @@ const Quotations = () => {
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Other Charge Label</label>
-                  <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. old blinds serviceing charge" className="modern-form-control" />
+                  <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. servicing charge" className="modern-form-control" />
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
@@ -1157,7 +1971,6 @@ const Quotations = () => {
                 </div>
               </div>
 
-              {/* BOTTOM ACTION BUTTONS MATCHING SAMPLE ATTACHED SCREENSHOT */}
               <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', margin: '24px 0 10px 0' }}>
                 <button 
                   type="button" 
@@ -1177,7 +1990,7 @@ const Quotations = () => {
               </div>
             </div>
 
-            {/* RIGHT FINANCIAL SUMMARY SIDEBAR (Maintained without changes as specified) */}
+            {/* RIGHT FINANCIAL SUMMARY SIDEBAR */}
             <div>
               <div className="stat-card" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '24px' }}>
                 <h3 style={{ margin: '0 0 20px', borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-heading)' }}>
@@ -1196,7 +2009,10 @@ const Quotations = () => {
 
                 <div className="form-group">
                   <label style={{ fontSize: '13px' }}>Other Charge Label</label>
-                  <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. old blinds serviceing charge" style={{ fontSize: '12px', marginBottom: '4px' }} />
+                  <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. service charge" />
+                </div>
+
+                <div className="form-group">
                   <label style={{ fontSize: '13px' }}>Other Charge Amount</label>
                   <input type="number" value={otherCharge} onChange={(e) => setOtherCharge(parseFloat(e.target.value) || 0)} />
                 </div>
@@ -1204,46 +2020,25 @@ const Quotations = () => {
                 <div className="form-group">
                   <label style={{ fontSize: '13px' }}>VAT (%)</label>
                   <input type="number" value={vatPercentage} onChange={(e) => setVatPercentage(parseFloat(e.target.value) || 0)} />
-                  <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '4px', textAlign: 'right' }}>
-                    Amt: <strong>{formatCurrency(financialSummary.vatAmount)}</strong>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '12px' }}>Discount Type</label>
+                    <select value={discountType} onChange={(e) => setDiscountType(e.target.value)} style={{ width: '100%', padding: '6px' }}>
+                      <option value="flat">Flat (৳)</option>
+                      <option value="percentage">Percentage (%)</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '12px' }}>Value</label>
+                    <input type="number" value={discountValue} onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)} style={{ width: '100%', padding: '6px' }} />
                   </div>
                 </div>
 
-                <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ fontSize: '13px', margin: 0 }}>Discount</label>
-                    <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
-                      <button 
-                        type="button" 
-                        className={`text-btn ${discountType === 'flat' ? 'active' : ''}`}
-                        onClick={() => setDiscountType('flat')}
-                        style={{ padding: '2px 8px', fontSize: '11px', backgroundColor: discountType === 'flat' ? 'var(--primary)' : 'transparent', color: discountType === 'flat' ? '#fff' : 'var(--text-main)' }}
-                      >
-                        Flat
-                      </button>
-                      <button 
-                        type="button" 
-                        className={`text-btn ${discountType === 'percentage' ? 'active' : ''}`}
-                        onClick={() => setDiscountType('percentage')}
-                        style={{ padding: '2px 8px', fontSize: '11px', backgroundColor: discountType === 'percentage' ? 'var(--primary)' : 'transparent', color: discountType === 'percentage' ? '#fff' : 'var(--text-main)' }}
-                      >
-                        %
-                      </button>
-                    </div>
-                  </div>
-                  <input type="number" value={discountValue} onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)} />
-                  {discountType === 'percentage' && (
-                    <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '4px', textAlign: 'right' }}>
-                      Amt: <strong>{formatCurrency(financialSummary.discountAmount)}</strong>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ borderTop: '2px solid var(--primary)', paddingTop: '16px', marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Net Amount</span>
-                  <span style={{ fontSize: '24px', fontWeight: '800', color: 'var(--primary)' }}>
-                    {formatCurrency(financialSummary.netAmount)}
-                  </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', paddingTop: '12px', borderTop: '2px solid var(--border)', fontSize: '16px', fontWeight: 'bold', color: 'var(--primary)' }}>
+                  <span>Net Amount:</span>
+                  <span>{formatCurrency(financialSummary.netAmount)}</span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '24px' }}>
@@ -1263,64 +2058,131 @@ const Quotations = () => {
         </div>
       )}
 
-      {/* Modal dialog for creating inline customer */}
       <CustomerModal 
         isOpen={isCustomerModalOpen} 
         onClose={() => setIsCustomerModalOpen(false)} 
         onCustomerCreated={handleCustomerCreated}
       />
 
-      {/* Modal dialog for creating inline product */}
       <ProductModal
         isOpen={isProductModalOpen}
         onClose={() => setIsProductModalOpen(false)}
         onProductSaved={handleProductCreated}
       />
 
-      {/* Printable Quotation PDF Modal */}
       <QuotationPrintModal
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
         quotation={printingQuotation}
         printType={printType}
       />
-      {/* Simple Convert Confirmation Modal */}
+
+      {excelPasteTargetBlock && (
+        <div className="custom-modal-overlay" onClick={(e) => e.target === e.currentTarget && setExcelPasteTargetBlock(null)}>
+          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '540px' }}>
+            <div className="custom-modal-header">
+              <h3 className="custom-modal-title">
+                <span>📋</span> Import Measurement Sizes (Excel)
+              </h3>
+              <button
+                type="button"
+                className="custom-modal-close"
+                onClick={() => setExcelPasteTargetBlock(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="custom-modal-form">
+              <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
+                Copy <strong>Width</strong>, <strong>Height</strong>, and <strong>Pcs</strong> columns from your Excel sheet and paste (Ctrl+V) below:
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px', fontSize: '12px', color: '#38bdf8', border: '1px dashed rgba(56, 189, 248, 0.3)' }}>
+                <strong>Expected Format:</strong><br />
+                <code>Width [Tab] Height [Tab] Pcs</code><br />
+                <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Example:<br />65 &nbsp;&nbsp; 90 &nbsp;&nbsp; 1<br />45 &nbsp;&nbsp; 60 &nbsp;&nbsp; 2</span>
+              </div>
+
+              <textarea
+                rows={6}
+                value={excelPasteText}
+                onChange={(e) => setExcelPasteText(e.target.value)}
+                placeholder="Paste Excel cells here (Ctrl + V)..."
+                className="custom-form-input"
+                style={{ fontFamily: 'monospace', fontSize: '13px', resize: 'vertical' }}
+              />
+
+              <div className="custom-modal-footer" style={{ padding: 0, background: 'transparent', border: 'none', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={() => setExcelPasteTargetBlock(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-modal-submit"
+                  onClick={handleImportExcelSizes}
+                >
+                  ✅ Import Sizes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {convertConfirmTarget && (
         <div className="custom-modal-overlay" onClick={(e) => e.target === e.currentTarget && setConvertConfirmTarget(null)}>
-          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '420px', padding: '24px', textAlign: 'center' }}>
-            <div style={{ fontSize: '42px', marginBottom: '8px' }}>🛒</div>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-heading)' }}>Convert to Order?</h3>
-            <p style={{ fontSize: '14px', color: 'var(--text-main)', margin: '0 0 20px 0' }}>
-              Are you sure you want to convert Quotation <strong>#{convertConfirmTarget.quotation_number}</strong> to a confirmed Sales Order?
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-              <button type="button" className="logout-btn" onClick={() => setConvertConfirmTarget(null)} style={{ padding: '8px 18px' }}>
-                Cancel
-              </button>
-              <button type="button" className="primary-btn" onClick={handleConfirmConvert} style={{ padding: '8px 20px', fontWeight: 'bold' }}>
-                Yes, Convert Now
-              </button>
+          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '440px' }}>
+            <div className="custom-modal-header">
+              <h3 className="custom-modal-title">
+                <span>🛒</span> Convert Quotation to Order
+              </h3>
+              <button type="button" className="custom-modal-close" onClick={() => setConvertConfirmTarget(null)}>✕</button>
+            </div>
+            <div className="custom-modal-form" style={{ textAlign: 'center', gap: '16px', padding: '24px' }}>
+              <div style={{ fontSize: '48px', lineHeight: 1 }}>🛍️</div>
+              <div style={{ fontSize: '15px', color: '#cbd5e1' }}>
+                Are you sure you want to convert Quotation <strong style={{ color: '#00f2fe' }}>#{convertConfirmTarget.quotation_number}</strong> into a Confirmed Direct Order?
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '12px' }}>
+                <button type="button" className="btn-modal-cancel" onClick={() => setConvertConfirmTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-modal-submit" onClick={handleConfirmConvert}>
+                  Confirm & Convert
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Simple Approve Confirmation Modal */}
       {approveConfirmTarget && (
         <div className="custom-modal-overlay" onClick={(e) => e.target === e.currentTarget && setApproveConfirmTarget(null)}>
-          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '420px', padding: '24px', textAlign: 'center' }}>
-            <div style={{ fontSize: '42px', marginBottom: '8px' }}>✅</div>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--success)' }}>Approve Order?</h3>
-            <p style={{ fontSize: '14px', color: 'var(--text-main)', margin: '0 0 20px 0' }}>
-              Are you sure you want to approve Order <strong>#{approveConfirmTarget.quotation_number}</strong>?
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-              <button type="button" className="logout-btn" onClick={() => setApproveConfirmTarget(null)} style={{ padding: '8px 18px' }}>
-                Cancel
-              </button>
-              <button type="button" className="primary-btn" onClick={handleConfirmApprove} style={{ padding: '8px 20px', fontWeight: 'bold', backgroundColor: 'var(--success)', borderColor: 'var(--success)' }}>
-                Yes, Approve Now
-              </button>
+          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '440px' }}>
+            <div className="custom-modal-header">
+              <h3 className="custom-modal-title">
+                <span>✅</span> Approve Sales Order
+              </h3>
+              <button type="button" className="custom-modal-close" onClick={() => setApproveConfirmTarget(null)}>✕</button>
+            </div>
+            <div className="custom-modal-form" style={{ textAlign: 'center', gap: '16px', padding: '24px' }}>
+              <div style={{ fontSize: '48px', lineHeight: 1 }}>⚡</div>
+              <div style={{ fontSize: '15px', color: '#cbd5e1' }}>
+                Are you sure you want to approve Sales Order <strong style={{ color: '#34d399' }}>#{approveConfirmTarget.quotation_number}</strong>?
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '12px' }}>
+                <button type="button" className="btn-modal-cancel" onClick={() => setApproveConfirmTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn-modal-submit" onClick={handleConfirmApprove} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' }}>
+                  Approve Order
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -47,6 +47,16 @@ class QuotationController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('quotation_items', 'section_name')) {
+            \Illuminate\Support\Facades\Schema::table('quotation_items', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->string('section_name')->nullable()->after('quotation_id');
+                $table->string('option_group_id')->nullable()->after('section_name');
+                $table->boolean('is_optional')->default(false)->after('option_group_id');
+                $table->boolean('is_selected')->default(true)->after('is_optional');
+                $table->boolean('is_enabled_for_print')->default(true)->after('is_selected');
+            });
+        }
+
         $user = $request->user();
         $query = Quotation::with(['customer:id,customer_code,name,phone', 'salesman:id,name,email'])
             ->withCount('items');

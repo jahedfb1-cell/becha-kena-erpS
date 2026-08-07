@@ -21,11 +21,18 @@ class RolesAndPermissionsSeeder extends Seeder
         $permissions = [
             // Customers
             'customers:create',
+            'customers:edit',
             'customers:view-own',
             'customers:view-team',
             'customers:view-all',
 
-            // Quotations
+            // Users
+            'users:view',
+            'users:create',
+            'users:edit',
+            'users:status-toggle',
+
+            // Quotations & Orders
             'quotations:create',
             'quotations:edit-own',
             'quotations:edit-team',
@@ -33,8 +40,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'quotations:approve',
             'quotations:reject',
             'quotations:reassign',
-
-            // Orders
             'orders:view-own',
             'orders:view-team',
             'orders:view-all',
@@ -44,12 +49,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'purchase_entries:view',
             'purchase_entries:create',
 
-            // Invoices
+            // Invoices & Challans
             'invoices:generate',
             'invoices:view',
             'invoices:archive',
-
-            // Challans
             'challans:generate',
             'challans:view',
 
@@ -58,12 +61,25 @@ class RolesAndPermissionsSeeder extends Seeder
             'payments:apply-discount',
             'payments:void',
 
+            // Vouchers & Expenses
+            'vouchers:create',
+            'vouchers:view',
+            'vouchers:approve',
+            'expenses:create',
+            'expenses:view',
+
+            // Salary
+            'salary:view',
+            'salary:process',
+            'salary:pay',
+
             // Suppliers
             'suppliers:create',
             'suppliers:edit',
             'suppliers:archive',
 
             // Products
+            'products:view',
             'products:create',
             'products:edit',
             'products:archive',
@@ -72,23 +88,32 @@ class RolesAndPermissionsSeeder extends Seeder
             'complaints:create',
             'complaints:resolve',
 
-            // Vouchers
-            'vouchers:create',
-            'vouchers:view',
-
-            // Expenses
-            'expenses:create',
-            'expenses:view',
-
             // Reports
             'reports:view-sales',
             'reports:view-purchase',
             'reports:view-profit',
             'reports:view-ledger',
 
-            // Audit Logs & Settings
+            // Audit Logs
             'audit_logs:view',
+            'audit_logs:export',
+
+            // Access Setup
+            'access_setup:manage',
+            'access_setup:roles-edit',
+
+            // Setting Items
             'settings:manage',
+            'settings:category',
+            'settings:unit',
+            'settings:expense_type',
+            'settings:department',
+            'settings:bank_account',
+            'settings:mobile_account',
+            'settings:notice',
+            'settings:user_type',
+            'settings:balance_transfer',
+            'settings:company_profile',
         ];
 
         // Create permissions
@@ -100,6 +125,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $adminRole    = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
         $managerRole  = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $salesmanRole = Role::firstOrCreate(['name' => 'salesman', 'guard_name' => 'web']);
+        $staffRole    = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
 
         // 3. Assign Permissions to Admin (All)
         $adminRole->syncPermissions(Permission::all());
@@ -117,6 +143,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'reports:view-sales',
             'reports:view-purchase',
             'reports:view-ledger',
+            'challans:view',
+            'challans:generate',
+            'vouchers:view',
+            'vouchers:create',
+            'expenses:view',
+            'expenses:create',
         ];
         $managerRole->syncPermissions($managerPermissions);
 
@@ -132,5 +164,19 @@ class RolesAndPermissionsSeeder extends Seeder
             'payments:create',
         ];
         $salesmanRole->syncPermissions($salesmanPermissions);
+
+        // 6. Assign Permissions to Staff
+        $staffPermissions = [
+            'products:create',
+            'products:edit',
+            'challans:view',
+            'challans:generate',
+            'vouchers:view',
+            'vouchers:create',
+            'expenses:view',
+            'expenses:create',
+            'complaints:create',
+        ];
+        $staffRole->syncPermissions($staffPermissions);
     }
 }

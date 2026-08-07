@@ -246,4 +246,37 @@ class SettingController extends Controller
 
         return $this->createdResponse(null, "Balance transfer {$transferNo} recorded successfully!");
     }
+
+    // ------------------------------------------------------------------------
+    // DEPARTMENTS MANAGEMENT
+    // ------------------------------------------------------------------------
+    public function getDepartments(): JsonResponse
+    {
+        $departments = DB::table('departments')->orderBy('id', 'asc')->get();
+        return $this->successResponse($departments, 'Departments retrieved.');
+    }
+
+    public function storeDepartment(Request $request): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:150',
+            'description' => 'nullable|string|max:255',
+        ]);
+
+        $id = DB::table('departments')->insertGetId([
+            'name' => $request->name,
+            'description' => $request->description,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $this->createdResponse(DB::table('departments')->find($id), 'Department created successfully.');
+    }
+
+    public function deleteDepartment(int $id): JsonResponse
+    {
+        DB::table('departments')->where('id', $id)->delete();
+        return $this->successResponse(null, 'Department deleted successfully.');
+    }
 }

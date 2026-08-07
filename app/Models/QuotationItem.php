@@ -12,6 +12,11 @@ class QuotationItem extends Model
 
     protected $fillable = [
         'quotation_id',
+        'section_name',
+        'option_group_id',
+        'is_optional',
+        'is_selected',
+        'is_enabled_for_print',
         'product_id',
         'product_variant_id',
         'supplier_id',
@@ -29,6 +34,9 @@ class QuotationItem extends Model
     ];
 
     protected $casts = [
+        'is_optional'            => 'boolean',
+        'is_selected'            => 'boolean',
+        'is_enabled_for_print'   => 'boolean',
         'width'                  => 'float',
         'height'                 => 'float',
         'pcs'                    => 'integer',

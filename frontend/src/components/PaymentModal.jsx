@@ -109,149 +109,85 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
 
   return (
     <div className="custom-modal-overlay" onClick={(e) => e.target === e.currentTarget && handleClose()}>
-      <div 
-        className="custom-modal-container animate-fade-in" 
-        style={{ 
-          maxWidth: '620px', 
-          padding: 0, 
-          borderRadius: '16px', 
-          overflow: 'hidden',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          backgroundColor: '#ffffff'
-        }}
-      >
-        {/* Creative Gradient Header Banner */}
-        <div style={{
-          background: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)',
-          padding: '24px 28px',
-          color: '#ffffff',
-          position: 'relative'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.9, fontWeight: 700 }}>
-                💳 Payment Receipt Voucher
-              </div>
-              <h2 style={{ margin: '6px 0 0 0', fontSize: '22px', fontWeight: 800, color: '#ffffff' }}>
-                Invoice #{invoice.invoice_number}
-              </h2>
-              <div style={{ fontSize: '13px', opacity: 0.85, marginTop: '2px' }}>
-                Customer: <strong>{invoice.customer?.company_name || invoice.customer?.name}</strong>
-              </div>
+      <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '640px' }}>
+        {/* Header Banner */}
+        <div className="custom-modal-header" style={{ background: 'linear-gradient(135deg, rgba(5, 150, 105, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%)', borderBottom: '1px solid rgba(16, 185, 129, 0.3)' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', color: '#34d399', fontWeight: 800 }}>
+              💳 Payment Receipt Voucher
             </div>
-            
-            <button 
-              type="button" 
-              onClick={handleClose}
-              style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: 'none',
-                color: '#fff',
-                fontSize: '20px',
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 0.2s'
-              }}
-            >
-              &times;
-            </button>
+            <h2 className="custom-modal-title" style={{ marginTop: '4px' }}>
+              Invoice #{invoice.invoice_number}
+            </h2>
+            <div style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '2px' }}>
+              Customer: <strong>{invoice.customer?.company_name || invoice.customer?.name}</strong>
+            </div>
+          </div>
+          
+          <button type="button" className="custom-modal-close" onClick={handleClose}>
+            &times;
+          </button>
+        </div>
+
+        {/* Financial Recalculation Overview Cards */}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr 1fr', 
+          gap: '12px', 
+          padding: '12px 24px',
+          background: 'rgba(255, 255, 255, 0.02)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+        }}>
+          <div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Total Due</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: '#fbbf24' }}>{formatCurrency(dueAmt)}</div>
           </div>
 
-          {/* Financial Recalculation Overview Cards */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr 1fr', 
-            gap: '12px', 
-            marginTop: '20px',
-            background: 'rgba(0, 0, 0, 0.15)',
-            backdropFilter: 'blur(8px)',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            border: '1px solid rgba(255, 255, 255, 0.15)'
-          }}>
-            <div>
-              <div style={{ fontSize: '11px', opacity: 0.8, textTransform: 'uppercase', fontWeight: 600 }}>Total Due</div>
-              <div style={{ fontSize: '16px', fontWeight: 800, color: '#fbbf24' }}>{formatCurrency(dueAmt)}</div>
-            </div>
+          <div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Paying Now</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: '#34d399' }}>{formatCurrency(payingAmt + discAmt)}</div>
+          </div>
 
-            <div>
-              <div style={{ fontSize: '11px', opacity: 0.8, textTransform: 'uppercase', fontWeight: 600 }}>Paying Now</div>
-              <div style={{ fontSize: '16px', fontWeight: 800, color: '#34d399' }}>{formatCurrency(payingAmt + discAmt)}</div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: '11px', opacity: 0.8, textTransform: 'uppercase', fontWeight: 600 }}>New Balance</div>
-              <div style={{ fontSize: '16px', fontWeight: 800, color: remainingBal === 0 ? '#6ee7b7' : '#ffffff' }}>
-                {remainingBal === 0 ? '🎉 FULLY PAID' : formatCurrency(remainingBal)}
-              </div>
+          <div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>New Balance</div>
+            <div style={{ fontSize: '16px', fontWeight: 800, color: remainingBal === 0 ? '#34d399' : '#f8fafc' }}>
+              {remainingBal === 0 ? '🎉 FULLY PAID' : formatCurrency(remainingBal)}
             </div>
           </div>
         </div>
 
         {/* Modal Form Body */}
-        <form onSubmit={handleSubmit} style={{ padding: '24px 28px' }}>
+        <form onSubmit={handleSubmit} className="custom-modal-form">
           {error && (
-            <div style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fca5a5',
-              color: '#991b1b',
-              marginBottom: '20px',
-              fontSize: '13px',
-              fontWeight: 600
-            }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fca5a5', padding: '12px 16px', borderRadius: '10px', fontSize: '13px', whiteSpace: 'pre-line' }}>
               ⚠️ {error}
             </div>
           )}
 
           {/* Quick Amount Fill Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Select Payment Amount</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc' }}>Payment Amount</span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
                 type="button" 
                 onClick={handleHalfPay}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f8fafc',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  color: '#475569'
-                }}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', fontSize: '12px', color: '#cbd5e1', cursor: 'pointer' }}
               >
                 50% Advance
               </button>
               <button 
                 type="button" 
                 onClick={handleFullPay}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid #86efac',
-                  background: '#f0fdf4',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  color: '#166534'
-                }}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(52, 211, 153, 0.4)', background: 'rgba(16, 185, 129, 0.15)', fontSize: '12px', fontWeight: 700, color: '#34d399', cursor: 'pointer' }}
               >
                 ⚡ Full Pay ({formatCurrency(dueAmt)})
               </button>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Amount Received (৳) *</label>
+          <div className="custom-form-grid">
+            <div className="custom-form-group">
+              <label className="custom-form-label">Amount Received (৳) *</label>
               <input
                 type="number"
                 step="0.01"
@@ -260,13 +196,13 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={loading}
                 required
-                className="modern-form-control"
-                style={{ fontSize: '15px', fontWeight: 'bold', color: '#059669' }}
+                className="custom-form-input"
+                style={{ fontSize: '15px', fontWeight: 'bold', color: '#34d399' }}
               />
             </div>
 
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Waive-off / Discount (৳)</label>
+            <div className="custom-form-group">
+              <label className="custom-form-label">Waive-off / Discount (৳)</label>
               <input
                 type="number"
                 step="0.01"
@@ -274,15 +210,15 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
                 value={discountAmount}
                 onChange={(e) => setDiscountAmount(e.target.value)}
                 disabled={loading}
-                className="modern-form-control"
+                className="custom-form-input"
                 style={{ fontSize: '15px' }}
               />
             </div>
           </div>
 
           {/* Interactive Payment Method Selector Tiles */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '8px' }}>
+          <div>
+            <label className="custom-form-label" style={{ display: 'block', marginBottom: '8px' }}>
               Payment Method *
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
@@ -290,17 +226,17 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
               <div 
                 onClick={() => setPaymentMethod('cash')}
                 style={{
-                  border: `2px solid ${paymentMethod === 'cash' ? '#059669' : '#e2e8f0'}`,
-                  backgroundColor: paymentMethod === 'cash' ? '#ecfdf5' : '#ffffff',
+                  border: `2px solid ${paymentMethod === 'cash' ? '#10b981' : 'rgba(255,255,255,0.1)'}`,
+                  backgroundColor: paymentMethod === 'cash' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.03)',
                   padding: '12px',
-                  borderRadius: '10px',
+                  borderRadius: '12px',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease'
                 }}
               >
                 <div style={{ fontSize: '22px', marginBottom: '4px' }}>💵</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: paymentMethod === 'cash' ? '#065f46' : '#475569' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: paymentMethod === 'cash' ? '#34d399' : '#cbd5e1' }}>
                   Cash Pay
                 </div>
               </div>
@@ -309,17 +245,17 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
               <div 
                 onClick={() => setPaymentMethod('bank')}
                 style={{
-                  border: `2px solid ${paymentMethod === 'bank' ? '#2563eb' : '#e2e8f0'}`,
-                  backgroundColor: paymentMethod === 'bank' ? '#eff6ff' : '#ffffff',
+                  border: `2px solid ${paymentMethod === 'bank' ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
+                  backgroundColor: paymentMethod === 'bank' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.03)',
                   padding: '12px',
-                  borderRadius: '10px',
+                  borderRadius: '12px',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease'
                 }}
               >
                 <div style={{ fontSize: '22px', marginBottom: '4px' }}>🏦</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: paymentMethod === 'bank' ? '#1e40af' : '#475569' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: paymentMethod === 'bank' ? '#60a5fa' : '#cbd5e1' }}>
                   Bank / Cheque
                 </div>
               </div>
@@ -328,17 +264,17 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
               <div 
                 onClick={() => setPaymentMethod('mobile')}
                 style={{
-                  border: `2px solid ${paymentMethod === 'mobile' ? '#9333ea' : '#e2e8f0'}`,
-                  backgroundColor: paymentMethod === 'mobile' ? '#faf5ff' : '#ffffff',
+                  border: `2px solid ${paymentMethod === 'mobile' ? '#a855f7' : 'rgba(255,255,255,0.1)'}`,
+                  backgroundColor: paymentMethod === 'mobile' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(255,255,255,0.03)',
                   padding: '12px',
-                  borderRadius: '10px',
+                  borderRadius: '12px',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease'
                 }}
               >
                 <div style={{ fontSize: '22px', marginBottom: '4px' }}>📱</div>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: paymentMethod === 'mobile' ? '#6b21a8' : '#475569' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: paymentMethod === 'mobile' ? '#c084fc' : '#cbd5e1' }}>
                   Mobile Banking
                 </div>
               </div>
@@ -347,9 +283,9 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
 
           {/* Conditional Method Details */}
           {paymentMethod === 'bank' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', padding: '16px', backgroundColor: '#eff6ff', borderRadius: '10px', border: '1px solid #bfdbfe' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af' }}>Bank Name *</label>
+            <div className="custom-form-grid" style={{ padding: '16px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
+              <div className="custom-form-group">
+                <label className="custom-form-label" style={{ color: '#60a5fa' }}>Bank Name *</label>
                 <input
                   type="text"
                   placeholder="e.g. Dutch-Bangla Bank"
@@ -357,11 +293,11 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
                   onChange={(e) => setBankName(e.target.value)}
                   disabled={loading}
                   required
-                  className="modern-form-control"
+                  className="custom-form-input"
                 />
               </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af' }}>Cheque / Ref Number *</label>
+              <div className="custom-form-group">
+                <label className="custom-form-label" style={{ color: '#60a5fa' }}>Cheque / Ref Number *</label>
                 <input
                   type="text"
                   placeholder="Cheque No."
@@ -369,22 +305,22 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
                   onChange={(e) => setChequeNumber(e.target.value)}
                   disabled={loading}
                   required
-                  className="modern-form-control"
+                  className="custom-form-input"
                 />
               </div>
             </div>
           )}
 
           {paymentMethod === 'mobile' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px', padding: '16px', backgroundColor: '#faf5ff', borderRadius: '10px', border: '1px solid #e9d5ff' }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#6b21a8' }}>Mobile Provider *</label>
+            <div className="custom-form-grid" style={{ padding: '16px', background: 'rgba(168, 85, 247, 0.1)', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+              <div className="custom-form-group">
+                <label className="custom-form-label" style={{ color: '#c084fc' }}>Mobile Provider *</label>
                 <select
                   value={mobileProvider}
                   onChange={(e) => setMobileProvider(e.target.value)}
                   disabled={loading}
                   required
-                  className="modern-form-control"
+                  className="custom-form-input"
                 >
                   <option value="bKash">bKash</option>
                   <option value="Nagad">Nagad</option>
@@ -392,8 +328,8 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
                   <option value="Upay">Upay</option>
                 </select>
               </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#6b21a8' }}>Transaction ID (TxnID) *</label>
+              <div className="custom-form-group">
+                <label className="custom-form-label" style={{ color: '#c084fc' }}>Transaction ID (TxnID) *</label>
                 <input
                   type="text"
                   placeholder="e.g. 9J58AXK2"
@@ -401,73 +337,56 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
                   onChange={(e) => setTransactionId(e.target.value)}
                   disabled={loading}
                   required
-                  className="modern-form-control"
+                  className="custom-form-input"
                 />
               </div>
             </div>
           )}
 
           {/* Payment Date & Remarks */}
-          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '16px', marginBottom: '24px' }}>
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Payment Date *</label>
+          <div className="custom-form-grid">
+            <div className="custom-form-group">
+              <label className="custom-form-label">Payment Date *</label>
               <input
                 type="date"
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
                 disabled={loading}
                 required
-                className="modern-form-control"
+                className="custom-form-input"
               />
             </div>
 
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Remarks / Notes</label>
+            <div className="custom-form-group">
+              <label className="custom-form-label">Remarks / Notes</label>
               <input
                 type="text"
                 placeholder="Optional payment notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 disabled={loading}
-                className="modern-form-control"
+                className="custom-form-input"
               />
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+          <div className="custom-modal-footer">
             <button 
               type="button" 
-              className="logout-btn" 
+              className="btn-modal-cancel" 
               onClick={handleClose} 
               disabled={loading}
-              style={{ padding: '10px 20px' }}
             >
               Cancel
             </button>
             <button 
               type="submit" 
+              className="btn-modal-submit"
               disabled={loading}
-              style={{
-                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '10px 24px',
-                fontSize: '14px',
-                fontWeight: 800,
-                cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
+              style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff' }}
             >
-              {loading ? (
-                <span>⏳ Processing...</span>
-              ) : (
-                <span>💳 Record Payment Voucher</span>
-              )}
+              {loading ? 'Processing...' : '💳 Record Payment Voucher'}
             </button>
           </div>
         </form>

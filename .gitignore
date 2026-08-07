@@ -16,9 +16,12 @@
 /public/build
 /public/hot
 /public/storage
+/public/uploads/*
+!/public/uploads/.gitkeep
 /storage/*.key
 /storage/pail
 /vendor
 Homestead.json
 Homestead.yaml
 Thumbs.db
+frontend/src/pages/Quotations.backup.jsx

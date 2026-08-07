@@ -26,6 +26,11 @@ class QuotationRequest extends FormRequest
 
             // Items array
             'items'                       => 'required|array|min:1',
+            'items.*.section_name'        => 'nullable|string|max:255',
+            'items.*.option_group_id'     => 'nullable|string|max:255',
+            'items.*.is_optional'         => 'nullable|boolean',
+            'items.*.is_selected'         => 'nullable|boolean',
+            'items.*.is_enabled_for_print'=> 'nullable|boolean',
             'items.*.product_id'          => 'required|exists:products,id',
             'items.*.product_variant_id'  => 'nullable|exists:product_variants,id',
             'items.*.supplier_id'         => 'nullable|exists:suppliers,id',

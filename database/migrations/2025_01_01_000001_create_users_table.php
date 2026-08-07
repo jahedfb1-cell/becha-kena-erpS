@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('email')->unique();
+            $table->string('email')->nullable()->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->enum('role', ['salesman', 'manager', 'admin'])->default('salesman');
@@ -22,7 +22,7 @@ return new class extends Migration
                   ->nullable()
                   ->constrained('users')
                   ->nullOnDelete();
-            $table->string('phone', 20)->nullable();
+            $table->string('phone', 20);
             $table->boolean('is_active')->default(true);
             // Archive fields
             $table->boolean('is_archived')->default(false);

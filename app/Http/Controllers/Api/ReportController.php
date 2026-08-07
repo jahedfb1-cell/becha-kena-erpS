@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Models\Voucher;
 use App\Models\QuotationItem;
 use App\Models\Product;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

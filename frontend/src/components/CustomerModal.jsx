@@ -145,11 +145,13 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
 
   return (
     <div className="custom-modal-overlay">
-      <div className="custom-modal-container animate-fade-in">
+      <div className="custom-modal-container large-modal animate-fade-in">
         
         {/* Header */}
         <div className="custom-modal-header">
-          <h2 className="custom-modal-title">Customer Information</h2>
+          <h2 className="custom-modal-title">
+            <span>👤</span> {initialData ? 'Edit Customer Information' : 'New Customer Account'}
+          </h2>
           <button type="button" className="custom-modal-close" onClick={handleClose}>
             &times;
           </button>
@@ -158,197 +160,202 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="custom-modal-form">
           {error && (
-            <div className="alert alert-danger mb-3" style={{ whiteSpace: 'pre-line' }}>
-              {error}
+            <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fca5a5', padding: '12px 16px', borderRadius: '10px', fontSize: '13px', whiteSpace: 'pre-line' }}>
+              ⚠️ {error}
             </div>
           )}
 
-          <div className="custom-form-grid">
+          {/* Section 1: Basic Information */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🏢 Primary Information
+            </div>
             
-            {/* Row 1: Company Name * | Customer Name */}
-            <div className="custom-form-group">
-              <label className="custom-form-label">
-                Company Name <span className="text-danger">*</span>
-              </label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Company Name"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                disabled={loading}
-                required
-              />
-            </div>
-
-            <div className="custom-form-group">
-              <label className="custom-form-label">Customer Name</label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Customer Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {/* Row 2: 1st Contact Number * | 2nd Contact Number */}
-            <div className="custom-form-group">
-              <label className="custom-form-label">
-                1st Contact Number <span className="text-danger">*</span>
-              </label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Mobile Number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={loading}
-                required
-              />
-            </div>
-
-            <div className="custom-form-group">
-              <label className="custom-form-label">2nd Contact Number</label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Mobile Number"
-                value={secondContactNumber}
-                onChange={(e) => setSecondContactNumber(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {/* Row 3: 3rd Contact Number | Email ID (Hidden on mobile) */}
-            <div className="custom-form-group hide-on-mobile">
-              <label className="custom-form-label">3rd Contact Number</label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Mobile Number"
-                value={thirdContactNumber}
-                onChange={(e) => setThirdContactNumber(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            <div className="custom-form-group hide-on-mobile">
-              <label className="custom-form-label">Email ID</label>
-              <input
-                type="email"
-                className="custom-form-input"
-                placeholder="example@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {/* Row 4: Address 1 * | Address 2 */}
-            <div className="custom-form-group">
-              <label className="custom-form-label">
-                Address 1 <span className="text-danger">*</span>
-              </label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Address 1"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                disabled={loading}
-                required
-              />
-            </div>
-
-            <div className="custom-form-group">
-              <label className="custom-form-label">Address 2</label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Address 2"
-                value={address2}
-                onChange={(e) => setAddress2(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            {/* Row 5: Notes | Customer Show Status */}
-            <div className="custom-form-group">
-              <label className="custom-form-label">Notes</label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Remarks"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            <div className="custom-form-group">
-              <label className="custom-form-label">
-                Customer Show Status
-              </label>
-              <div className="custom-radio-group">
-                <label className="custom-radio-label">
-                  <input
-                    type="radio"
-                    name="contact_show_status"
-                    value="show_contact_number"
-                    checked={contactShowStatus === 'show_contact_number'}
-                    onChange={(e) => setContactShowStatus(e.target.value)}
-                    disabled={loading}
-                  />
-                  <span>Show Contact Number</span>
+            <div className="custom-form-grid">
+              <div className="custom-form-group">
+                <label className="custom-form-label">
+                  Company Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <label className="custom-radio-label">
-                  <input
-                    type="radio"
-                    name="contact_show_status"
-                    value="cannot_show_contact_number"
-                    checked={contactShowStatus === 'cannot_show_contact_number'}
-                    onChange={(e) => setContactShowStatus(e.target.value)}
-                    disabled={loading}
-                  />
-                  <span>Cann't Show Contact Number</span>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="e.g. Dhaka Blinds Ltd"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+              </div>
+
+              <div className="custom-form-group">
+                <label className="custom-form-label">Contact Person Name</label>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="e.g. Mr. Rafiq Islam"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="custom-form-group">
+                <label className="custom-form-label">
+                  1st Contact Number <span style={{ color: '#ef4444' }}>*</span>
                 </label>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="e.g. 01700000000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+              </div>
+
+              <div className="custom-form-group">
+                <label className="custom-form-label">Email ID (Optional)</label>
+                <input
+                  type="email"
+                  className="custom-form-input"
+                  placeholder="client@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                />
               </div>
             </div>
+          </div>
 
-            {/* Row 6: Opening Balance */}
-            <div className="custom-form-group">
-              <label className="custom-form-label">Opening Balance</label>
-              <input
-                type="number"
-                step="0.01"
-                className="custom-form-input"
-                placeholder="Previous Due"
-                value={openingBalance}
-                onChange={(e) => setOpeningBalance(e.target.value)}
-                disabled={loading}
-              />
+          {/* Section 2: Secondary Contacts & Category */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              📞 Additional Contacts & Category
             </div>
 
+            <div className="custom-form-grid">
+              <div className="custom-form-group">
+                <label className="custom-form-label">2nd Contact Number</label>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="Optional Mobile"
+                  value={secondContactNumber}
+                  onChange={(e) => setSecondContactNumber(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="custom-form-group">
+                <label className="custom-form-label">3rd Contact Number</label>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="Optional Mobile"
+                  value={thirdContactNumber}
+                  onChange={(e) => setThirdContactNumber(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              {categories.length > 0 && (
+                <div className="custom-form-group">
+                  <label className="custom-form-label">Customer Category</label>
+                  <select
+                    className="custom-form-input"
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                    disabled={loading}
+                  >
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {isAdmin && (
+                <div className="custom-form-group">
+                  <label className="custom-form-label">Opening Balance (Tk)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="custom-form-input"
+                    placeholder="0.00"
+                    value={openingBalance}
+                    onChange={(e) => setOpeningBalance(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Section 3: Address & Notes */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              📍 Address & Additional Remarks
+            </div>
+
+            <div className="custom-form-grid">
+              <div className="custom-form-group">
+                <label className="custom-form-label">
+                  Address Line 1 <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="Primary Address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+              </div>
+
+              <div className="custom-form-group">
+                <label className="custom-form-label">Address Line 2</label>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="Secondary Address / Site Area"
+                  value={address2}
+                  onChange={(e) => setAddress2(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="custom-form-group" style={{ gridColumn: '1 / -1' }}>
+                <label className="custom-form-label">Notes & Remarks</label>
+                <input
+                  type="text"
+                  className="custom-form-input"
+                  placeholder="Special instructions or notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Footer Buttons */}
           <div className="custom-modal-footer">
-            <button
-              type="submit"
-              className="btn-modal-submit"
-              disabled={loading}
-            >
-              <span className="btn-icon">💾</span> Submit
-            </button>
             <button
               type="button"
               className="btn-modal-cancel"
               onClick={handleClose}
               disabled={loading}
             >
-              <span className="btn-icon">❎</span> Cancel
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-modal-submit"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : (initialData ? '💾 Update Customer' : '💾 Save Customer')}
             </button>
           </div>
 

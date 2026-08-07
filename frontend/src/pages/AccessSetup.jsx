@@ -1,296 +1,583 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 
 const AccessSetup = () => {
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
 
-  const [roles, setRoles] = useState(['admin', 'manager', 'salesman', 'supplier', 'customer']);
+  const [activeTab, setActiveTab] = useState('users'); // 'users' or 'matrix'
+  
+  // Matrix State
+  const [roles, setRoles] = useState(['admin', 'manager', 'salesman', 'staff']);
   const [selectedRole, setSelectedRole] = useState('salesman');
   const [matrixStructure, setMatrixStructure] = useState([]);
   const [rolePermissions, setRolePermissions] = useState({});
   const [currentPermissions, setCurrentPermissions] = useState([]);
+  const [loadingMatrix, setLoadingMatrix] = useState(false);
+  const [savingMatrix, setSavingMatrix] = useState(false);
 
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  // User Management State
+  const [usersList, setUsersList] = useState([]);
+  const [departmentsList, setDepartmentsList] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'salesman', phone: '', department_id: '', manager_id: '' });
+  const [savingUser, setSavingUser] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [userMsg, setUserMsg] = useState({ type: '', text: '' });
+  const [matrixMsg, setMatrixMsg] = useState({ type: '', text: '' });
 
-  // Load access setup data from API
+  // Load User List
+  const fetchUsers = useCallback(async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await api.get('/users');
+      setUsersList(response.data?.data || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, []);
+
+  // Load Departments List
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const response = await api.get('/settings/departments');
+      setDepartmentsList(response.data?.data || []);
+    } catch (err) {
+      console.error('Error fetching departments:', err);
+    }
+  }, []);
+
+  // Load Matrix Setup
   const fetchAccessSetup = useCallback(async () => {
-    setLoading(true);
-    setMessage({ type: '', text: '' });
+    setLoadingMatrix(true);
     try {
       const response = await api.get('/access-setup');
       const data = response.data?.data || {};
-      
-      setRoles(data.roles || ['admin', 'manager', 'salesman', 'supplier', 'customer']);
+      setRoles(data.roles || ['admin', 'manager', 'salesman', 'staff']);
       setMatrixStructure(data.matrix_structure || []);
       setRolePermissions(data.role_permissions || {});
-
-      // Set initial selected role's permissions
-      const initialPerms = data.role_permissions?.[selectedRole] || [];
-      setCurrentPermissions(initialPerms);
+      setCurrentPermissions(data.role_permissions?.[selectedRole] || []);
     } catch (err) {
-      console.error('Error loading Access Setup data:', err);
-      setMessage({ type: 'danger', text: 'Failed to load Access Setup permissions matrix.' });
+      console.error('Error loading Access Setup matrix:', err);
     } finally {
-      setLoading(false);
+      setLoadingMatrix(false);
     }
   }, [selectedRole]);
 
   useEffect(() => {
+    fetchUsers();
+    fetchDepartments();
     fetchAccessSetup();
-  }, []);
+  }, [fetchUsers, fetchDepartments, fetchAccessSetup]);
 
-  // When selectedRole changes, update currentPermissions from rolePermissions state
   const handleRoleChange = (newRole) => {
     setSelectedRole(newRole);
-    const perms = rolePermissions[newRole] || [];
-    setCurrentPermissions(perms);
-    setMessage({ type: '', text: '' });
+    setCurrentPermissions(rolePermissions[newRole] || []);
+    setMatrixMsg({ type: '', text: '' });
   };
 
-  // Toggle individual function permission
   const handlePermissionToggle = (permKey) => {
-    setCurrentPermissions(prev => {
-      if (prev.includes(permKey)) {
-        return prev.filter(k => k !== permKey);
-      } else {
-        return [...prev, permKey];
-      }
-    });
+    setCurrentPermissions(prev => prev.includes(permKey) ? prev.filter(k => k !== permKey) : [...prev, permKey]);
   };
 
-  // Check if all functions in a module are selected
-  const isModuleFullySelected = (moduleItem) => {
-    const keys = moduleItem.functions.map(f => f.key);
-    return keys.every(k => currentPermissions.includes(k));
-  };
-
-  // Toggle all permissions in a module (Page level checkbox)
-  const handleModulePageToggle = (moduleItem) => {
-    const keys = moduleItem.functions.map(f => f.key);
-    const isAllSelected = isModuleFullySelected(moduleItem);
-
-    if (isAllSelected) {
-      // Remove all module keys
-      setCurrentPermissions(prev => prev.filter(k => !keys.includes(k)));
-    } else {
-      // Add all missing module keys
-      setCurrentPermissions(prev => Array.from(new Set([...prev, ...keys])));
-    }
-  };
-
-  // Save updated permissions to backend
   const handleSavePermissions = async () => {
-    setSaving(true);
-    setMessage({ type: '', text: '' });
+    setSavingMatrix(true);
+    setMatrixMsg({ type: '', text: '' });
     try {
       const response = await api.post('/access-setup/update', {
         role: selectedRole,
         permissions: currentPermissions,
       });
-
-      // Update local rolePermissions state
-      setRolePermissions(prev => ({
-        ...prev,
-        [selectedRole]: currentPermissions,
-      }));
-
-      setMessage({ type: 'success', text: response.data?.message || `Permissions for ${selectedRole.toUpperCase()} updated successfully!` });
+      setRolePermissions(prev => ({ ...prev, [selectedRole]: currentPermissions }));
+      setMatrixMsg({ type: 'success', text: response.data?.message || `Permissions for ${selectedRole.toUpperCase()} updated successfully!` });
     } catch (err) {
-      console.error('Error saving access setup:', err);
-      setMessage({ type: 'danger', text: err.response?.data?.message || 'Failed to update access setup permissions.' });
+      setMatrixMsg({ type: 'danger', text: 'Failed to update permissions.' });
     } finally {
-      setSaving(false);
+      setSavingMatrix(false);
     }
   };
 
+  const handleOpenCreateModal = () => {
+    setEditingUser(null);
+    setModalError('');
+    setNewUser({ name: '', email: '', password: '', role: 'salesman', phone: '', department_id: '', manager_id: '' });
+    setUserModalOpen(true);
+  };
+
+  const handleOpenEditModal = (userObj) => {
+    setEditingUser(userObj);
+    setModalError('');
+    setNewUser({
+      name: userObj.name || '',
+      email: userObj.email || '',
+      password: '',
+      role: userObj.role || 'salesman',
+      phone: userObj.phone || '',
+      department_id: userObj.department_id ? String(userObj.department_id) : '',
+      manager_id: userObj.manager_id ? String(userObj.manager_id) : '',
+    });
+    setUserModalOpen(true);
+  };
+
+  const handleSaveUser = async (e) => {
+    e.preventDefault();
+    setModalError('');
+    setUserMsg({ type: '', text: '' });
+    setSavingUser(true);
+
+    try {
+      if (!newUser.phone || !newUser.phone.trim()) {
+        setModalError('Mobile Number is mandatory.');
+        setSavingUser(false);
+        return;
+      }
+
+      const payload = {
+        name: newUser.name,
+        phone: newUser.phone.trim(),
+        email: newUser.email && newUser.email.trim() ? newUser.email.trim() : null,
+        role: newUser.role,
+        department_id: newUser.department_id ? parseInt(newUser.department_id, 10) : null,
+        manager_id: newUser.manager_id ? parseInt(newUser.manager_id, 10) : null,
+      };
+
+      if (newUser.password && newUser.password.trim().length > 0) {
+        payload.password = newUser.password;
+      }
+
+      let response;
+      if (editingUser) {
+        response = await api.put(`/users/${editingUser.id}`, payload);
+        setUserMsg({ type: 'success', text: response.data?.message || `User account '${editingUser.name}' updated successfully!` });
+      } else {
+        if (!newUser.password) {
+          setModalError('Password is required when creating a new user account.');
+          setSavingUser(false);
+          return;
+        }
+        payload.password = newUser.password;
+        response = await api.post('/users', payload);
+        setUserMsg({ type: 'success', text: response.data?.message || 'User created successfully!' });
+      }
+
+      setUserModalOpen(false);
+      setEditingUser(null);
+      setNewUser({ name: '', email: '', password: '', role: 'salesman', phone: '', manager_id: '' });
+      fetchUsers();
+    } catch (err) {
+      console.error('Save User error:', err);
+      let errText = 'Failed to save user account.';
+      if (err.response?.data?.errors) {
+        errText = Object.values(err.response.data.errors).flat().join(' | ');
+      } else if (err.response?.data?.message) {
+        errText = err.response.data.message;
+      }
+      setModalError(errText);
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const handleToggleUserStatus = async (userObj) => {
+    try {
+      if (userObj.is_active) {
+        await api.delete(`/users/${userObj.id}`);
+      } else {
+        await api.put(`/users/${userObj.id}`, { is_active: true, is_archived: false });
+      }
+      fetchUsers();
+    } catch (err) {
+      alert('Action failed.');
+    }
+  };
+
+  const roleBadges = {
+    admin: { bg: '#ef444420', color: '#ef4444', border: '#ef444450' },
+    manager: { bg: '#3b82f620', color: '#3b82f6', border: '#3b82f650' },
+    salesman: { bg: '#10b98120', color: '#10b981', border: '#10b98150' },
+    staff: { bg: '#f59e0b20', color: '#f59e0b', border: '#f59e0b50' },
+  };
+
   return (
-    <div className="content-container animate-fade-in">
-      {/* Top Section Header */}
-      <div className="page-header-row" style={{ marginBottom: '16px' }}>
+    <div className="content-container animate-fade-in" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+      {/* Title Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>Access Setup Information</h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Configure granular page & function permissions per user role / staff type</p>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#f8fafc', margin: '0 0 6px 0' }}>🔐 Access Control & User Accounts Hub</h1>
+          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Manage Admin, Manager, Salesman, and Staff accounts & system permission matrices</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+
+        {/* Tab Buttons */}
+        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
           <button
-            type="button"
-            className="primary-btn"
-            onClick={handleSavePermissions}
-            disabled={saving || loading}
-            style={{ padding: '10px 20px', fontWeight: 'bold', fontSize: '14px', backgroundColor: '#2563eb' }}
+            onClick={() => setActiveTab('users')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'users' ? 'linear-gradient(135deg, #00f2fe, #4facfe)' : 'transparent',
+              color: activeTab === 'users' ? '#0f172a' : '#94a3b8',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
           >
-            💾 {saving ? 'Saving...' : 'Save Permission Matrix'}
+            👥 User Accounts ({usersList.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('matrix')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: activeTab === 'matrix' ? 'linear-gradient(135deg, #00f2fe, #4facfe)' : 'transparent',
+              color: activeTab === 'matrix' ? '#0f172a' : '#94a3b8',
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            ⚡ Role Permission Matrix
           </button>
         </div>
       </div>
 
-      {/* Role Selection Tabs / Selector Bar */}
-      <div className="welcome-banner" style={{ padding: '16px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: '700', fontSize: '14px', color: '#1e293b' }}>User Type / Staff Role:</span>
-          <div style={{ display: 'flex', gap: '6px', backgroundColor: '#f1f5f9', padding: '4px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-            {roles.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => handleRoleChange(r)}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  textTransform: 'capitalize',
-                  cursor: 'pointer',
-                  backgroundColor: selectedRole === r ? '#2563eb' : 'transparent',
-                  color: selectedRole === r ? '#ffffff' : '#475569',
-                  boxShadow: selectedRole === r ? '0 2px 4px rgba(37,99,235,0.2)' : 'none',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                {r === 'salesman' ? 'Staff / Salesman' : r}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '13px', color: '#64748b' }}>Status:</span>
-          <span className="badge badge-success" style={{ textTransform: 'uppercase', padding: '4px 10px' }}>Active</span>
-        </div>
-      </div>
-
-      {message.text && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-          fontSize: '13px',
-          fontWeight: '600',
-          backgroundColor: message.type === 'success' ? '#f0fdf4' : '#fef2f2',
-          border: `1px solid ${message.type === 'success' ? '#86efac' : '#fca5a5'}`,
-          color: message.type === 'success' ? '#166534' : '#991b1b',
-        }}>
-          {message.type === 'success' ? '✅' : '⚠️'} {message.text}
+      {userMsg.text && (
+        <div className={`alert alert-${userMsg.type}`} style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '20px', fontSize: '14px' }}>
+          {userMsg.text}
         </div>
       )}
 
-      {/* Subtitle Banner matching Reference Screenshot */}
-      <div style={{ marginBottom: '16px' }}>
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.3px' }}>
-          List of Pages And Functions
-        </h3>
-        <span style={{ fontSize: '12px', color: '#64748b' }}>
-          Configuring permissions for role: <strong style={{ textTransform: 'uppercase', color: '#2563eb' }}>{selectedRole}</strong> ({currentPermissions.length} functions active)
-        </span>
-      </div>
+      {/* TAB 1: USER ACCOUNTS MANAGER */}
+      {activeTab === 'users' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>System User Directory</h3>
+            <button
+              onClick={handleOpenCreateModal}
+              style={{
+                background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)',
+                color: '#0f172a',
+                border: 'none',
+                padding: '10px 18px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '14px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(0,242,254,0.3)'
+              }}
+            >
+              + Create New User Account
+            </button>
+          </div>
 
-      {loading ? (
-        <div className="flex-center" style={{ padding: '60px' }}><div className="spinner"></div></div>
-      ) : (
-        /* 3-Column Responsive Grid of Module Cards matching reference screenshot */
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-          gap: '20px',
-          alignItems: 'start',
-        }}>
-          {matrixStructure.map((mod) => {
-            const isPageChecked = isModuleFullySelected(mod);
+          <div style={{ background: 'rgba(15, 23, 42, 0.65)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', color: '#f8fafc', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <th style={{ padding: '14px 18px' }}>User Name</th>
+                  <th style={{ padding: '14px 18px' }}>Email & Phone</th>
+                  <th style={{ padding: '14px 18px' }}>System Role</th>
+                  <th style={{ padding: '14px 18px' }}>Department</th>
+                  <th style={{ padding: '14px 18px' }}>Assigned Manager</th>
+                  <th style={{ padding: '14px 18px' }}>Status</th>
+                  <th style={{ padding: '14px 18px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingUsers ? (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>Loading user directory...</td>
+                  </tr>
+                ) : usersList.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>No user accounts found.</td>
+                  </tr>
+                ) : (
+                  usersList.map((u) => {
+                    const badge = roleBadges[u.role] || roleBadges.staff;
+                    return (
+                      <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '14px 18px', fontWeight: 600 }}>{u.name}</td>
+                        <td style={{ padding: '14px 18px', color: '#cbd5e1' }}>
+                          <div>{u.email || '—'}</div>
+                          <div style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 600 }}>{u.phone || 'No phone'}</div>
+                        </td>
+                        <td style={{ padding: '14px 18px' }}>
+                          <span style={{ background: badge.bg, border: `1px solid ${badge.border}`, color: badge.color, padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 800, textTransform: 'uppercase' }}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 18px', color: '#93c5fd', fontWeight: 600 }}>
+                          {u.department ? u.department.name : '—'}
+                        </td>
+                        <td style={{ padding: '14px 18px', color: '#94a3b8' }}>
+                          {u.manager ? u.manager.name : '—'}
+                        </td>
+                        <td style={{ padding: '14px 18px' }}>
+                          <span style={{ color: u.is_active ? '#10b981' : '#ef4444', fontWeight: 700 }}>
+                            {u.is_active ? '● Active' : '○ Deactivated'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                            <button
+                              onClick={() => handleOpenEditModal(u)}
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.15)',
+                                color: '#93c5fd',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              ✏️ Edit
+                            </button>
+                            {u.id !== currentUser?.id && (
+                              <button
+                                onClick={() => handleToggleUserStatus(u)}
+                                style={{
+                                  background: u.is_active ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                  color: u.is_active ? '#fca5a5' : '#a7f3d0',
+                                  border: '1px solid ' + (u.is_active ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'),
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {u.is_active ? 'Deactivate' : 'Activate'}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-            return (
-              <div
-                key={mod.id}
+      {/* TAB 2: ROLE PERMISSION MATRIX */}
+      {activeTab === 'matrix' && (
+        <div>
+          {matrixMsg.text && (
+            <div className={`alert alert-${matrixMsg.type}`} style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '20px', fontSize: '14px' }}>
+              {matrixMsg.text}
+            </div>
+          )}
+
+          {/* Role selector bar */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+            {['admin', 'manager', 'salesman', 'staff'].map((r) => {
+              const active = selectedRole === r;
+              const badge = roleBadges[r];
+              return (
+                <button
+                  key={r}
+                  onClick={() => handleRoleChange(r)}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: '10px',
+                    border: `1px solid ${active ? badge.color : 'rgba(255,255,255,0.1)'}`,
+                    background: active ? badge.bg : 'rgba(255,255,255,0.03)',
+                    color: active ? badge.color : '#94a3b8',
+                    fontWeight: 800,
+                    fontSize: '14px',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {r} Role Permissions
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Matrix Table */}
+          <div style={{ background: 'rgba(15, 23, 42, 0.65)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc', margin: 0, textTransform: 'capitalize' }}>
+                Configuring Matrix for: <span style={{ color: roleBadges[selectedRole]?.color }}>{selectedRole}</span>
+              </h4>
+              <button
+                onClick={handleSavePermissions}
+                disabled={savingMatrix}
                 style={{
-                  backgroundColor: '#ffffff',
+                  background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)',
+                  color: '#0f172a',
+                  border: 'none',
+                  padding: '10px 20px',
                   borderRadius: '10px',
-                  border: '1px solid #cbd5e1',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-                  overflow: 'hidden',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 15px rgba(0,242,254,0.3)'
                 }}
               >
-                {/* Blue Header Banner matching Reference Screenshot */}
-                <div style={{
-                  backgroundColor: '#0070f3',
-                  color: '#ffffff',
-                  padding: '10px 16px',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}>
-                  <span>{mod.icon}</span>
-                  <span>{mod.name}</span>
-                </div>
+                {savingMatrix ? 'Saving...' : '💾 Save Role Matrix'}
+              </button>
+            </div>
 
-                {/* Card Table Content with Page vs Function columns */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
-                  <div style={{ padding: '8px 12px', fontWeight: '700', fontSize: '12px', color: '#475569', borderRight: '1px solid #e2e8f0' }}>
-                    Page
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+              {matrixStructure.map((mod) => (
+                <div key={mod.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '12px', padding: '16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: '15px', color: '#f8fafc', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>{mod.icon}</span> {mod.name}
                   </div>
-                  <div style={{ padding: '8px 12px', fontWeight: '700', fontSize: '12px', color: '#475569' }}>
-                    Function
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', minHeight: '120px' }}>
-                  {/* Left Column: Page Toggle */}
-                  <div style={{
-                    padding: '12px',
-                    borderRight: '1px solid #e2e8f0',
-                    backgroundColor: '#fafafa',
-                  }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '700', color: '#0f172a', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={isPageChecked}
-                        onChange={() => handleModulePageToggle(mod)}
-                        style={{ width: '16px', height: '16px', accentColor: '#0070f3', cursor: 'pointer' }}
-                      />
-                      <span>{mod.name}</span>
-                    </label>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', paddingLeft: '24px' }}>
-                      {isPageChecked ? 'All active' : 'Partial / Off'}
-                    </div>
-                  </div>
-
-                  {/* Right Column: List of Function Checkboxes */}
-                  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#ffffff' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {mod.functions.map((fn) => {
-                      const isChecked = currentPermissions.includes(fn.key);
-
+                      const checked = currentPermissions.includes(fn.key);
                       return (
-                        <label
-                          key={fn.key}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '12.5px',
-                            color: isChecked ? '#0f172a' : '#64748b',
-                            fontWeight: isChecked ? '600' : 'normal',
-                            cursor: 'pointer',
-                          }}
-                        >
+                        <label key={fn.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: checked ? '#f8fafc' : '#64748b', fontSize: '13px', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
-                            checked={isChecked}
+                            checked={checked}
                             onChange={() => handlePermissionToggle(fn.key)}
-                            style={{ width: '15px', height: '15px', accentColor: '#0070f3', cursor: 'pointer' }}
+                            style={{ accentColor: '#00f2fe', width: '16px', height: '16px', cursor: 'pointer' }}
                           />
-                          <span>{fn.label}</span>
+                          {fn.label}
                         </label>
                       );
                     })}
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT USER MODAL */}
+      {userModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: '20px' }}>
+          <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '20px', maxWidth: '480px', width: '100%', padding: '28px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#f8fafc', margin: '0 0 20px 0' }}>
+              {editingUser ? `✏️ Edit Account (${editingUser.name})` : '➕ Create User Account'}
+            </h3>
+
+            {modalError && (
+              <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fca5a5', padding: '10px 14px', borderRadius: '10px', marginBottom: '16px', fontSize: '13px', lineHeight: '1.4' }}>
+                ⚠️ {modalError}
               </div>
-            );
-          })}
+            )}
+
+            <form onSubmit={handleSaveUser} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newUser.name}
+                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                  placeholder="e.g. Tariq Staff"
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Phone / Mobile Number *</label>
+                <input
+                  type="text"
+                  required
+                  value={newUser.phone}
+                  onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                  placeholder="e.g. 01700000000"
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Email Address (Optional)</label>
+                <input
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                  placeholder="e.g. staff@bechakenarp.com"
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
+                  {editingUser ? 'New Password (leave empty to keep current)' : 'Password *'}
+                </label>
+                <input
+                  type="password"
+                  required={!editingUser}
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  placeholder={editingUser ? 'Leave blank to keep existing password' : 'Min 6 characters'}
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Role Selection *</label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                  style={{ width: '100%', padding: '10px 14px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                >
+                  <option value="admin">Admin (Full Control)</option>
+                  <option value="manager">Manager (Team Operations)</option>
+                  <option value="salesman">Salesman (Quotes & Orders)</option>
+                  <option value="staff">Staff (Stock & Logistics)</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Department</label>
+                <select
+                  value={newUser.department_id || ''}
+                  onChange={(e) => setNewUser({ ...newUser, department_id: e.target.value })}
+                  style={{ width: '100%', padding: '10px 14px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                >
+                  <option value="">-- No Department Assigned --</option>
+                  {departmentsList.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>Assigned Manager</label>
+                <select
+                  value={newUser.manager_id || ''}
+                  onChange={(e) => setNewUser({ ...newUser, manager_id: e.target.value })}
+                  style={{ width: '100%', padding: '10px 14px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                >
+                  <option value="">-- No Assigned Manager --</option>
+                  {usersList
+                    .filter(u => (u.role === 'manager' || u.role === 'admin') && u.id !== editingUser?.id)
+                    .map(m => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.role.toUpperCase()})</option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button type="button" onClick={() => { setUserModalOpen(false); setEditingUser(null); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>Cancel</button>
+                <button type="submit" disabled={savingUser} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #00f2fe, #4facfe)', color: '#0f172a', fontWeight: 700, cursor: savingUser ? 'not-allowed' : 'pointer', opacity: savingUser ? 0.7 : 1 }}>
+                  {savingUser ? 'Updating...' : (editingUser ? 'Update Account' : 'Save Account')}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

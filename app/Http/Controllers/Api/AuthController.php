@@ -21,11 +21,14 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $request->validate([
-            'email'    => 'required|email',
+            'email'    => 'required|string',
             'password' => 'required|string',
         ]);
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        $loginInput = trim($request->input('email'));
+        $fieldType = filter_var($loginInput, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
+
+        if (!Auth::attempt([$fieldType => $loginInput, 'password' => $request->password])) {
             return $this->errorResponse('Invalid login credentials.', 401);
         }
 

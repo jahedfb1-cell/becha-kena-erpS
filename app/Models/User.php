@@ -21,6 +21,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'department_id',
         'manager_id',
         'phone',
         'is_active',
@@ -37,11 +38,18 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password'          => 'hashed',
-        'is_active'          => 'boolean',
+        'is_active'         => 'boolean',
         'is_archived'       => 'boolean',
         'archived_at'       => 'datetime',
     ];
+
+    /**
+     * Relationship: Get the department this user belongs to.
+     */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
 
     /**
      * Relationship: Get the manager assigned to this salesman.

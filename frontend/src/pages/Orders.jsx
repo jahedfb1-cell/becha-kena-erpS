@@ -6,6 +6,7 @@ import { usePermission } from '../hooks/usePermission';
 import { formatCurrency, formatDate } from '../utils/format';
 import CustomerModal from '../components/CustomerModal';
 import ProductModal from '../components/ProductModal';
+import QuotationPrintModal from '../components/QuotationPrintModal';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -21,12 +22,21 @@ const Orders = () => {
   // Selected Order for details view
   const [selectedOrder, setSelectedOrder] = useState(null);
 
-  // Filters
+  // Filters & Reporting Period
   const [filterSearch, setFilterSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  // Print Modal States
+  const [printingOrder, setPrintingOrder] = useState(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printType, setPrintType] = useState('detailed');
+
+  // Excel Paste Modal States
+  const [excelPasteTargetBlock, setExcelPasteTargetBlock] = useState(null);
+  const [excelPasteText, setExcelPasteText] = useState('');
+
   // -------------------------------------------------------------
-  // FORM STATE FOR DIRECT ORDER CREATION
+  // FORM STATE FOR DIRECT ORDER CREATION (Dynamic Builder)
   // -------------------------------------------------------------
   const [date, setDate] = useState(new Date().toISOString().substring(0, 10));
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -36,8 +46,14 @@ const Orders = () => {
   const [sameAsCustomerAddress, setSameAsCustomerAddress] = useState(false);
   const [selectedTopProductId, setSelectedTopProductId] = useState('');
   
-  // Product Blocks
-  const [productBlocks, setProductBlocks] = useState([]);
+  // Dynamic Section-based Form State
+  const [sections, setSections] = useState([
+    {
+      id: 'sec_default',
+      name: 'Section A: Main Items',
+      blocks: []
+    }
+  ]);
 
   // Charges & Financial Summary
   const [convenienceCharge, setConvenienceCharge] = useState(0);
@@ -51,20 +67,17 @@ const Orders = () => {
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Supplier Details Popover State
-  const [activeSupplierPopoverBlockId, setActiveSupplierPopoverBlockId] = useState(null);
-
   // Modals
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
-  // Fetch orders list
+  // Fetch orders list fast
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.get('/quotations?all=1');
       const allItems = response.data?.data?.data || response.data?.data || [];
-      const confirmedOrders = allItems.filter(q => q.status !== 'quotation');
+      const confirmedOrders = allItems.filter(q => q && q.status !== 'quotation');
       setOrders(confirmedOrders);
     } catch (err) {
       setError('Failed to retrieve orders list.');
@@ -73,21 +86,28 @@ const Orders = () => {
     }
   }, []);
 
-  // Fetch customers & products for direct order form
+  // Fetch customers & basic data for order form fast
   const loadBasicData = useCallback(async () => {
     try {
-      const [custRes, prodRes] = await Promise.all([
-        api.get('/customers?all=1'),
-        api.get('/products')
-      ]);
+      const custRes = await api.get('/customers?all=1');
       const custsData = custRes.data?.data?.data || custRes.data?.data || [];
-      const prodsData = prodRes.data?.data?.data || prodRes.data?.data || [];
       setCustomers(Array.isArray(custsData) ? custsData : []);
-      setProducts(Array.isArray(prodsData) ? prodsData : []);
     } catch (err) {
-      console.warn('Error loading basic data for direct order:', err);
+      console.warn('Error loading customers for order form:', err);
     }
   }, []);
+
+  // Lazy load products when user enters form view
+  const loadProducts = useCallback(async () => {
+    if (products.length > 0) return;
+    try {
+      const prodRes = await api.get('/products');
+      const prodsData = prodRes.data?.data?.data || prodRes.data?.data || [];
+      setProducts(Array.isArray(prodsData) ? prodsData : []);
+    } catch (err) {
+      console.warn('Products lazy load error:', err);
+    }
+  }, [products.length]);
 
   useEffect(() => {
     fetchOrders();
@@ -96,14 +116,15 @@ const Orders = () => {
   useEffect(() => {
     if (view === 'form') {
       loadBasicData();
+      loadProducts();
     }
-  }, [view, loadBasicData]);
+  }, [view, loadBasicData, loadProducts]);
 
   const loadOrderDetails = async (id) => {
     try {
       setLoading(true);
       const response = await api.get(`/quotations/${id}`);
-      setSelectedOrder(response.data.data);
+      setSelectedOrder(response.data?.data || response.data);
       setView('detail');
     } catch (err) {
       alert('Failed to retrieve order details.');
@@ -145,26 +166,20 @@ const Orders = () => {
   };
 
   const filteredOrders = useMemo(() => {
+    if (!Array.isArray(orders)) return [];
     return orders.filter(o => {
+      if (!o) return false;
       const matchesStatus = filterStatus ? o.status === filterStatus : true;
-      const matchesSearch = filterSearch
-        ? (o.quotation_number && o.quotation_number.toLowerCase().includes(filterSearch.toLowerCase())) ||
-          (o.customer?.name && o.customer.name.toLowerCase().includes(filterSearch.toLowerCase()))
+      const searchQ = (filterSearch || '').toLowerCase().trim();
+      const matchesSearch = searchQ
+        ? (o.quotation_number && String(o.quotation_number).toLowerCase().includes(searchQ)) ||
+          (o.customer?.name && String(o.customer.name).toLowerCase().includes(searchQ)) ||
+          (o.customer?.phone && String(o.customer.phone).toLowerCase().includes(searchQ))
         : true;
       return matchesStatus && matchesSearch;
     });
   }, [orders, filterStatus, filterSearch]);
 
-  const isEdited = (order) => {
-    if (!order.approved_at) return false;
-    const approved = new Date(order.approved_at).getTime();
-    const updated = new Date(order.updated_at).getTime();
-    return updated - approved > 5000;
-  };
-
-  // -------------------------------------------------------------
-  // DIRECT ORDER FORM HELPERS & CALCULATIONS
-  // -------------------------------------------------------------
   const selectedCustomerObj = useMemo(() => {
     return customers.find(c => c.id === parseInt(selectedCustomerId));
   }, [selectedCustomerId, customers]);
@@ -191,9 +206,40 @@ const Orders = () => {
     });
   }, [customers, customerSearchQuery, selectedCustomerObj]);
 
-  const addProductBlock = (targetProductId = null) => {
-    const pId = targetProductId || selectedTopProductId;
-    if (!pId) return;
+  // ----------------------------------------------------
+  // Dynamic Section & Option Helper Methods (Identical to Quotations)
+  // ----------------------------------------------------
+  const addSection = () => {
+    const char = String.fromCharCode(65 + sections.length);
+    const newSec = {
+      id: 'sec_' + Date.now() + Math.random(),
+      name: `Section ${char}: New Category`,
+      blocks: []
+    };
+    setSections(prev => [...prev, newSec]);
+  };
+
+  const removeSection = (sectionId) => {
+    if (sections.length <= 1) {
+      alert('At least 1 section must remain.');
+      return;
+    }
+    setSections(prev => prev.filter(s => s.id !== sectionId));
+  };
+
+  const updateSectionName = (sectionId, newName) => {
+    setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name: newName } : s));
+  };
+
+  const addProductBlockToSection = (sectionId, targetProductId = null, isOptional = false, optionGroupId = null, initialSelected = true) => {
+    let pId = targetProductId || selectedTopProductId;
+    if (!pId && products.length > 0) {
+      pId = products[0].id;
+    }
+    if (!pId) {
+      alert('Please wait for products to load or add a product first.');
+      return;
+    }
     const prod = products.find(p => p.id === parseInt(pId));
     if (!prod) return;
 
@@ -206,6 +252,11 @@ const Orders = () => {
 
     const newBlock = {
       id: Date.now() + Math.random(),
+      section_id: sectionId,
+      option_group_id: optionGroupId,
+      is_optional: isOptional,
+      is_selected: initialSelected,
+      is_enabled_for_print: true,
       product_id: prod.id,
       product_code: prod.product_code || '',
       product_name: prod.name,
@@ -228,114 +279,294 @@ const Orders = () => {
       ]
     };
 
-    setProductBlocks(prev => [...prev, newBlock]);
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: [...sec.blocks, newBlock]
+      };
+    }));
     setSelectedTopProductId('');
   };
 
-  const addSizeRowToBlock = (blockId) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
+  const addOptionGroupToSection = (sectionId) => {
+    const optGrpId = 'opt_' + Date.now() + Math.random();
+    if (products.length > 0) {
+      addProductBlockToSection(sectionId, products[0].id, true, optGrpId, true);
+    } else {
+      alert('Please add products to system first.');
+    }
+  };
+
+  const addOptionVariantToGroup = (sectionId, optionGroupId) => {
+    if (products.length > 0) {
+      addProductBlockToSection(sectionId, products[0].id, true, optionGroupId, false);
+    }
+  };
+
+  const toggleOptionSelected = (sectionId, optionGroupId, targetBlockId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
       return {
-        ...block,
-        sizes: [
-          ...block.sizes,
-          {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.option_group_id === optionGroupId) {
+            return {
+              ...block,
+              is_selected: block.id === targetBlockId
+            };
+          }
+          return block;
+        })
+      };
+    }));
+  };
+
+  const addSizeRowToBlock = (sectionId, blockId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+          return {
+            ...block,
+            sizes: [
+              ...block.sizes,
+              {
+                id: Date.now() + Math.random(),
+                width: '',
+                height: '',
+                pcs: 1,
+                actual_sqft: 0,
+                billed_sqft: 0,
+                line_total: 0
+              }
+            ]
+          };
+        })
+      };
+    }));
+  };
+
+  const removeSizeRowFromBlock = (sectionId, blockId, sizeId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+          const updatedSizes = block.sizes.filter(s => s.id !== sizeId);
+          if (updatedSizes.length === 0) {
+            updatedSizes.push({
+              id: Date.now() + Math.random(),
+              width: '',
+              height: '',
+              pcs: 1,
+              actual_sqft: 0,
+              billed_sqft: 0,
+              line_total: 0
+            });
+          }
+          return {
+            ...block,
+            sizes: updatedSizes
+          };
+        })
+      };
+    }));
+  };
+
+  const removeProductBlock = (sectionId, blockId) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.filter(b => b.id !== blockId)
+      };
+    }));
+  };
+
+  const handleImportExcelSizes = () => {
+    if (!excelPasteTargetBlock || !excelPasteText.trim()) return;
+    const { sectionId, blockId } = excelPasteTargetBlock;
+
+    const lines = excelPasteText.split('\n');
+    const newSizeRows = [];
+
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const parts = trimmed.split(/[\t,;\s]+/).map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const w = parseFloat(parts[0]) || 0;
+        const h = parseFloat(parts[1]) || 0;
+        const pcs = parts[2] ? (parseInt(parts[2]) || 1) : 1;
+
+        if (w > 0 && h > 0) {
+          newSizeRows.push({
             id: Date.now() + Math.random(),
-            width: '',
-            height: '',
-            pcs: 1,
+            width: w,
+            height: h,
+            pcs: pcs,
             actual_sqft: 0,
             billed_sqft: 0,
             line_total: 0
-          }
-        ]
-      };
-    }));
-  };
-
-  const removeSizeRowFromBlock = (blockId, sizeId) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
-      const updatedSizes = block.sizes.filter(s => s.id !== sizeId);
-      if (updatedSizes.length === 0) {
-        updatedSizes.push({
-          id: Date.now() + Math.random(),
-          width: '',
-          height: '',
-          pcs: 1,
-          actual_sqft: 0,
-          billed_sqft: 0,
-          line_total: 0
-        });
+          });
+        }
       }
+    });
+
+    if (newSizeRows.length === 0) {
+      alert('No valid measurements found. Please ensure you copied Width and Height columns (e.g. 60 [Tab] 80 [Tab] 2).');
+      return;
+    }
+
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
       return {
-        ...block,
-        sizes: updatedSizes
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+
+          const unitPrice = parseFloat(block.unit_price) || 0;
+          const minSqft = parseFloat(block.min_billing_sqft) || 0;
+
+          const calculatedRows = newSizeRows.map(row => {
+            const w = parseFloat(row.width) || 0;
+            const h = parseFloat(row.height) || 0;
+            const pcs = parseInt(row.pcs) || 1;
+            const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
+            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+            const totalBilledSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+            const lineTotal = Math.round((totalBilledSqft * unitPrice) * 100) / 100;
+
+            return {
+              ...row,
+              actual_sqft: singlePieceSqft,
+              billed_sqft: totalBilledSqft,
+              line_total: lineTotal
+            };
+          });
+
+          const existingValidSizes = block.sizes.filter(s => parseFloat(s.width) > 0 && parseFloat(s.height) > 0);
+          return {
+            ...block,
+            sizes: [...existingValidSizes, ...calculatedRows]
+          };
+        })
+      };
+    }));
+
+    setExcelPasteTargetBlock(null);
+    setExcelPasteText('');
+  };
+
+  const handleSizeChange = (sectionId, blockId, sizeId, field, value) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+
+          const unitPrice = parseFloat(block.unit_price) || 0;
+          const minSqft = parseFloat(block.min_billing_sqft) || 0;
+
+          const updatedSizes = block.sizes.map(size => {
+            if (size.id !== sizeId) return size;
+            const updatedSize = { ...size, [field]: value };
+
+            const w = parseFloat(updatedSize.width) || 0;
+            const h = parseFloat(updatedSize.height) || 0;
+            const pcs = parseInt(updatedSize.pcs) || 1;
+
+            const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
+            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+            const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+            const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
+
+            return {
+              ...updatedSize,
+              actual_sqft: singlePieceSqft,
+              billed_sqft: billedSqft,
+              line_total: lineTotal
+            };
+          });
+
+          return { ...block, sizes: updatedSizes };
+        })
       };
     }));
   };
 
-  const removeProductBlock = (blockId) => {
-    setProductBlocks(prev => prev.filter(b => b.id !== blockId));
-  };
+  const handleBlockChange = (sectionId, blockId, field, value) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
 
-  const handleSizeChange = (blockId, sizeId, field, value) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
-      const unitPrice = parseFloat(block.unit_price) || 0;
-      const minSqft = parseFloat(block.min_billing_sqft) || 0;
+          let updatedBlock = { ...block, [field]: value };
 
-      const updatedSizes = block.sizes.map(size => {
-        if (size.id !== sizeId) return size;
-        const updatedSize = { ...size, [field]: value };
-        const w = parseFloat(updatedSize.width) || 0;
-        const h = parseFloat(updatedSize.height) || 0;
-        const pcs = parseInt(updatedSize.pcs) || 1;
+          if (field === 'product_id') {
+            const prod = products.find(p => p.id === parseInt(value));
+            if (prod) {
+              const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
+              const defaultMinSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
+              const defaultUnitPrice = parseFloat(prod.default_unit_price) || 0;
 
-        const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-        const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-        const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
-        const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
+              updatedBlock.product_name = prod.name;
+              updatedBlock.product_code = prod.product_code || '';
+              updatedBlock.unit_price = defaultUnitPrice;
+              updatedBlock.cost_price = priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0;
+              updatedBlock.min_billing_sqft = defaultMinSqft;
+              updatedBlock.supplier_id = priorityLink ? priorityLink.supplier_id : '';
+              updatedBlock.notes = prod.details || 
+                `5% Sunscreen Fabrics\nHeavy Duty side clump & Controller\nFittings, Fixing, and installations\nWith all Accessories\nPer Blinds Minimum Quantity ${defaultMinSqft || 20} Sft`;
+            }
+          }
 
-        return { ...updatedSize, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
-      });
+          if (field === 'unit_price' || field === 'product_id') {
+            const unitPrice = parseFloat(updatedBlock.unit_price) || 0;
+            const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
 
-      return { ...block, sizes: updatedSizes };
-    }));
-  };
+            updatedBlock.sizes = updatedBlock.sizes.map(size => {
+              const w = parseFloat(size.width) || 0;
+              const h = parseFloat(size.height) || 0;
+              const pcs = parseInt(size.pcs) || 1;
 
-  const handleBlockChange = (blockId, field, value) => {
-    setProductBlocks(prev => prev.map(block => {
-      if (block.id !== blockId) return block;
-      const updatedBlock = { ...block, [field]: value };
+              const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
+              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+              const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+              const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
 
-      if (field === 'unit_price') {
-        const unitPrice = parseFloat(value) || 0;
-        const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
-        updatedBlock.sizes = updatedBlock.sizes.map(size => {
-          const w = parseFloat(size.width) || 0;
-          const h = parseFloat(size.height) || 0;
-          const pcs = parseInt(size.pcs) || 1;
-          const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-          const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-          const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
-          const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
-          return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
-        });
-      }
+              return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
+            });
+          }
 
-      return updatedBlock;
+          return updatedBlock;
+        })
+      };
     }));
   };
 
   // Real-time Financial summary calculations
   const financialSummary = useMemo(() => {
     let subtotal = 0;
-    productBlocks.forEach(block => {
-      block.sizes.forEach(size => {
-        subtotal += parseFloat(size.line_total) || 0;
+
+    sections.forEach(sec => {
+      sec.blocks.forEach(block => {
+        if (block.is_enabled_for_print !== false && block.is_selected !== false) {
+          block.sizes.forEach(size => {
+            subtotal += parseFloat(size.line_total) || 0;
+          });
+        }
       });
     });
+
     subtotal = Math.round(subtotal * 100) / 100;
 
     let vatAmt = Math.round((subtotal * (parseFloat(vatPercentage) || 0) / 100) * 100) / 100;
@@ -355,7 +586,7 @@ const Orders = () => {
       discountAmount: discAmt,
       netAmount: net,
     };
-  }, [productBlocks, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
+  }, [sections, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
 
   const resetForm = () => {
     setDate(new Date().toISOString().substring(0, 10));
@@ -363,7 +594,13 @@ const Orders = () => {
     setCustomerSearchQuery('');
     setDeliveryAddress('');
     setSameAsCustomerAddress(false);
-    setProductBlocks([]);
+    setSections([
+      {
+        id: 'sec_default',
+        name: 'Section A: Main Items',
+        blocks: []
+      }
+    ]);
     setConvenienceCharge(0);
     setOtherCharge(0);
     setOtherChargeLabel('');
@@ -384,28 +621,57 @@ const Orders = () => {
       return;
     }
 
-    if (productBlocks.length === 0) {
-      setFormError('Please add at least one product to the order.');
+    let hasBlocks = false;
+    sections.forEach(s => {
+      if (s.blocks.length > 0) hasBlocks = true;
+    });
+
+    if (!hasBlocks) {
+      setFormError('Please add at least one product or option block to the order.');
       return;
     }
 
     // Build items array
     const items = [];
-    for (const block of productBlocks) {
-      for (const s of block.sizes) {
-        if (!s.width || !s.height) {
-          setFormError(`Please enter valid width and height for ${block.product_name || 'selected product'}.`);
+    for (const sec of sections) {
+      for (const block of sec.blocks) {
+        if (!block.product_id) {
+          setFormError(`[${sec.name}] Please select a product for all blocks.`);
           return;
         }
-        items.push({
-          product_id: block.product_id,
-          product_variant_id: null,
-          width: parseFloat(s.width),
-          height: parseFloat(s.height),
-          pcs: parseInt(s.pcs) || 1,
-          unit_price: parseFloat(block.unit_price) || 0,
-          notes: block.notes || ''
+
+        let validSizeCount = 0;
+        block.sizes.forEach((s) => {
+          const w = parseFloat(s.width) || 0;
+          const h = parseFloat(s.height) || 0;
+          const pcs = parseInt(s.pcs) || 1;
+
+          if (w > 0 && h > 0 && pcs > 0) {
+            validSizeCount++;
+            items.push({
+              section_name: sec.name,
+              option_group_id: block.option_group_id || null,
+              is_optional: block.is_optional || false,
+              is_selected: block.is_selected !== false,
+              is_enabled_for_print: block.is_enabled_for_print !== false,
+              product_id: block.product_id,
+              product_variant_id: block.product_variant_id || null,
+              supplier_id: block.supplier_id || null,
+              width: w,
+              height: h,
+              pcs: pcs,
+              unit_price: parseFloat(block.unit_price) || 0,
+              cost_price: block.cost_price || 0,
+              min_billing_sqft: block.min_billing_sqft || 0,
+              notes: block.notes || '',
+            });
+          }
         });
+
+        if (validSizeCount === 0) {
+          setFormError(`[${sec.name}] Product "${block.product_name}": At least 1 valid size (Width & Height greater than 0) is required.`);
+          return;
+        }
       }
     }
 
@@ -419,6 +685,7 @@ const Orders = () => {
       discount_type: discountType,
       discount_value: parseFloat(discountValue) || 0,
       note: remark || null,
+      delivery_address: deliveryAddress || null,
       items: items
     };
 
@@ -441,99 +708,38 @@ const Orders = () => {
     <div className="content-container animate-fade-in">
       {view === 'list' ? (
         <>
-          <div className="page-header-row">
+          <div className="page-header-row no-print">
             <div>
               <h1>Confirmed Orders</h1>
-              <p>View pipeline sales orders, conversions, and direct order entries</p>
+              <p>Manage confirmed sales orders, manager approvals, and automated supplier routing</p>
             </div>
-            <button 
-              className="primary-btn" 
-              onClick={() => { resetForm(); setView('form'); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              ➕ Create Direct Order
+            <button className="primary-btn" onClick={() => { resetForm(); setView('form'); }}>
+              + Create Direct Confirmed Order
             </button>
           </div>
 
-          {/* Approval Request Summary Status Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-            <div 
-              onClick={() => setFilterStatus('')}
-              className="stat-card" 
-              style={{ cursor: 'pointer', borderLeft: !filterStatus ? '4px solid var(--primary)' : 'none' }}
+          <div className="no-print" style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="Search by order number or customer..."
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              className="modern-form-control"
+              style={{ width: '280px' }}
+            />
+
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="modern-form-control"
+              style={{ width: '200px' }}
             >
-              <div style={{ fontSize: '24px', marginBottom: '4px' }}>📋</div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-main)', textTransform: 'uppercase', fontWeight: 600 }}>All Orders</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-heading)' }}>{orders.length}</div>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setFilterStatus('pending_approval')}
-              className="stat-card" 
-              style={{ cursor: 'pointer', borderLeft: filterStatus === 'pending_approval' ? '4px solid #f59e0b' : 'none', backgroundColor: '#fffbebf0' }}
-            >
-              <div style={{ fontSize: '24px', marginBottom: '4px' }}>⏳</div>
-              <div>
-                <div style={{ fontSize: '11px', color: '#b45309', textTransform: 'uppercase', fontWeight: 700 }}>Approval Requests</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#92400e' }}>
-                  {orders.filter(o => o.status === 'pending_approval' || o.status === 'pending_reapproval').length} Pending
-                </div>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setFilterStatus('approved')}
-              className="stat-card" 
-              style={{ cursor: 'pointer', borderLeft: filterStatus === 'approved' ? '4px solid #10b981' : 'none' }}
-            >
-              <div style={{ fontSize: '24px', marginBottom: '4px' }}>✅</div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-main)', textTransform: 'uppercase', fontWeight: 600 }}>Approved Orders</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#065f46' }}>
-                  {orders.filter(o => o.status === 'approved').length} Approved
-                </div>
-              </div>
-            </div>
-
-            <div 
-              onClick={() => setFilterStatus('invoiced')}
-              className="stat-card" 
-              style={{ cursor: 'pointer', borderLeft: filterStatus === 'invoiced' ? '4px solid #3b82f6' : 'none' }}
-            >
-              <div style={{ fontSize: '24px', marginBottom: '4px' }}>📄</div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--text-main)', textTransform: 'uppercase', fontWeight: 600 }}>Invoiced Orders</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e40af' }}>
-                  {orders.filter(o => o.status === 'invoiced').length} Invoiced
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Filters */}
-          <div className="welcome-banner" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '16px' }}>
-            <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '150px' }}>
-              <label style={{ fontSize: '12px' }}>Search Order/Customer</label>
-              <input type="text" placeholder="Search..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px' }} />
-            </div>
-
-            <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '150px' }}>
-              <label style={{ fontSize: '12px' }}>Order Status</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }}>
-                <option value="">All Statuses</option>
-                <option value="pending_approval">Pending Approval</option>
-                <option value="pending_reapproval">Pending Re-Approval</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="invoiced">Invoiced</option>
-              </select>
-            </div>
-
-            <button className="logout-btn" onClick={() => { setFilterSearch(''); setFilterStatus(''); }} style={{ alignSelf: 'flex-end', height: '34px' }}>
-              Reset Filters
-            </button>
+              <option value="">All Statuses</option>
+              <option value="pending_approval">Pending Approval</option>
+              <option value="approved">Approved</option>
+              <option value="invoiced">Invoiced</option>
+              <option value="rejected">Rejected</option>
+            </select>
           </div>
 
           {loading ? (
@@ -545,66 +751,74 @@ const Orders = () => {
                   <tr>
                     <th>Order Number</th>
                     <th>Customer</th>
-                    <th>Salesperson</th>
-                    <th>Net Amount</th>
+                    <th>Customer Address</th>
+                    <th>Delivery Address</th>
+                    <th>Salesman</th>
                     <th>Status</th>
+                    <th>Date</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-main)' }}>No orders found.</td>
+                      <td colSpan="8" style={{ textAlign: 'center' }}>No confirmed orders found.</td>
                     </tr>
                   ) : (
                     filteredOrders.map((o) => (
                       <tr key={o.id}>
                         <td><strong>{o.quotation_number}</strong></td>
-                        <td>{o.customer?.company_name || o.customer?.name}</td>
-                        <td>{o.salesman?.name}</td>
-                        <td>{formatCurrency(o.net_amount)}</td>
+                        <td>
+                          <strong>{o.customer?.name || 'N/A'}</strong>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '12px', color: 'var(--text-main)', maxWidth: '180px', whiteSpace: 'normal', lineHeight: '1.4' }}>
+                            {o.customer?.address || 'N/A'}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, maxWidth: '180px', whiteSpace: 'normal', lineHeight: '1.4' }}>
+                            {o.delivery_address || o.customer?.address || 'N/A'}
+                          </div>
+                        </td>
+                        <td>{o.salesman?.name || o.creator?.name || '-'}</td>
                         <td>
                           <span className={`badge ${
                             o.status === 'approved' ? 'badge-success' :
                             o.status === 'invoiced' ? 'badge-info' :
-                            (o.status === 'pending_approval' || o.status === 'pending_reapproval') ? 'badge-warning' :
-                            o.status === 'rejected' ? 'badge-danger' : 'badge-outline'
+                            o.status === 'pending_approval' ? 'badge-warning' : 'badge-danger'
                           }`}>
-                            {o.status === 'pending_reapproval' ? '⚠️ Pending Re-Approval' :
-                             o.status === 'pending_approval' ? '⏳ Pending Approval' :
-                             o.status === 'approved' ? '✅ Approved' :
-                             o.status === 'invoiced' ? '📄 Invoiced' :
-                             o.status === 'rejected' ? '❌ Rejected' : o.status}
+                            {o.status?.replace('_', ' ')}
                           </span>
                         </td>
-                        <td>
-                          <button className="text-btn" onClick={() => loadOrderDetails(o.id)}>
-                            👁️ Details
+                        <td style={{ whiteSpace: 'nowrap' }}>{formatDate(o.created_at || o.date)}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button
+                            type="button"
+                            className="btn-action-circle"
+                            onClick={() => loadOrderDetails(o.id)}
+                            title="View Order Details"
+                            style={{ marginRight: '6px' }}
+                          >
+                            👁️
                           </button>
-
-                          {(o.status === 'pending_approval' || o.status === 'pending_reapproval') && (can('quotations:approve') || user?.role === 'admin') && (
-                            <>
-                              <button className="text-btn" onClick={() => handleApprove(o.id)} style={{ marginLeft: '8px', color: 'var(--success)', fontWeight: 700 }}>
-                                ✅ Approve
-                              </button>
-                              <button className="text-btn" onClick={() => handleReject(o.id)} style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 700 }}>
-                                ❌ Reject
-                              </button>
-                            </>
-                          )}
-
-                          {o.status === 'approved' && (user?.role === 'admin') && (
-                            <button className="text-btn" onClick={() => handleGenerateInvoice(o.id)} style={{ marginLeft: '8px', color: '#00a8cc', fontWeight: 700 }}>
-                              🧾 Invoice
-                            </button>
-                          )}
-
-                          <button className="text-btn" onClick={() => handlePrintClick(o, 'detailed')} style={{ marginLeft: '8px', color: '#17a2b8', fontWeight: 600 }}>
-                            🖨️ Detailed Print
-                          </button>
-
-                          <button className="text-btn" onClick={() => handlePrintClick(o, 'simplified')} style={{ marginLeft: '8px', color: '#0ea5e9', fontWeight: 600 }}>
-                            🖨️ View Print
+                          <button
+                            type="button"
+                            className="btn-action-circle"
+                            onClick={async () => {
+                              try {
+                                const res = await api.get(`/quotations/${o.id}`);
+                                const fullOrder = res.data?.data || res.data || o;
+                                setPrintingOrder(fullOrder);
+                                setIsPrintModalOpen(true);
+                              } catch (err) {
+                                setPrintingOrder(o);
+                                setIsPrintModalOpen(true);
+                              }
+                            }}
+                            title="Print Order"
+                          >
+                            🖨️
                           </button>
                         </td>
                       </tr>
@@ -620,44 +834,41 @@ const Orders = () => {
         <div className="animate-fade-in">
           <div className="page-header-row">
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h1>Order #{selectedOrder?.quotation_number}</h1>
-                {isEdited(selectedOrder) && (
-                  <span className="badge badge-warning" style={{ fontSize: '11px', textTransform: 'uppercase' }}>Edited</span>
-                )}
-              </div>
-              <p>Track delivery routing, purchase entries, and billing statuses</p>
+              <h1>Order #{selectedOrder?.quotation_number}</h1>
+              <p>Confirmed Sales Order Details &amp; Automated Supplier Routing</p>
             </div>
             <button className="logout-btn" onClick={() => setView('list')}>⬅️ Back to Orders List</button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.2fr', gap: '20px', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Order Info Summary Header */}
-              <div className="welcome-banner" style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+              {/* Customer & Info Card */}
+              <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 0.8fr 1.2fr', gap: '16px', alignItems: 'center' }}>
                 <div>
-                  <span style={{ fontSize: '12px', textTransform: 'uppercase' }}>Client Name</span>
-                  <h4 style={{ margin: '4px 0 0', color: 'var(--text-heading)' }}>{selectedOrder?.customer?.company_name || selectedOrder?.customer?.name}</h4>
-                  <span style={{ fontSize: '13px' }}>{selectedOrder?.customer?.phone}</span>
+                  <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b' }}>Customer Name</span>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px', marginTop: '4px' }}>{selectedOrder?.customer?.name}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-main)' }}>{selectedOrder?.customer?.phone}</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '12px', textTransform: 'uppercase' }}>Order Placed Date</span>
-                  <h4 style={{ margin: '4px 0 0', color: 'var(--text-heading)' }}>{formatDate(selectedOrder?.created_at)}</h4>
+                  <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b' }}>Delivery Address</span>
+                  <div style={{ fontSize: '14px', marginTop: '4px' }}>{selectedOrder?.delivery_address || selectedOrder?.customer?.address || 'N/A'}</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '12px', textTransform: 'uppercase' }}>Sales Rep</span>
-                  <h4 style={{ margin: '4px 0 0', color: 'var(--text-heading)' }}>{selectedOrder?.salesman?.name}</h4>
-                </div>
-                <div>
-                  <span style={{ fontSize: '12px', textTransform: 'uppercase' }}>Status</span>
+                  <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b' }}>Status</span>
                   <div style={{ marginTop: '4px' }}>
                     <span className={`badge ${
                       selectedOrder?.status === 'approved' ? 'badge-success' :
                       selectedOrder?.status === 'invoiced' ? 'badge-info' :
                       selectedOrder?.status === 'pending_approval' ? 'badge-warning' : 'badge-danger'
                     }`} style={{ textTransform: 'uppercase' }}>
-                      {selectedOrder?.status.replace('_', ' ')}
+                      {selectedOrder?.status?.replace('_', ' ')}
                     </span>
+                  </div>
+                </div>
+                <div style={{ borderLeft: '2px solid #fecdd3', paddingLeft: '12px' }}>
+                  <span style={{ fontSize: '12px', color: '#e11d48', fontWeight: 'bold', display: 'block' }}>Order Reference Info:</span>
+                  <div style={{ fontSize: '13px', color: '#e11d48', fontWeight: 600, marginTop: '2px' }}>
+                    Order Ref By: <strong>{selectedOrder?.salesman?.name || selectedOrder?.salesman_name || selectedOrder?.creator?.name || 'System Admin'}</strong>
                   </div>
                 </div>
               </div>
@@ -669,98 +880,40 @@ const Orders = () => {
                   <thead>
                     <tr>
                       <th>Product</th>
-                      <th>Dimensions</th>
-                      <th>Pcs</th>
-                      <th>Billed Sqft</th>
-                      <th>Unit Price</th>
-                      <th>Line Total</th>
+                      <th style={{ textAlign: 'center' }}>
+                        Dimensions<br />
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>widht &nbsp;|&nbsp; Height</span>
+                      </th>
+                      <th style={{ textAlign: 'center' }}>Pcs</th>
+                      <th style={{ textAlign: 'center' }}>Billed Sqft</th>
                     </tr>
                   </thead>
                   <tbody>
                     {selectedOrder?.items?.map((item) => (
                       <tr key={item.id}>
-                        <td><strong>{item.product?.product_code}</strong> - {item.product?.name}</td>
-                        <td>{item.width} &times; {item.height} in</td>
-                        <td>{item.pcs}</td>
-                        <td>{item.billed_sqft} sqft</td>
-                        <td>{formatCurrency(item.unit_price)}</td>
-                        <td style={{ fontWeight: '600' }}>{formatCurrency(item.line_total)}</td>
+                        <td><strong>{item.product?.product_code || item.variant?.name}</strong> - {item.product?.name || 'Blind Item'}</td>
+                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.width} in &nbsp;|&nbsp; {item.height} in</td>
+                        <td style={{ textAlign: 'center' }}>{item.pcs}</td>
+                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.billed_sqft} sqft</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-
-              {/* Purchase Entries (Auto supplier routing) */}
-              <div className="welcome-banner" style={{ padding: '20px' }}>
-                <h3 style={{ margin: '0 0 16px', color: 'var(--text-heading)' }}>Automated Supplier Purchase Entries</h3>
-                {selectedOrder?.purchase_entries?.length === 0 ? (
-                  <p style={{ margin: 0, fontStyle: 'italic' }}>No purchase entries generated yet. (Requires manager order approval)</p>
-                ) : (
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Purchase Code</th>
-                        <th>Supplier</th>
-                        <th>Billed Area</th>
-                        <th>Total Cost Price</th>
-                        <th>Routing Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedOrder?.purchase_entries?.map((pe) => (
-                        <tr key={pe.id}>
-                          <td><strong>{pe.purchase_number}</strong></td>
-                          <td>{pe.supplier?.name}</td>
-                          <td>{pe.billed_sqft} sqft</td>
-                          <td style={{ fontWeight: '600' }}>{formatCurrency(pe.total_cost_price)}</td>
-                          <td>
-                            <span className="badge badge-success" style={{ textTransform: 'uppercase' }}>Routed</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
             </div>
 
-            {/* Side Status Timeline & Actions */}
+            {/* Side Actions */}
             <div>
               <div className="stat-card" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '24px' }}>
                 <h3 style={{ margin: '0 0 20px', borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-heading)' }}>
-                  Order Workflow & Timelines
+                  Order Status &amp; Actions
                 </h3>
 
-                <div className="timeline" style={{ position: 'relative', paddingLeft: '20px', borderLeft: '2px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div className="timeline-item" style={{ position: 'relative' }}>
-                    <div style={{ position: 'absolute', left: '-27px', top: '4px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--primary)' }}></div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-main)' }}>{formatDate(selectedOrder?.created_at)}</span>
-                    <h5 style={{ margin: '2px 0 0', color: 'var(--text-heading)' }}>Order Converted</h5>
-                  </div>
-
-                  {selectedOrder?.approved_at && (
-                    <div className="timeline-item" style={{ position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '-27px', top: '4px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--success)' }}></div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-main)' }}>{formatDate(selectedOrder?.approved_at)}</span>
-                      <h5 style={{ margin: '2px 0 0', color: 'var(--text-heading)' }}>Manager Approved</h5>
-                    </div>
-                  )}
-
-                  {selectedOrder?.status === 'invoiced' && (
-                    <div className="timeline-item" style={{ position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '-27px', top: '4px', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--info)' }}></div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-main)' }}>Invoiced Status</span>
-                      <h5 style={{ margin: '2px 0 0', color: 'var(--text-heading)' }}>Billing Generated</h5>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '32px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {(selectedOrder?.status === 'pending_approval' || selectedOrder?.status === 'pending_reapproval') && (can('quotations:approve') || user?.role === 'admin') && (
                     <>
                       <button type="button" className="primary-btn" onClick={() => handleApprove(selectedOrder.id)} style={{ padding: '12px' }}>
-                        Approve Order &amp; Re-Sync Purchase Entry
+                        Approve Order &amp; Route Purchase Entry
                       </button>
                       <button type="button" className="logout-btn" onClick={() => handleReject(selectedOrder.id)} style={{ padding: '10px', color: 'var(--danger)', borderColor: 'var(--danger-bg)' }}>
                         Reject Order
@@ -773,18 +926,30 @@ const Orders = () => {
                       Generate Invoice
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    className="logout-btn"
+                    onClick={() => {
+                      setPrintingOrder(selectedOrder);
+                      setIsPrintModalOpen(true);
+                    }}
+                    style={{ padding: '10px', marginTop: '10px' }}
+                  >
+                    🖨️ Print Order View
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       ) : (
-        /* Direct Order Creation Form View (Identical Design & Measurement Entry as Quotations & Offers page) */
+        /* Direct Order Creation Form View (Dynamic Section & Option Builder) */
         <div className="animate-fade-in">
           <div className="page-header-row">
             <div>
               <h1>Create Direct Confirmed Order</h1>
-              <p>Directly record a confirmed sales order with full product measurement & supplier routing</p>
+              <p>Directly record a confirmed sales order with dynamic sections &amp; option groups</p>
             </div>
             <button className="btn-outline-back" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to Orders List</button>
           </div>
@@ -854,12 +1019,14 @@ const Orders = () => {
                   </div>
 
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Select Product *</label>
+                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quick Add Product to Section *</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <select 
                         value={selectedTopProductId} 
                         onChange={(e) => {
-                          if (e.target.value) addProductBlock(e.target.value);
+                          if (e.target.value && sections.length > 0) {
+                            addProductBlockToSection(sections[0].id, e.target.value);
+                          }
                         }}
                         className="modern-form-control"
                       >
@@ -903,258 +1070,292 @@ const Orders = () => {
                   />
                 </div>
 
-                {/* PRODUCT LINE ITEMS TABLE MATCHING QUOTATIONS & OFFERS PAGE (Color/Variant column removed) */}
-                <div className="form-card-section" style={{ overflowX: 'auto' }}>
-                  <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-                    <thead>
-                      <tr>
-                        <th style={{ width: '180px', minWidth: '160px' }}>Product Code *</th>
-                        <th style={{ width: '130px', minWidth: '120px' }}>Unit Price</th>
-                        <th style={{ width: '90px', minWidth: '85px' }}>Length</th>
-                        <th style={{ width: '90px', minWidth: '85px' }}>Height</th>
-                        <th style={{ width: '70px', minWidth: '65px' }}>Pcs</th>
-                        <th style={{ width: '120px', minWidth: '110px' }}>Sq.Ft</th>
-                        <th style={{ width: '130px', minWidth: '120px' }}>Quantity</th>
-                        <th style={{ width: '150px', minWidth: '140px' }}>Total Price</th>
-                        <th style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {productBlocks.length === 0 ? (
-                        <tr>
-                          <td colSpan="9" style={{ textAlign: 'center', padding: '28px', color: 'var(--text-main)' }}>
-                            No items added yet. Select a product from the <strong>"Select Product *"</strong> dropdown above to add items.
-                          </td>
-                        </tr>
-                      ) : (
-                        productBlocks.map((block) => {
-                          const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
-                          const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
+                {/* TOP BUILDER BUTTONS */}
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={addSection}
+                    style={{
+                      background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '10px 18px',
+                      borderRadius: '8px',
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 6px rgba(15,23,42,0.2)'
+                    }}
+                  >
+                    ➕ Add Section / Group
+                  </button>
+                </div>
 
-                          return (
-                            <React.Fragment key={block.id}>
-                              {/* Main Product Rows & Inner Size Rows */}
-                              {block.sizes.map((sizeRow, sIdx) => (
-                                <tr key={sizeRow.id} style={{ background: '#fff' }}>
-                                  {/* Product Code * ONLY (Rowspan across size rows) */}
-                                  {sIdx === 0 && (
-                                    <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', minWidth: '160px', padding: '12px 10px' }}>
-                                      <button 
-                                        type="button" 
-                                        onClick={() => setActiveSupplierPopoverBlockId(prev => prev === block.id ? null : block.id)}
-                                        style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', outline: 'none' }}
-                                        title="Click to view linked Supplier details"
-                                      >
-                                        <span style={{ 
-                                          display: 'inline-flex', 
-                                          alignItems: 'center', 
-                                          gap: '6px', 
-                                          fontWeight: 'bold', 
-                                          fontSize: '14px', 
-                                          color: 'var(--primary)', 
-                                          padding: '4px 8px', 
-                                          backgroundColor: 'rgba(37, 99, 235, 0.08)', 
-                                          borderRadius: '6px',
-                                          border: '1px solid rgba(37, 99, 235, 0.2)'
-                                        }}>
-                                          🏷️ {block.product_code || block.product_name}
-                                        </span>
-                                      </button>
+                {/* DYNAMIC SECTIONS & PRODUCT BLOCKS */}
+                {sections.map((sec) => (
+                  <div key={sec.id} className="form-card-section" style={{ marginBottom: '24px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <input
+                        type="text"
+                        value={sec.name}
+                        onChange={(e) => updateSectionName(sec.id, e.target.value)}
+                        style={{
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          color: '#0f172a',
+                          border: 'none',
+                          borderBottom: '2px dashed #94a3b8',
+                          background: 'transparent',
+                          padding: '2px 6px',
+                          width: '320px'
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => addProductBlockToSection(sec.id)}
+                          style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          ➕ Add Item
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addOptionGroupToSection(sec.id)}
+                          style={{ background: '#7c3aed', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          🔀 Add Option Group
+                        </button>
+                        {sections.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeSection(sec.id)}
+                            style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+                          >
+                            🗑️ Section
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                                      {/* Linked Supplier Popover Card */}
-                                      {activeSupplierPopoverBlockId === block.id && (
-                                        <div style={{ marginTop: '8px', padding: '10px 12px', background: '#ffffff', border: '1px solid #3b82f6', borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.12)', fontSize: '11px', textAlign: 'left', zIndex: 10 }}>
-                                          <div style={{ fontWeight: 'bold', color: '#1e40af', marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span>🏢 Linked Supplier Info:</span>
-                                            <span style={{ cursor: 'pointer', color: '#ef4444' }} onClick={() => setActiveSupplierPopoverBlockId(null)}>✖</span>
-                                          </div>
-                                          {(() => {
-                                            const prod = products.find(p => p.id === block.product_id);
-                                            const links = prod?.supplier_links || [];
-                                            if (links.length === 0) return <div style={{ color: '#64748b' }}>No direct supplier linked</div>;
-                                            return links.map((link, lIdx) => (
-                                              <div key={lIdx} style={{ padding: '4px 0', borderBottom: lIdx < links.length - 1 ? '1px dashed #e2e8f0' : 'none' }}>
-                                                <div style={{ fontWeight: '600', color: '#0f172a' }}>
-                                                  Rank #{link.priority_rank}: {link.supplier?.name || `Supplier #${link.supplier_id}`}
-                                                </div>
-                                                <div style={{ color: '#475569', fontSize: '10px' }}>
-                                                  Cost Price: <strong>৳{link.cost_price || 0}</strong> | MOQ: <strong>{link.min_billing_sqft || 0} Sq.Ft</strong>
-                                                </div>
-                                                {link.supplier?.phone && <div style={{ color: '#2563eb', fontSize: '10px' }}>📞 {link.supplier.phone}</div>}
-                                              </div>
-                                            ));
-                                          })()}
+                    {sec.blocks.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '24px', background: '#f8fafc', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
+                        No items in this section. Click <strong>"+ Add Item"</strong> or <strong>"+ Add Option Group"</strong> above.
+                      </div>
+                    ) : (
+                      sec.blocks.map((block) => {
+                        const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
+                        const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
+                        const isOptionGroup = Boolean(block.option_group_id);
+                        const isSelected = block.is_selected !== false;
+
+                        return (
+                          <div key={block.id} style={{ marginBottom: '16px', background: isOptionGroup ? (isSelected ? '#faf5ff' : '#f8fafc') : '#ffffff', border: isOptionGroup ? (isSelected ? '1px solid #c084fc' : '1px dashed #cbd5e1') : '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
+                            {/* Option Header Bar if Option Group */}
+                            {isOptionGroup && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', padding: '6px 10px', background: isSelected ? '#f3e8ff' : '#f1f5f9', borderRadius: '6px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', color: isSelected ? '#6b21a8' : '#475569' }}>
+                                  <input
+                                    type="radio"
+                                    name={`opt_group_${sec.id}_${block.option_group_id}`}
+                                    checked={isSelected}
+                                    onChange={() => toggleOptionSelected(sec.id, block.option_group_id, block.id)}
+                                    style={{ accentColor: '#7c3aed', width: '16px', height: '16px' }}
+                                  />
+                                  🔀 Option Variation Choice
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => addOptionVariantToGroup(sec.id, block.option_group_id)}
+                                  style={{ background: '#7c3aed', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}
+                                >
+                                  ➕ Add Option Variation
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Table of sizes */}
+                            <div style={{ overflowX: 'auto' }}>
+                              <table className="data-table" style={{ width: '100%', margin: 0 }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: '220px' }}>Product *</th>
+                                    <th style={{ width: '110px' }}>Unit Price</th>
+                                    <th style={{ width: '85px' }}>Width</th>
+                                    <th style={{ width: '85px' }}>Height</th>
+                                    <th style={{ width: '65px' }}>Pcs</th>
+                                    <th style={{ width: '110px' }}>Sq.Ft</th>
+                                    <th style={{ width: '130px' }}>Total Price</th>
+                                    <th style={{ width: '110px', textAlign: 'center' }}>Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {block.sizes.map((sizeRow, sIdx) => (
+                                    <tr key={sizeRow.id}>
+                                      {sIdx === 0 && (
+                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                          <select
+                                            value={block.product_id}
+                                            onChange={(e) => handleBlockChange(sec.id, block.id, 'product_id', e.target.value)}
+                                            className="modern-form-control"
+                                            style={{ fontWeight: 'bold', fontSize: '13px' }}
+                                          >
+                                            {products.map(p => (
+                                              <option key={p.id} value={p.id}>{p.product_code ? `${p.product_code} - ${p.name}` : p.name}</option>
+                                            ))}
+                                          </select>
+                                        </td>
+                                      )}
+
+                                      {sIdx === 0 && (
+                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                          <input
+                                            type="number"
+                                            value={block.unit_price}
+                                            onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)}
+                                            className="modern-form-control"
+                                            style={{ textAlign: 'center', fontWeight: '600' }}
+                                          />
+                                        </td>
+                                      )}
+
+                                      <td style={{ padding: '6px' }}>
+                                        <input
+                                          type="number"
+                                          value={sizeRow.width}
+                                          onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
+                                          placeholder="Width"
+                                          className="modern-form-control"
+                                        />
+                                      </td>
+
+                                      <td style={{ padding: '6px' }}>
+                                        <input
+                                          type="number"
+                                          value={sizeRow.height}
+                                          onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                          placeholder="Height"
+                                          className="modern-form-control"
+                                        />
+                                      </td>
+
+                                      <td style={{ padding: '6px' }}>
+                                        <input
+                                          type="number"
+                                          value={sizeRow.pcs}
+                                          onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                          className="modern-form-control"
+                                          style={{ textAlign: 'center' }}
+                                        />
+                                      </td>
+
+                                      <td style={{ padding: '6px' }}>
+                                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                          <input
+                                            type="text"
+                                            value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'}
+                                            readOnly
+                                            className="modern-form-control"
+                                            style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
+                                          />
+                                          {block.sizes.length > 1 && (
+                                            <button
+                                              type="button"
+                                              onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
+                                              className="btn-action-circle btn-action-delete"
+                                              style={{ padding: '4px 6px', fontSize: '12px' }}
+                                            >
+                                              🗑️
+                                            </button>
+                                          )}
                                         </div>
+                                      </td>
+
+                                      {sIdx === 0 && (
+                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                          <input
+                                            type="text"
+                                            value={isSelected ? `৳${totalPrice.toFixed(2)}` : '৳0.00 (Unselected)'}
+                                            readOnly
+                                            className="modern-form-control"
+                                            style={{ textAlign: 'center', background: '#f1f5f9', fontWeight: 'bold', color: isSelected ? '#7c3aed' : '#94a3b8' }}
+                                          />
+                                        </td>
                                       )}
-                                    </td>
-                                  )}
 
-                                  {/* Unit Price (Rowspan across size rows) */}
-                                  {sIdx === 0 && (
-                                    <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', minWidth: '120px', padding: '12px 8px' }}>
-                                      <input 
-                                        type="number" 
-                                        value={block.unit_price} 
-                                        onChange={(e) => handleBlockChange(block.id, 'unit_price', e.target.value)} 
-                                        className="modern-form-control"
-                                        style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px', width: '100%', minWidth: '90px' }}
-                                      />
-                                    </td>
-                                  )}
-
-                                  {/* Length */}
-                                  <td style={{ padding: '6px' }}>
-                                    <input 
-                                      type="number" 
-                                      value={sizeRow.width} 
-                                      onChange={(e) => handleSizeChange(block.id, sizeRow.id, 'width', e.target.value)} 
-                                      placeholder="Length" 
-                                      className="modern-form-control"
-                                    />
-                                  </td>
-
-                                  {/* Height */}
-                                  <td style={{ padding: '6px' }}>
-                                    <input 
-                                      type="number" 
-                                      value={sizeRow.height} 
-                                      onChange={(e) => handleSizeChange(block.id, sizeRow.id, 'height', e.target.value)} 
-                                      placeholder="Height" 
-                                      className="modern-form-control"
-                                    />
-                                  </td>
-
-                                  {/* Pcs */}
-                                  <td style={{ padding: '6px' }}>
-                                    <input 
-                                      type="number" 
-                                      value={sizeRow.pcs} 
-                                      onChange={(e) => handleSizeChange(block.id, sizeRow.id, 'pcs', e.target.value)} 
-                                      className="modern-form-control"
-                                      style={{ textAlign: 'center' }}
-                                    />
-                                  </td>
-
-                                  {/* Sq.Ft + Delete Size Row button */}
-                                  <td style={{ padding: '6px' }}>
-                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                      <input 
-                                        type="text" 
-                                        value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'} 
-                                        readOnly 
-                                        className="modern-form-control"
-                                        style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
-                                        title={sizeRow.actual_sqft < block.min_billing_sqft ? `MOQ (${block.min_billing_sqft} Sq.Ft/pc) Applied` : `Total Sq.Ft for ${sizeRow.pcs} pcs`}
-                                      />
-                                      {block.sizes.length > 1 && (
-                                        <button 
-                                          type="button" 
-                                          onClick={() => removeSizeRowFromBlock(block.id, sizeRow.id)}
-                                          className="btn-action-circle btn-action-delete"
-                                          style={{ padding: '4px 6px', fontSize: '12px' }}
-                                          title="Delete Size Line"
-                                        >
-                                          🗑️
-                                        </button>
+                                      {sIdx === 0 && (
+                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                          <button
+                                            type="button"
+                                            onClick={() => removeProductBlock(sec.id, block.id)}
+                                            className="btn-action-circle btn-action-delete"
+                                            style={{ marginRight: '6px' }}
+                                            title="Remove Block"
+                                          >
+                                            🗑️
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                            className="btn-action-circle btn-action-add"
+                                            title="Add Size Row"
+                                          >
+                                            ➕
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                              setExcelPasteText('');
+                                            }}
+                                            style={{
+                                              background: '#059669',
+                                              color: '#ffffff',
+                                              border: 'none',
+                                              borderRadius: '4px',
+                                              padding: '4px 8px',
+                                              fontSize: '11px',
+                                              fontWeight: 'bold',
+                                              cursor: 'pointer',
+                                              marginLeft: '6px'
+                                            }}
+                                            title="Paste Width, Height, Pcs from Excel"
+                                          >
+                                            📋 Excel
+                                          </button>
+                                        </td>
                                       )}
-                                    </div>
-                                  </td>
+                                    </tr>
+                                  ))}
 
-                                  {/* Quantity / Total Billed Sq.Ft (Rowspan across size rows) */}
-                                  {sIdx === 0 && (
-                                    <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)', minWidth: '120px', padding: '12px 8px' }}>
-                                      <input 
-                                        type="text" 
-                                        value={totalBilledSqft.toFixed(2)} 
-                                        readOnly 
-                                        className="modern-form-control"
-                                        style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '8px 10px', fontSize: '13px', width: '100%', minWidth: '90px' }}
+                                  <tr style={{ background: '#f8fafc' }}>
+                                    <td colSpan="7" style={{ padding: '8px 14px' }}>
+                                      <textarea
+                                        value={block.notes || ''}
+                                        onChange={(e) => handleBlockChange(sec.id, block.id, 'notes', e.target.value)}
+                                        rows="2"
+                                        style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', resize: 'vertical', background: '#fff' }}
+                                        placeholder="Enter specification details..."
                                       />
                                     </td>
-                                  )}
-
-                                  {/* Total Price (Rowspan across size rows) */}
-                                  {sIdx === 0 && (
-                                    <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', minWidth: '140px', padding: '12px 8px' }}>
-                                      <input 
-                                        type="text" 
-                                        value={totalPrice.toFixed(2)} 
-                                        readOnly 
-                                        className="modern-form-control"
-                                        style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '14px', width: '100%', minWidth: '110px' }}
-                                      />
-                                    </td>
-                                  )}
-
-                                  {/* Block Action Buttons (Rowspan across size rows) */}
-                                  {sIdx === 0 && (
-                                    <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                      <button 
-                                        type="button" 
-                                        onClick={() => removeProductBlock(block.id)} 
+                                    <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleBlockChange(sec.id, block.id, 'notes', '')}
                                         className="btn-action-circle btn-action-delete"
-                                        title="Delete Product Block"
-                                        style={{ marginRight: '6px' }}
                                       >
                                         🗑️
                                       </button>
-                                      <button 
-                                        type="button" 
-                                        onClick={() => addSizeRowToBlock(block.id)} 
-                                        className="btn-action-circle btn-action-add"
-                                        title="Add Size Measurement Row"
-                                      >
-                                        ➕
-                                      </button>
                                     </td>
-                                  )}
-                                </tr>
-                              ))}
-
-                              {/* Rich Specification / Description Box (Only ONCE per Product Block) */}
-                              <tr style={{ background: '#f8fafc' }}>
-                                <td colSpan="8" style={{ padding: '10px 14px' }}>
-                                  <div className="spec-editor-card">
-                                    {/* Formatting Toolbar */}
-                                    <div className="spec-editor-toolbar">
-                                      <span className="spec-editor-btn" title="Undo">↩️</span>
-                                      <span className="spec-editor-btn" title="Redo">↪️</span>
-                                      <span className="spec-editor-btn" style={{ fontWeight: 'bold' }}>Paragraph ▾</span>
-                                      <span className="spec-editor-btn" style={{ fontWeight: 'bold' }}>B</span>
-                                      <span className="spec-editor-btn" style={{ fontStyle: 'italic' }}>I</span>
-                                      <span className="spec-editor-btn">🔗</span>
-                                      <span className="spec-editor-btn">🖼️</span>
-                                      <span className="spec-editor-btn">📊</span>
-                                      <span className="spec-editor-btn">🎬</span>
-                                      <span className="spec-editor-btn">≡ ▾</span>
-                                    </div>
-                                    <textarea 
-                                      value={block.notes || ''} 
-                                      onChange={(e) => handleBlockChange(block.id, 'notes', e.target.value)}
-                                      rows="4" 
-                                      style={{ width: '100%', border: 'none', padding: '10px 14px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', background: '#fff' }}
-                                      placeholder="Enter product specification details..."
-                                    />
-                                  </div>
-                                </td>
-                                <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '14px' }}>
-                                  <button 
-                                    type="button" 
-                                    onClick={() => handleBlockChange(block.id, 'notes', '')} 
-                                    className="btn-action-circle btn-action-delete"
-                                    title="Clear Description"
-                                  >
-                                    🗑️
-                                  </button>
-                                </td>
-                              </tr>
-                            </React.Fragment>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ))}
 
                 {/* BOTTOM SUMMARY FIELDS MATCHING QUOTATIONS */}
                 <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
@@ -1205,7 +1406,6 @@ const Orders = () => {
                   </div>
                 </div>
 
-                {/* BOTTOM ACTION BUTTONS MATCHING QUOTATIONS */}
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', margin: '24px 0 10px 0' }}>
                   <button 
                     type="submit" 
@@ -1224,7 +1424,7 @@ const Orders = () => {
                 </div>
               </div>
 
-              {/* RIGHT FINANCIAL SUMMARY SIDEBAR MATCHING QUOTATIONS */}
+              {/* FINANCIAL SUMMARY SIDEBAR */}
               <div>
                 <div className="stat-card" style={{ flexDirection: 'column', alignItems: 'stretch', padding: '24px' }}>
                   <h3 style={{ margin: '0 0 20px', borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-heading)' }}>
@@ -1327,11 +1527,76 @@ const Orders = () => {
         onClose={() => setIsProductModalOpen(false)} 
         onProductSaved={(newProd) => {
           setProducts(prev => [newProd, ...prev]);
-          if (newProd && newProd.id) {
-            addProductBlock(newProd.id);
+          if (newProd && newProd.id && sections.length > 0) {
+            addProductBlockToSection(sections[0].id, newProd.id);
           }
         }} 
       />
+
+      <QuotationPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        quotation={printingOrder}
+        printType={printType}
+      />
+
+      {/* Excel Paste Modal */}
+      {excelPasteTargetBlock && (
+        <div className="custom-modal-overlay" onClick={(e) => e.target === e.currentTarget && setExcelPasteTargetBlock(null)}>
+          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '540px' }}>
+            <div className="custom-modal-header">
+              <h3 className="custom-modal-title">
+                <span>📋</span> Import Measurement Sizes (Excel)
+              </h3>
+              <button
+                type="button"
+                className="custom-modal-close"
+                onClick={() => setExcelPasteTargetBlock(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="custom-modal-form">
+              <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.5' }}>
+                Copy <strong>Width</strong>, <strong>Height</strong>, and <strong>Pcs</strong> columns from your Excel sheet and paste (Ctrl+V) below:
+              </div>
+
+              <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px 16px', borderRadius: '10px', fontSize: '12px', color: '#38bdf8', border: '1px dashed rgba(56, 189, 248, 0.3)' }}>
+                <strong>Expected Format:</strong><br />
+                <code>Width [Tab] Height [Tab] Pcs</code><br />
+                <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Example:<br />65 &nbsp;&nbsp; 90 &nbsp;&nbsp; 1<br />45 &nbsp;&nbsp; 60 &nbsp;&nbsp; 2</span>
+              </div>
+
+              <textarea
+                rows={6}
+                value={excelPasteText}
+                onChange={(e) => setExcelPasteText(e.target.value)}
+                placeholder="Paste Excel cells here (Ctrl + V)..."
+                className="custom-form-input"
+                style={{ fontFamily: 'monospace', fontSize: '13px', resize: 'vertical' }}
+              />
+
+              <div className="custom-modal-footer" style={{ padding: 0, background: 'transparent', border: 'none', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  className="btn-modal-cancel"
+                  onClick={() => setExcelPasteTargetBlock(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-modal-submit"
+                  onClick={handleImportExcelSizes}
+                >
+                  ✅ Import Sizes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

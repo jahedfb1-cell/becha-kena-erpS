@@ -21,10 +21,31 @@ import MyProfile from './pages/MyProfile';
 import DatabaseBackup from './pages/DatabaseBackup';
 import Settings from './pages/Settings';
 
+import QuotationPrintPage from './pages/QuotationPrintPage';
+import InvoicePrintPage from './pages/InvoicePrintPage';
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Standalone Isolated Clean Print Views (No Dashboard background) */}
+        <Route
+          path="/quotations/print/:id"
+          element={
+            <ProtectedRoute>
+              <QuotationPrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/invoices/print/:id"
+          element={
+            <ProtectedRoute>
+              <InvoicePrintPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Public Route */}
         <Route path="/login" element={<Login />} />
 
@@ -86,9 +107,17 @@ function App() {
             }
           />
 
-          {/* Access Setup / RBAC Matrix route */}
+          {/* Admin Access / Access Setup & RBAC Matrix route */}
           <Route
             path="access-setup"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AccessSetup />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin-access"
             element={
               <ProtectedRoute requiredRole="admin">
                 <AccessSetup />
