@@ -103,11 +103,11 @@ class ImportLegacyData extends Command
 
     private function wipeExistingTransactionalData(): void
     {
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        // DELETE (not TRUNCATE) — TRUNCATE is DDL and causes an implicit commit in
+        // MySQL, which would silently end the transaction this whole import runs in.
         foreach (['payments', 'customer_ledgers', 'invoices', 'quotation_items', 'quotations', 'customers'] as $t) {
-            DB::table($t)->truncate();
+            DB::table($t)->delete();
         }
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
         $this->info('Cleared existing demo customers/quotations/invoices/payments/ledgers.');
     }
 
