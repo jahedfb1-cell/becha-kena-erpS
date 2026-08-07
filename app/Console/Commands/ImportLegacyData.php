@@ -142,20 +142,35 @@ class ImportLegacyData extends Command
         $this->info('Cleared existing demo customers/quotations/invoices/payments/ledgers/products/suppliers.');
     }
 
+    /**
+     * Uses a fixed, high, reserved id (rather than auto-increment) so it can
+     * never collide with a real imported product id — DELETE (used to wipe
+     * prior data, see wipeExistingTransactionalData) does not reset MySQL's
+     * auto_increment counter the way TRUNCATE would, so relying on
+     * auto-increment here risked re-using an id a real legacy product needs.
+     */
+    private const LEGACY_PLACEHOLDER_PRODUCT_ID = 999999;
+
     private function createLegacyPlaceholderProduct(): int
     {
-        $existing = Product::where('product_code', 'LEGACY-IMPORT')->first();
-        if ($existing) {
-            return $existing->id;
+        $id = self::LEGACY_PLACEHOLDER_PRODUCT_ID;
+
+        if (Product::find($id)) {
+            return $id;
         }
 
-        return Product::create([
+        DB::table('products')->insert([
+            'id' => $id,
             'product_code' => 'LEGACY-IMPORT',
             'name' => 'Legacy Imported Item (see notes for original product)',
             'unit' => 'sqft',
             'default_unit_price' => 0,
             'created_by' => $this->adminId,
-        ])->id;
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $id;
     }
 
     /** @return array<int,int> old supid => new suppliers.id (same value, kept for clarity) */
