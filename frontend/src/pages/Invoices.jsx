@@ -23,6 +23,8 @@ const Invoices = () => {
   // Filters
   const [filterSearch, setFilterSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
 
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -133,15 +135,24 @@ const Invoices = () => {
   };
 
   const filteredInvoices = useMemo(() => {
+    const q = filterSearch.trim().toLowerCase();
+
     return invoices.filter(inv => {
       const matchesStatus = filterStatus ? inv.payment_status === filterStatus : true;
-      const matchesSearch = filterSearch
-        ? inv.invoice_number.toLowerCase().includes(filterSearch.toLowerCase()) ||
-          inv.customer?.name.toLowerCase().includes(filterSearch.toLowerCase())
+
+      const matchesSearch = q
+        ? (inv.invoice_number || '').toLowerCase().includes(q) ||
+          (inv.customer?.name || '').toLowerCase().includes(q) ||
+          (inv.customer?.phone || '').toLowerCase().includes(q)
         : true;
-      return matchesStatus && matchesSearch;
+
+      const invDate = inv.invoice_date ? inv.invoice_date.substring(0, 10) : null;
+      const matchesFrom = filterDateFrom && invDate ? invDate >= filterDateFrom : true;
+      const matchesTo = filterDateTo && invDate ? invDate <= filterDateTo : true;
+
+      return matchesStatus && matchesSearch && matchesFrom && matchesTo;
     });
-  }, [invoices, filterStatus, filterSearch]);
+  }, [invoices, filterStatus, filterSearch, filterDateFrom, filterDateTo]);
 
   return (
     <div className="content-container animate-fade-in">
@@ -155,13 +166,13 @@ const Invoices = () => {
           </div>
 
           {/* Filters Banner */}
-          <div className="welcome-banner" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '16px' }}>
-            <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '150px' }}>
-              <label style={{ fontSize: '12px' }}>Search Invoice/Customer</label>
-              <input type="text" placeholder="Search..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px' }} />
+          <div className="welcome-banner list-filter-row" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '16px', alignItems: 'flex-end' }}>
+            <div className="form-group" style={{ margin: 0, flex: '2 1 220px', minWidth: '200px' }}>
+              <label style={{ fontSize: '12px' }}>Search Invoice / Customer / Phone</label>
+              <input type="text" placeholder="Invoice number, customer name, or mobile no..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px' }} />
             </div>
 
-            <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '150px' }}>
+            <div className="form-group" style={{ margin: 0, flex: '1 1 150px', minWidth: '150px' }}>
               <label style={{ fontSize: '12px' }}>Payment Status</label>
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }}>
                 <option value="">All Statuses</option>
@@ -171,9 +182,23 @@ const Invoices = () => {
               </select>
             </div>
 
-            <button className="logout-btn" onClick={() => { setFilterSearch(''); setFilterStatus(''); }} style={{ alignSelf: 'flex-end', height: '34px' }}>
+            <div className="form-group" style={{ margin: 0, flex: '1 1 140px', minWidth: '140px' }}>
+              <label style={{ fontSize: '12px' }}>Date From</label>
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }} />
+            </div>
+
+            <div className="form-group" style={{ margin: 0, flex: '1 1 140px', minWidth: '140px' }}>
+              <label style={{ fontSize: '12px' }}>Date To</label>
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }} />
+            </div>
+
+            <button className="logout-btn" onClick={() => { setFilterSearch(''); setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); }} style={{ height: '34px' }}>
               Reset Filters
             </button>
+          </div>
+
+          <div style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)', marginBottom: '10px' }}>
+            Showing {filteredInvoices.length} of {invoices.length} invoices
           </div>
 
           {loading ? (

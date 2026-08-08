@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\User;
 use App\Traits\ApiResponse;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -71,6 +74,81 @@ class AuthController extends Controller
                 'permissions'=> $permissions,
             ]
         ], 'Login successful.');
+    }
+
+    /**
+     * Send a password reset link email to the given address, if an
+     * account exists for it. Always responds with a generic success
+     * message regardless of whether the account exists, so this
+     * endpoint can't be used to probe which emails are registered.
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $status = PasswordBroker::sendResetLink(
+            $request->only('email')
+        );
+
+        if ($status === PasswordBroker::RESET_LINK_SENT) {
+            $targetUser = User::where('email', $request->email)->first();
+
+            AuditLog::create([
+                'user_id'     => $targetUser?->id,
+                'user_name'   => $targetUser?->name ?? $request->email,
+                'action_type' => 'update',
+                'module'      => 'Auth',
+                'description' => "Password reset link requested for: {$request->email}",
+                'ip_address'  => $request->ip(),
+                'user_agent'  => $request->userAgent(),
+            ]);
+        }
+
+        // Always return the same generic message, whether or not the
+        // account exists — don't leak which emails are registered.
+        return $this->successResponse(null, 'If an account exists for that email, a password reset link has been sent.');
+    }
+
+    /**
+     * Reset a password using the token emailed by forgotPassword().
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token'    => 'required|string',
+            'email'    => 'required|email',
+            'password' => ['required', 'string', 'confirmed', Password::min(8)],
+        ]);
+
+        $status = PasswordBroker::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password),
+                ])->save();
+
+                event(new PasswordReset($user));
+
+                AuditLog::create([
+                    'user_id'     => $user->id,
+                    'user_name'   => $user->name,
+                    'action_type' => 'update',
+                    'module'      => 'Auth',
+                    'reference_id' => $user->id,
+                    'description' => 'Password reset via emailed reset link.',
+                    'ip_address'  => request()->ip(),
+                    'user_agent'  => request()->userAgent(),
+                ]);
+            }
+        );
+
+        if ($status !== PasswordBroker::PASSWORD_RESET) {
+            return $this->errorResponse(__($status), 400);
+        }
+
+        return $this->successResponse(null, 'Password has been reset successfully. You can now log in.');
     }
 
     /**

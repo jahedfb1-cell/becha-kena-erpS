@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
 
 const Login = () => {
@@ -54,7 +54,7 @@ const Login = () => {
             <input
               type="email"
               id="email"
-              placeholder="e.g. admin@bechakenarp.com"
+              placeholder="e.g. admin@dhakablinds.shop"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
@@ -75,6 +75,12 @@ const Login = () => {
               required
               style={{ width: '100%', padding: '12px 16px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', color: '#fff', fontSize: '14px', outline: 'none' }}
             />
+            <Link
+              to="/forgot-password"
+              style={{ display: 'block', textAlign: 'right', color: '#38bdf8', fontSize: '12px', fontWeight: '600', textDecoration: 'none', padding: '8px 0 0' }}
+            >
+              Forgot Password?
+            </Link>
           </div>
 
           <button type="submit" className="login-btn" disabled={loading} style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)', border: 'none', borderRadius: '10px', color: '#0f172a', fontSize: '15px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(0,242,254,0.3)' }}>

@@ -193,7 +193,7 @@ const Orders = () => {
   const filteredCustomersDropdown = useMemo(() => {
     if (!customerSearchQuery) return customers;
     if (selectedCustomerObj) {
-      const selectedDisplay = `${selectedCustomerObj.company_name || selectedCustomerObj.name} ( ${selectedCustomerObj.phone} )`;
+      const selectedDisplay = selectedCustomerObj.company_name || selectedCustomerObj.name;
       if (customerSearchQuery === selectedDisplay) return customers;
     }
     const q = customerSearchQuery.toLowerCase().trim();
@@ -998,11 +998,11 @@ const Orders = () => {
                                   className="dropdown-item"
                                   onClick={() => {
                                     setSelectedCustomerId(c.id);
-                                    setCustomerSearchQuery(`${c.company_name || c.name} ( ${c.phone} )`);
+                                    setCustomerSearchQuery(c.company_name || c.name);
                                     setShowCustomerDropdown(false);
                                   }}
                                 >
-                                  <strong>{c.customer_code}</strong> - {c.company_name || c.name} ({c.phone})
+                                  {c.company_name || c.name}
                                 </div>
                               ))
                             )}
@@ -1034,7 +1034,7 @@ const Orders = () => {
                       >
                         <option value="">Select Product...</option>
                         {products.map(p => (
-                          <option key={p.id} value={p.id}>{p.product_code ? `${p.product_code} - ${p.name}` : p.name}</option>
+                          <option key={p.id} value={p.id}>{p.product_code || p.name}</option>
                         ))}
                       </select>
                       <button 
@@ -1192,20 +1192,87 @@ const Orders = () => {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {/* Mobile-only Width/Height/Pcs header + quick Add Row button (hidden on desktop) */}
-                                  <tr className="mobile-size-header-row">
-                                    <td className="mobile-size-header-cell">Width</td>
-                                    <td className="mobile-size-header-cell">Height</td>
-                                    <td className="mobile-size-header-cell">Pcs</td>
-                                    <td className="mobile-size-header-cell mobile-add-row-cell">
-                                      <button
-                                        type="button"
-                                        onClick={() => addSizeRowToBlock(sec.id, block.id)}
-                                        className="mobile-add-row-btn"
-                                        title="Add Row"
-                                      >
-                                        ➕ Row
-                                      </button>
+                                  {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
+                                  <tr className="mobile-size-card-row">
+                                    <td colSpan="8" className="mobile-size-card-cell">
+                                      <div className="mobile-size-card">
+                                        <div className="mobile-size-header-bar">
+                                          <div className="mobile-size-header-item">
+                                            <span className="mobile-size-header-icon icon-width">↔</span>
+                                            <span>WIDTH (INCH)</span>
+                                          </div>
+                                          <div className="mobile-size-header-item">
+                                            <span className="mobile-size-header-icon icon-height">↕</span>
+                                            <span>HEIGHT (INCH)</span>
+                                          </div>
+                                          <div className="mobile-size-header-item">
+                                            <span className="mobile-size-header-icon icon-pcs">📦</span>
+                                            <span>PCS/NOS</span>
+                                          </div>
+                                        </div>
+                                        <div className="mobile-size-rows">
+                                          {block.sizes.map((sz, szIdx) => (
+                                            <div className="mobile-size-row" key={sz.id}>
+                                              <input
+                                                type="number"
+                                                inputMode="decimal"
+                                                className="mobile-size-box"
+                                                value={sz.width}
+                                                onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'width', e.target.value)}
+                                              />
+                                              <input
+                                                type="number"
+                                                inputMode="decimal"
+                                                className="mobile-size-box"
+                                                value={sz.height}
+                                                onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'height', e.target.value)}
+                                              />
+                                              <input
+                                                type="number"
+                                                inputMode="numeric"
+                                                className="mobile-size-box"
+                                                value={sz.pcs}
+                                                onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'pcs', e.target.value)}
+                                              />
+                                              {szIdx === block.sizes.length - 1 && (
+                                                <button
+                                                  type="button"
+                                                  className="mobile-size-add-btn"
+                                                  onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                                  title="Add Row"
+                                                >
+                                                  +
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                className="mobile-size-del-btn"
+                                                onClick={() => removeSizeRowFromBlock(sec.id, block.id, sz.id)}
+                                                disabled={block.sizes.length <= 1}
+                                                title="Remove Row"
+                                              >
+                                                −
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <div className="mobile-size-totals-bar">
+                                          <div className="mobile-size-total-pill">
+                                            <span className="mobile-size-total-icon">▦</span>
+                                            <span className="mobile-size-total-text">
+                                              <span className="mobile-size-total-label">Total Pcs</span>
+                                              <span className="mobile-size-total-value">{block.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0)}</span>
+                                            </span>
+                                          </div>
+                                          <div className="mobile-size-total-pill">
+                                            <span className="mobile-size-total-icon">▦</span>
+                                            <span className="mobile-size-total-text">
+                                              <span className="mobile-size-total-label">Total Sqft</span>
+                                              <span className="mobile-size-total-value">{totalBilledSqft.toFixed(1)} sqft</span>
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
                                     </td>
                                   </tr>
                                   {block.sizes.map((sizeRow, sIdx) => (
@@ -1539,7 +1606,7 @@ const Orders = () => {
         onCustomerCreated={(newCust) => {
           setCustomers(prev => [newCust, ...prev]);
           setSelectedCustomerId(newCust.id);
-          setCustomerSearchQuery(`${newCust.company_name || newCust.name} ( ${newCust.phone} )`);
+          setCustomerSearchQuery(newCust.company_name || newCust.name);
           if (sameAsCustomerAddress) {
             setDeliveryAddress(newCust.address || '');
           }

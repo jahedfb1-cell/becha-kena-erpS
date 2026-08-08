@@ -47,7 +47,7 @@ class ImportLegacyData extends Command
             return self::FAILURE;
         }
 
-        $admin = User::where('email', 'admin@bechakenarp.com')->first();
+        $admin = User::where('role', 'admin')->orderBy('id')->first();
         if (! $admin) {
             $this->error('Admin user not found.');
             return self::FAILURE;
@@ -502,7 +502,7 @@ class ImportLegacyData extends Command
     private function importInvoicesAndDues(array $customerMap, array $quotationMap, bool $dryRun): int
     {
         // Bridge: legacy_sales.oCode -> legacy_order.oCode -> legacy_order.qinvoice -> legacy_quotation.qinvoice -> qutid
-        $orderToQinvoice = DB::table('legacy_order')->pluck('qinvoice', 'oCode');
+        $orderRows = DB::table('legacy_order')->get()->keyBy('oCode');
         $qinvoiceToQutid = DB::table('legacy_quotation')->pluck('qutid', 'qinvoice');
 
         $rows = DB::table('legacy_sales')->orderBy('saDate')->orderBy('said')->get();
@@ -511,6 +511,7 @@ class ImportLegacyData extends Command
         $runningBalance = [];
         $count = 0;
         $seenInvoiceNumbers = [];
+        $seenChallanNumbers = [];
 
         foreach ($rows as $row) {
             if (! isset($customerMap[$row->custid])) {
@@ -524,7 +525,8 @@ class ImportLegacyData extends Command
             }
             $seenInvoiceNumbers[$invoiceNumber] = true;
 
-            $qinvoice = $orderToQinvoice[$row->oCode] ?? null;
+            $orderRow = $orderRows[$row->oCode] ?? null;
+            $qinvoice = $orderRow->qinvoice ?? null;
             $qutid = $qinvoice ? ($qinvoiceToQutid[$qinvoice] ?? null) : null;
 
             if (! $qutid || ! isset($quotationMap[$qutid])) {
@@ -561,6 +563,32 @@ class ImportLegacyData extends Command
                 'created_at' => $row->regdate ?: now(),
                 'updated_at' => $row->up_date ?: now(),
             ]);
+
+            // Delivery challan: the legacy `order` row is the delivery record
+            // for this sale (oDate = order date, dDate = delivery date).
+            if ($orderRow) {
+                $challanNumber = $orderRow->oCode ?: ('LEGACY-DC-'.$invoiceId);
+                if (isset($seenChallanNumbers[$challanNumber])) {
+                    $challanNumber .= '-'.$invoiceId;
+                }
+                $seenChallanNumbers[$challanNumber] = true;
+
+                DB::table('delivery_challans')->insert([
+                    'challan_number' => $challanNumber,
+                    'invoice_id' => $invoiceId,
+                    'customer_id' => $row->custid,
+                    'delivery_address' => null,
+                    'driver_name' => null,
+                    'driver_phone' => null,
+                    'delivery_date' => $orderRow->dDate ?: null,
+                    'status' => 'delivered',
+                    'notes' => $orderRow->note ? strip_tags($orderRow->note) : null,
+                    'created_by' => $this->adminId,
+                    'is_archived' => false,
+                    'created_at' => $orderRow->regdate ?: now(),
+                    'updated_at' => $orderRow->up_date ?: now(),
+                ]);
+            }
 
             DB::table('quotations')->where('id', $qutid)->update(['status' => 'invoiced']);
 

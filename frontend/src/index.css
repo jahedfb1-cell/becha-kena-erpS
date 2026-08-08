@@ -2127,10 +2127,14 @@ select.custom-form-input {
   min-width: 0;
 }
 
-/* Mobile-only Width/Height/Pcs header + quick Add Row button, shown above
-   each item block's size rows. Hidden on desktop where the real column
-   headers already exist. */
-.mobile-size-header-row {
+/* Mobile-only Width/Height/Pcs card (dark header bar + rounded size-input
+   rows + totals bar). Hidden on desktop where the real table columns
+   already show this data. */
+.mobile-size-card-row {
+  display: none;
+}
+
+.mobile-size-card {
   display: none;
 }
 
@@ -2215,10 +2219,9 @@ select.custom-form-input {
     grid-template-columns: 1fr !important;
   }
 
-  /* Width / Height / Pcs must stay on one line on mobile (Sq.Ft + delete
-     button wrap to their own row underneath) */
+  /* Desktop option-variant size grid is superseded by .mobile-size-card */
   .option-size-grid {
-    grid-template-columns: repeat(3, 1fr) !important;
+    display: none !important;
   }
 
   /* Dynamic item-builder tables (Quotation & Direct Order section blocks):
@@ -2257,68 +2260,218 @@ select.custom-form-input {
     background: transparent !important;
   }
 
-  /* Width / Height / Pcs: three equal columns on one row */
-  .item-builder-table td.cell-size {
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
+  /* Old per-row Width/Height/Pcs/Sq.Ft table cells are superseded by the
+     .mobile-size-card below on mobile — hide them so the value isn't
+     shown twice. Product/Unit Price/Total Price/Action cells are left
+     alone and keep stacking as before. */
+  .item-builder-table td.cell-size,
+  .item-builder-table td.cell-sqft {
+    display: none !important;
   }
 
-  /* Mobile-only Width/Height/Pcs header row + quick Add Row button.
-     Matches the same 3-equal-column layout as the input row beneath it.
-     (Extra `.item-builder-table tr` selector needed to out-specificity the
-     generic `.item-builder-table tr` row styling applied above.) */
-  .item-builder-table tr.mobile-size-header-row,
-  .mobile-size-header-row {
+  /* Width/Height/Pcs card: dark header bar with icon badges, rounded
+     input boxes per size row, and a totals bar (matches the app's mobile
+     "quick entry" design for measurements). */
+  .item-builder-table tr.mobile-size-card-row,
+  .mobile-size-card-row {
     display: flex !important;
-    align-items: center;
-    gap: 8px;
     width: 100%;
     box-sizing: border-box;
-    padding: 0 2px !important;
-    margin: 2px 0 4px !important;
     border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
     background: transparent !important;
   }
 
-  .item-builder-table td.mobile-size-header-cell,
-  .mobile-size-header-cell {
+  .item-builder-table td.mobile-size-card-cell,
+  .mobile-size-card-cell {
+    display: block !important;
+    width: 100%;
+    padding: 0 !important;
+  }
+
+  .mobile-size-card {
+    display: block !important;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    margin: 4px 0 8px;
+    background: #fff;
+  }
+
+  .mobile-size-header-bar {
+    display: flex;
+    background: linear-gradient(135deg, #1e2761, #232d6e);
+    padding: 8px 6px;
+    gap: 4px;
+  }
+
+  .mobile-size-header-item {
     flex: 1 1 0;
     min-width: 0;
-    display: block;
-    width: auto;
-    font-size: 13px;
-    font-weight: 700;
-    text-align: center;
-    color: var(--text-heading, #0f172a);
-  }
-
-  .item-builder-table td.mobile-add-row-cell,
-  .mobile-add-row-cell {
-    flex: 0 0 auto !important;
-  }
-
-  .mobile-add-row-btn {
-    background: #0284c7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     color: #fff;
-    border: none;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    text-align: center;
+  }
+
+  .mobile-size-header-icon {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
     border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #fff;
+  }
+
+  .mobile-size-header-icon.icon-width { background: #2563eb; }
+  .mobile-size-header-icon.icon-height { background: #4f46e5; }
+  .mobile-size-header-icon.icon-pcs { background: #16a34a; }
+
+  .mobile-size-rows {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mobile-size-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .mobile-size-box {
+    flex: 0 0 auto;
+    height: 34px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0 !important;
+    background: #f8fafc;
+    text-align: center;
     font-weight: 700;
+    font-size: 12px;
+    color: var(--text-heading, #0f172a);
+    padding: 0 2px !important;
+  }
+
+  /* Fixed widths: Width 80px / Height 80px / Pcs 65px */
+  .mobile-size-row .mobile-size-box:nth-of-type(1) {
+    width: 80px !important;
+  }
+
+  .mobile-size-row .mobile-size-box:nth-of-type(2) {
+    width: 80px !important;
+  }
+
+  .mobile-size-row .mobile-size-box:nth-of-type(3) {
+    width: 65px !important;
+  }
+
+  .mobile-size-del-btn,
+  .mobile-size-add-btn {
+    flex: 0 0 auto;
+    width: 35px;
+    height: 35px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 800;
     cursor: pointer;
-    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-size-del-btn {
+    background: #fee2e2;
+    color: #ef4444;
+  }
+
+  .mobile-size-del-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .mobile-size-add-btn {
+    background: #16a34a;
+    color: #fff;
+  }
+
+  .mobile-size-totals-bar {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    background: #f5f4fb;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  .mobile-size-total-pill {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    border: 1px solid #e9e7fb;
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+
+  .mobile-size-total-icon {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: #7c3aed;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+  }
+
+  .mobile-size-total-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .mobile-size-total-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-muted, #94a3b8);
+  }
+
+  .mobile-size-total-value {
+    font-size: 12px;
+    font-weight: 800;
+    color: #7c3aed;
   }
 
   .mobile-page-label {
-    display: inline-block;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
     font-size: 12px;
     font-weight: 700;
     color: var(--text-muted, #64748b);
     background: var(--bg-subtle, #f1f5f9);
-    border-radius: 6px;
-    padding: 6px 10px;
-    margin-right: 8px;
+    border-radius: 10px;
+    padding: 10px 14px;
   }
 
   /* Small inline labels for value-only fields whose column header is now

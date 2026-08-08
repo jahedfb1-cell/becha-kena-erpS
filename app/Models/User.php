@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use App\Traits\Archivable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -42,6 +43,15 @@ class User extends Authenticatable
         'is_archived'       => 'boolean',
         'archived_at'       => 'datetime',
     ];
+
+    /**
+     * Send the password reset notification, pointing the link at the
+     * React frontend instead of Laravel's default (non-existent) web route.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
 
     /**
      * Relationship: Get the department this user belongs to.
