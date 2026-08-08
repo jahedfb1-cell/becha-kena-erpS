@@ -88,6 +88,10 @@ class PaymentController extends Controller
             'payment_method'  => 'required|in:cash,bank,mobile',
             'payment_date'    => 'required|date',
             'discount_amount' => 'nullable|numeric|min:0',
+            // Required so the bank/mobile book-entry (which has a NOT NULL
+            // bank_name/provider column) never fails at the database level.
+            'bank_name'       => 'required_if:payment_method,bank|string|max:100',
+            'mobile_provider' => 'required_if:payment_method,mobile|string|max:100',
         ]);
 
         $invoice = Invoice::find($request->invoice_id);
