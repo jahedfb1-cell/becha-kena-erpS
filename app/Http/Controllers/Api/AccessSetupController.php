@@ -248,6 +248,10 @@ class AccessSetupController extends Controller
      */
     public function update(Request $request): JsonResponse
     {
+        if (!$request->user()->can('access_setup:manage')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $request->validate([
             'role'          => 'required|string',
             'permissions'   => 'present|array',

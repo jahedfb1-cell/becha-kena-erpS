@@ -66,6 +66,10 @@ class CompanyProfileController extends Controller
     /** GET /api/company-profile/logo/{filename} */
     public function getLogoFile($filename)
     {
+        // basename() strips any directory traversal segments (../, ..\) so the
+        // lookup can never escape the intended uploads/logos directories.
+        $filename = basename($filename);
+
         $publicPath = public_path('uploads/logos/' . $filename);
         if (file_exists($publicPath)) {
             return response()->file($publicPath);
@@ -82,6 +86,10 @@ class CompanyProfileController extends Controller
     /** POST /api/company-profile */
     public function update(Request $request)
     {
+        if (!$request->user()->can('settings:company_profile')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $request->validate([
             'company_name'    => 'required|string|max:200',
             'company_address' => 'required|string|max:500',
@@ -92,8 +100,10 @@ class CompanyProfileController extends Controller
             'company_facebook'=> 'nullable|string|max:200',
             'vat_reg_no'      => 'nullable|string|max:100',
             'terms_conditions'=> 'nullable|string|max:3000',
-            'company_logo'    => 'nullable|file|mimes:jpg,jpeg,png,svg|max:5120',
-            'invoice_logo'    => 'nullable|file|mimes:jpg,jpeg,png,svg|max:5120',
+            // SVG deliberately excluded: it's an active content type (can embed
+            // <script>) and would be served back on this origin, enabling stored XSS.
+            'company_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
+            'invoice_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
         ]);
 
         // Load existing data

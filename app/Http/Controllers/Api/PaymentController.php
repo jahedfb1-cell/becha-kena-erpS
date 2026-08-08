@@ -28,12 +28,28 @@ class PaymentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
         $query = Payment::with(['customer:id,name,phone', 'invoice:id,invoice_number']);
 
         if ($request->boolean('archived')) {
             $query->archived();
         } else {
             $query->active();
+        }
+
+        // Role-based visibility (payments have no direct salesman_id, so scope
+        // via the invoice they belong to — mirrors InvoiceController::index)
+        $isAdmin = $user->role === 'admin' || (method_exists($user, 'hasRole') && $user->hasRole('admin'));
+        $isSalesman = in_array($user->role, ['salesman', 'staff']) || (method_exists($user, 'hasRole') && ($user->hasRole('salesman') || $user->hasRole('staff')));
+        $isManager = $user->role === 'manager' || (method_exists($user, 'hasRole') && $user->hasRole('manager'));
+
+        if ($isAdmin) {
+            // Admin sees all payments
+        } elseif ($isSalesman) {
+            $query->whereHas('invoice', fn ($q) => $q->where('salesman_id', $user->id));
+        } elseif ($isManager) {
+            $teamUserIds = \App\Models\User::where('manager_id', $user->id)->pluck('id')->push($user->id);
+            $query->whereHas('invoice', fn ($q) => $q->whereIn('salesman_id', $teamUserIds));
         }
 
         if ($request->filled('invoice_id')) {
@@ -114,6 +130,10 @@ class PaymentController extends Controller
 
     public function voidPayment(int $id, Request $request): JsonResponse
     {
+        if (!$request->user()->can('payments:void')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $payment = Payment::active()->find($id);
 
         if (!$payment) {

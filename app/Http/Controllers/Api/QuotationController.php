@@ -202,7 +202,7 @@ class QuotationController extends Controller
      * GET /api/quotations/{id}
      * Full quotation details with items and supplier info.
      */
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
         $quotation = Quotation::with([
             'customer',
@@ -217,6 +217,23 @@ class QuotationController extends Controller
 
         if (!$quotation) {
             return $this->notFoundResponse('Quotation not found.');
+        }
+
+        $user = $request->user();
+        $isAdmin = $user->role === 'admin' || (method_exists($user, 'hasRole') && $user->hasRole('admin'));
+        $isSalesman = $user->role === 'salesman' || (method_exists($user, 'hasRole') && $user->hasRole('salesman'));
+        $isManager = $user->role === 'manager' || (method_exists($user, 'hasRole') && $user->hasRole('manager'));
+
+        if (!$isAdmin) {
+            if ($isSalesman && $quotation->salesman_id !== $user->id && $quotation->created_by !== $user->id) {
+                return $this->notFoundResponse('Quotation not found.');
+            }
+            if ($isManager) {
+                $teamUserIds = \App\Models\User::where('manager_id', $user->id)->pluck('id')->push($user->id);
+                if (!$teamUserIds->contains($quotation->salesman_id)) {
+                    return $this->notFoundResponse('Quotation not found.');
+                }
+            }
         }
 
         return $this->successResponse($quotation, 'Quotation details retrieved.');
@@ -368,6 +385,10 @@ class QuotationController extends Controller
      */
     public function approve(Request $request, int $id): JsonResponse
     {
+        if (!$request->user()->can('quotations:approve')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $quotation = Quotation::with('items')->find($id);
 
         if (!$quotation) {
@@ -418,6 +439,10 @@ class QuotationController extends Controller
      */
     public function reject(Request $request, int $id): JsonResponse
     {
+        if (!$request->user()->can('quotations:reject')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $quotation = Quotation::find($id);
 
         if (!$quotation) {
@@ -464,6 +489,13 @@ class QuotationController extends Controller
      */
     public function destroy(Request $request, int $id): JsonResponse
     {
+        // No dedicated permission key exists for this destructive action
+        // (archives the quotation and reverses purchase entries), so it's
+        // restricted to admins only, same as database backups.
+        if ($request->user()->role !== 'admin') {
+            return $this->errorResponse('Unauthorized action. Admin access required.', 403);
+        }
+
         $quotation = Quotation::find($id);
 
         if (!$quotation) {

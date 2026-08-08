@@ -59,6 +59,10 @@ class UserController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        if (!$request->user()->can('users:create')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $validated = $request->validate([
             'name'          => 'required|string|max:255',
             'phone'         => 'required|string|max:20|unique:users,phone',
@@ -103,6 +107,10 @@ class UserController extends Controller
      */
     public function update(Request $request, int $id): JsonResponse
     {
+        if (!$request->user()->can('users:edit')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $user = User::findOrFail($id);
 
         $validated = $request->validate([
@@ -115,6 +123,20 @@ class UserController extends Controller
             'manager_id'    => 'nullable|exists:users,id',
             'is_active'     => 'sometimes|boolean',
         ]);
+
+        // Changing someone's role (including your own) is a privilege-escalation
+        // vector, so it requires the admin role specifically, not just users:edit.
+        if (isset($validated['role']) && $validated['role'] !== $user->role && $request->user()->role !== 'admin') {
+            return $this->errorResponse('Only an admin can change a user\'s role.', 403);
+        }
+
+        // Never let a caller grant themselves a password change or role change
+        // through someone else's account edit without being an admin — already
+        // covered by users:edit above for the general case, but self-role-change
+        // is blocked explicitly regardless of who is asking.
+        if ($user->id === $request->user()->id && isset($validated['role']) && $validated['role'] !== $user->role) {
+            return $this->errorResponse('You cannot change your own role.', 403);
+        }
 
         return DB::transaction(function () use ($user, $validated, $request) {
             if (!empty($validated['password'])) {
@@ -147,6 +169,10 @@ class UserController extends Controller
      */
     public function destroy(Request $request, int $id): JsonResponse
     {
+        if (!$request->user()->can('users:status-toggle')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $user = User::findOrFail($id);
 
         if ($user->id === $request->user()->id) {

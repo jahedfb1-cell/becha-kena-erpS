@@ -28,6 +28,7 @@ class InvoiceController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $user = $request->user();
         $query = Invoice::with(['customer:id,name,phone', 'salesman:id,name,email', 'quotation:id,quotation_number']);
 
         if ($request->boolean('archived')) {
@@ -36,13 +37,27 @@ class InvoiceController extends Controller
             $query->active();
         }
 
+        // Role-based visibility (mirrors QuotationController::index)
+        $isAdmin = $user->role === 'admin' || (method_exists($user, 'hasRole') && $user->hasRole('admin'));
+        $isSalesman = in_array($user->role, ['salesman', 'staff']) || (method_exists($user, 'hasRole') && ($user->hasRole('salesman') || $user->hasRole('staff')));
+        $isManager = $user->role === 'manager' || (method_exists($user, 'hasRole') && $user->hasRole('manager'));
+
+        if ($isAdmin) {
+            // Admin sees all invoices
+        } elseif ($isSalesman) {
+            $query->where('salesman_id', $user->id);
+        } elseif ($isManager) {
+            $teamUserIds = \App\Models\User::where('manager_id', $user->id)->pluck('id')->push($user->id);
+            $query->whereIn('salesman_id', $teamUserIds);
+        }
+
         if ($request->filled('payment_status')) {
             $query->where('payment_status', $request->payment_status);
         }
         if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->customer_id);
         }
-        if ($request->filled('salesman_id')) {
+        if ($request->filled('salesman_id') && $isAdmin) {
             $query->where('salesman_id', $request->salesman_id);
         }
 
@@ -98,7 +113,7 @@ class InvoiceController extends Controller
         });
     }
 
-    public function show(int $id): JsonResponse
+    public function show(Request $request, int $id): JsonResponse
     {
         $invoice = Invoice::with([
             'customer',
@@ -112,11 +127,44 @@ class InvoiceController extends Controller
             return $this->notFoundResponse('Invoice not found.');
         }
 
+        if (!$this->canAccessInvoice($request->user(), $invoice)) {
+            return $this->notFoundResponse('Invoice not found.');
+        }
+
         return $this->successResponse($invoice, 'Invoice details retrieved.');
+    }
+
+    /**
+     * Whether the given user is allowed to view/act on this invoice, based on
+     * the same role scoping used in index().
+     */
+    private function canAccessInvoice($user, Invoice $invoice): bool
+    {
+        $isAdmin = $user->role === 'admin' || (method_exists($user, 'hasRole') && $user->hasRole('admin'));
+        if ($isAdmin) {
+            return true;
+        }
+
+        $isSalesman = in_array($user->role, ['salesman', 'staff']) || (method_exists($user, 'hasRole') && ($user->hasRole('salesman') || $user->hasRole('staff')));
+        if ($isSalesman) {
+            return $invoice->salesman_id === $user->id;
+        }
+
+        $isManager = $user->role === 'manager' || (method_exists($user, 'hasRole') && $user->hasRole('manager'));
+        if ($isManager) {
+            $teamUserIds = \App\Models\User::where('manager_id', $user->id)->pluck('id')->push($user->id);
+            return $teamUserIds->contains($invoice->salesman_id);
+        }
+
+        return false;
     }
 
     public function destroy(int $id, Request $request): JsonResponse
     {
+        if (!$request->user()->can('invoices:archive')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $invoice = Invoice::active()->with('payments')->find($id);
 
         if (!$invoice) {
@@ -157,6 +205,10 @@ class InvoiceController extends Controller
 
     public function restore(int $id, Request $request): JsonResponse
     {
+        if (!$request->user()->can('invoices:archive')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
         $invoice = Invoice::archived()->find($id);
 
         if (!$invoice) {

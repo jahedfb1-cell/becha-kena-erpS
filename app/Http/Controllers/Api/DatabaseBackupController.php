@@ -26,10 +26,28 @@ class DatabaseBackupController extends Controller
     }
 
     /**
+     * Database backups contain every row in the system — customers, invoices,
+     * password hashes, API tokens — so this entire controller is admin-only.
+     * There is no dedicated permission key for it in the access matrix by design.
+     */
+    private function denyIfNotAdmin(Request $request): ?JsonResponse
+    {
+        if ($request->user()?->role !== 'admin') {
+            return $this->errorResponse('Unauthorized action. Admin access required.', 403);
+        }
+
+        return null;
+    }
+
+    /**
      * List all database backups.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        if ($deny = $this->denyIfNotAdmin($request)) {
+            return $deny;
+        }
+
         $files = glob($this->backupDir . '/*.sql');
         $backups = [];
 
@@ -76,6 +94,10 @@ class DatabaseBackupController extends Controller
      */
     public function generate(Request $request): JsonResponse
     {
+        if ($deny = $this->denyIfNotAdmin($request)) {
+            return $deny;
+        }
+
         $user = $request->user();
         $dbConnection = config('database.default');
 
@@ -113,8 +135,12 @@ class DatabaseBackupController extends Controller
     /**
      * Download a database backup file.
      */
-    public function download(string $filename): BinaryFileResponse|JsonResponse
+    public function download(Request $request, string $filename): BinaryFileResponse|JsonResponse
     {
+        if ($deny = $this->denyIfNotAdmin($request)) {
+            return $deny;
+        }
+
         $filepath = $this->backupDir . '/' . basename($filename);
 
         if (!file_exists($filepath)) {
@@ -131,6 +157,10 @@ class DatabaseBackupController extends Controller
      */
     public function restore(Request $request, string $filename): JsonResponse
     {
+        if ($deny = $this->denyIfNotAdmin($request)) {
+            return $deny;
+        }
+
         $user = $request->user();
         $filepath = $this->backupDir . '/' . basename($filename);
 
@@ -170,6 +200,10 @@ class DatabaseBackupController extends Controller
      */
     public function destroy(Request $request, string $filename): JsonResponse
     {
+        if ($deny = $this->denyIfNotAdmin($request)) {
+            return $deny;
+        }
+
         $user = $request->user();
         $filepath = $this->backupDir . '/' . basename($filename);
 
