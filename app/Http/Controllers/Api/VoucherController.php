@@ -79,8 +79,17 @@ class VoucherController extends Controller
             });
         }
 
-        $perPage = (int) $request->get('per_page', 15);
-        $vouchers = $query->orderBy('id', 'desc')->paginate($perPage);
+        $query->orderBy('id', 'desc');
+
+        if ($request->boolean('all')) {
+            $allVouchers = $query->get();
+            $vouchers = new \Illuminate\Pagination\LengthAwarePaginator(
+                $allVouchers, $allVouchers->count(), max($allVouchers->count(), 1)
+            );
+        } else {
+            $perPage = (int) $request->get('per_page', 15);
+            $vouchers = $query->paginate($perPage);
+        }
 
         $totalAmount = (float) Voucher::active()->sum('total_amount');
 

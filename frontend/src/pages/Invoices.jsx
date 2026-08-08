@@ -41,7 +41,7 @@ const Invoices = () => {
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get('/invoices');
+      const response = await api.get('/invoices?all=1');
       setInvoices(response.data.data.data || response.data.data || []);
     } catch (err) {
       setError('Failed to retrieve invoices.');

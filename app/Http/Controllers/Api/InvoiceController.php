@@ -45,9 +45,15 @@ class InvoiceController extends Controller
         if ($request->filled('salesman_id')) {
             $query->where('salesman_id', $request->salesman_id);
         }
-        
+
+        $query->orderBy('id', 'desc');
+
+        if ($request->boolean('all')) {
+            return $this->successResponse($query->get(), 'Invoices retrieved successfully.');
+        }
+
         $perPage = (int) $request->get('per_page', 15);
-        $invoices = $query->orderBy('id', 'desc')->paginate($perPage);
+        $invoices = $query->paginate($perPage);
 
         return $this->paginatedResponse($invoices, 'Invoices retrieved successfully.');
     }

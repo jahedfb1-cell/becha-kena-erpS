@@ -117,8 +117,14 @@ class QuotationController extends Controller
             });
         }
 
+        $query->orderBy('id', 'desc');
+
+        if ($request->boolean('all')) {
+            return $this->successResponse($query->get(), 'Quotations retrieved successfully.');
+        }
+
         $perPage = (int) $request->get('per_page', 15);
-        $quotations = $query->orderBy('id', 'desc')->paginate($perPage);
+        $quotations = $query->paginate($perPage);
 
         return $this->paginatedResponse($quotations, 'Quotations retrieved successfully.');
     }

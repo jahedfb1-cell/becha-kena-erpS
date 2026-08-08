@@ -82,8 +82,17 @@ class ExpenseController extends Controller
             });
         }
 
-        $perPage = (int) $request->get('per_page', 15);
-        $expenses = $query->orderBy('id', 'desc')->paginate($perPage);
+        $query->orderBy('id', 'desc');
+
+        if ($request->boolean('all')) {
+            $allExpenses = $query->get();
+            $expenses = new \Illuminate\Pagination\LengthAwarePaginator(
+                $allExpenses, $allExpenses->count(), max($allExpenses->count(), 1)
+            );
+        } else {
+            $perPage = (int) $request->get('per_page', 15);
+            $expenses = $query->paginate($perPage);
+        }
 
         // Stats summary
         $totalAmount = (float) Expense::active()->sum('amount');

@@ -45,7 +45,7 @@ const Purchases = () => {
       if (selectedSupplierId) params.append('supplier_id', selectedSupplierId);
       if (colorCodeSearch) params.append('color_code', colorCodeSearch);
 
-      const response = await api.get(`/purchases?per_page=100&${params.toString()}`);
+      const response = await api.get(`/purchases?all=1&${params.toString()}`);
       const data = response.data?.data || {};
 
       setPurchases(data.purchases || []);

@@ -73,8 +73,17 @@ class PurchaseController extends Controller
             $query->whereDate('purchase_date', '<=', $request->to_date);
         }
 
-        $perPage = (int) $request->get('per_page', 15);
-        $purchases = $query->orderBy('id', 'desc')->paginate($perPage);
+        $query->orderBy('id', 'desc');
+
+        if ($request->boolean('all')) {
+            $allPurchases = $query->get();
+            $purchases = new \Illuminate\Pagination\LengthAwarePaginator(
+                $allPurchases, $allPurchases->count(), max($allPurchases->count(), 1)
+            );
+        } else {
+            $perPage = (int) $request->get('per_page', 15);
+            $purchases = $query->paginate($perPage);
+        }
 
         // Compute supplier ledger totals
         $suppliers = Supplier::select('id', 'name', 'supplier_code', 'opening_balance')->get();

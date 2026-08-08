@@ -52,8 +52,14 @@ class PaymentController extends Controller
             $query->whereDate('payment_date', '<=', $request->to_date);
         }
 
+        $query->orderBy('id', 'desc');
+
+        if ($request->boolean('all')) {
+            return $this->successResponse($query->get(), 'Payments retrieved successfully.');
+        }
+
         $perPage = (int) $request->get('per_page', 15);
-        $payments = $query->orderBy('id', 'desc')->paginate($perPage);
+        $payments = $query->paginate($perPage);
 
         return $this->paginatedResponse($payments, 'Payments retrieved successfully.');
     }

@@ -75,7 +75,7 @@ const VouchersExpenses = () => {
       if (filterExpMethod) params.append('payment_method', filterExpMethod);
       if (filterExpSearch) params.append('search', filterExpSearch);
 
-      const res = await api.get(`/expenses?per_page=100&${params.toString()}`);
+      const res = await api.get(`/expenses?all=1&${params.toString()}`);
       const data = res.data?.data || {};
 
       setExpenses(data.expenses || []);
@@ -100,7 +100,7 @@ const VouchersExpenses = () => {
       if (filterVoucherType) params.append('voucher_type', filterVoucherType);
       if (filterVoucherMethod) params.append('payment_method', filterVoucherMethod);
 
-      const res = await api.get(`/vouchers?per_page=100&${params.toString()}`);
+      const res = await api.get(`/vouchers?all=1&${params.toString()}`);
       const data = res.data?.data || {};
 
       setVouchers(data.vouchers || []);
