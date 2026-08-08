@@ -298,17 +298,17 @@ const Quotations = () => {
       cost_price: priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0,
       min_billing_sqft: defaultMinSqft,
       notes: defaultNotes,
-      sizes: [
-        {
-          id: Date.now() + 1,
-          width: '',
-          height: '',
-          pcs: 1,
-          actual_sqft: 0,
-          billed_sqft: 0,
-          line_total: 0
-        }
-      ]
+      // Start with 4 empty size rows so mobile users can fill in
+      // multiple window sizes right away; unused rows can be deleted.
+      sizes: Array.from({ length: 4 }, (_, i) => ({
+        id: Date.now() + i + 1,
+        width: '',
+        height: '',
+        pcs: 1,
+        actual_sqft: 0,
+        billed_sqft: 0,
+        line_total: 0
+      }))
     };
 
     setSections(prev => prev.map(sec => {
@@ -1166,7 +1166,7 @@ const Quotations = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div className="entries-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-main, #475569)' }}>
               <span>Show</span>
               <select
@@ -1247,19 +1247,19 @@ const Quotations = () => {
                           </button>
 
                           <button className="text-btn" onClick={() => handlePrintClick(q, 'detailed')} style={{ marginLeft: '8px', color: '#17a2b8', fontWeight: 600 }}>
-                            🖨️ Detailed Print
+                            🖨️ <span className="btn-label-text">Detailed Print</span>
                           </button>
-                          
+
                           <button className="text-btn" onClick={() => handlePrintClick(q, 'simplified')} style={{ marginLeft: '8px', color: '#0ea5e9', fontWeight: 600 }}>
-                            🖨️ View Print
+                            🖨️ <span className="btn-label-text">View Print</span>
                           </button>
 
                           <button className="text-btn" onClick={() => handlePrintClick(q, 'pad-detailed')} style={{ marginLeft: '8px', color: '#8b5cf6', fontWeight: 600 }}>
-                            📝 Pad Print (Sizes)
+                            📝 <span className="btn-label-text">Pad Print (Sizes)</span>
                           </button>
 
                           <button className="text-btn" onClick={() => handlePrintClick(q, 'pad-simplified')} style={{ marginLeft: '8px', color: '#ec4899', fontWeight: 600 }}>
-                            📝 Pad Print
+                            📝 <span className="btn-label-text">Pad Print</span>
                           </button>
                           
                           {q.status === 'quotation' && (
@@ -1338,18 +1338,19 @@ const Quotations = () => {
         <div className="animate-fade-in">
           <div className="page-header-row">
             <div>
-              <h1>{isEditMode ? 'Edit Quotation' : 'New Quotation (Dynamic Builder)'}</h1>
-              <p>Organize items into dynamic sections, options variations, and print toggles</p>
+              <h1>{isEditMode ? 'Edit Quotation' : <>New Quotation <span className="hide-mobile-text">(Dynamic Builder)</span></>}</h1>
+              <p className="hide-mobile-text">Organize items into dynamic sections, options variations, and print toggles</p>
             </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
+            <div className="form-btn-row" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
                 type="button"
-                className="primary-btn" 
+                className="primary-btn"
                 onClick={addSection}
                 style={{ background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: '#fff', fontWeight: 'bold' }}
               >
                 ➕ Add Section / Group
               </button>
+              <span className="mobile-page-label">{isEditMode ? 'Edit Quotation' : 'New Quotation'}</span>
               <button className="btn-outline-back" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
             </div>
           </div>
@@ -1360,10 +1361,10 @@ const Quotations = () => {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
+          <div className="form-layout-grid" style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
             <div>
               {/* TOP HEADER SECTION */}
-              <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quotation Date *</label>
                   <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="modern-form-control" />
@@ -1482,19 +1483,20 @@ const Quotations = () => {
                 return (
                   <div key={sec.id} className="form-card-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '12px', padding: '20px', marginBottom: '24px', position: 'relative' }}>
                     {/* Section Card Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: 'var(--bg-subtle, #f8fafc)', padding: '12px 16px', borderRadius: '8px', borderLeft: '4px solid #0284c7' }}>
+                    <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: 'var(--bg-subtle, #f8fafc)', padding: '12px 16px', borderRadius: '8px', borderLeft: '4px solid #0284c7' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                         <span style={{ fontSize: '18px' }}>📂</span>
                         <input
                           type="text"
                           value={sec.name}
                           onChange={(e) => updateSectionName(sec.id, e.target.value)}
+                          className="section-name-input"
                           style={{ fontSize: '16px', fontWeight: 'bold', border: '1px solid transparent', background: 'transparent', padding: '4px 8px', borderRadius: '4px', color: 'var(--text-main)', width: '320px' }}
                           onFocus={(e) => e.target.style.border = '1px solid #0284c7'}
                           onBlur={(e) => e.target.style.border = '1px solid transparent'}
                         />
                       </div>
-                      
+
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
                           type="button"
@@ -1532,7 +1534,7 @@ const Quotations = () => {
                         {/* 1. Normal Standard Items Table */}
                         {normalBlocks.length > 0 && (
                           <div style={{ overflowX: 'auto' }}>
-                            <table className="data-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                            <table className="data-table item-builder-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                               <thead>
                                 <tr>
                                   <th style={{ width: '180px' }}>Product Code / Name *</th>
@@ -1552,12 +1554,28 @@ const Quotations = () => {
 
                                   return (
                                     <React.Fragment key={block.id}>
+                                      {/* Mobile-only Width/Height/Pcs header + quick Add Row button (hidden on desktop) */}
+                                      <tr className="mobile-size-header-row">
+                                        <td className="mobile-size-header-cell">Width</td>
+                                        <td className="mobile-size-header-cell">Height</td>
+                                        <td className="mobile-size-header-cell">Pcs</td>
+                                        <td className="mobile-size-header-cell mobile-add-row-cell">
+                                          <button
+                                            type="button"
+                                            onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                            className="mobile-add-row-btn"
+                                            title="Add Row"
+                                          >
+                                            ➕ Row
+                                          </button>
+                                        </td>
+                                      </tr>
                                       {block.sizes.map((sizeRow, sIdx) => (
                                         <tr key={sizeRow.id} style={{ background: '#fff' }}>
-                                          
+
                                           {/* Product Code / Selection */}
                                           {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 10px' }}>
+                                            <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 10px' }}>
                                               <select
                                                 value={block.product_id}
                                                 onChange={(e) => handleBlockChange(sec.id, block.id, 'product_id', e.target.value)}
@@ -1573,11 +1591,11 @@ const Quotations = () => {
 
                                           {/* Unit Price */}
                                           {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
-                                              <input 
-                                                type="number" 
-                                                value={block.unit_price} 
-                                                onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)} 
+                                            <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                              <input
+                                                type="number"
+                                                value={block.unit_price}
+                                                onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)}
                                                 className="modern-form-control"
                                                 style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px' }}
                                               />
@@ -1585,40 +1603,44 @@ const Quotations = () => {
                                           )}
 
                                           {/* Length */}
-                                          <td style={{ padding: '6px' }}>
-                                            <input 
-                                              type="number" 
-                                              value={sizeRow.width} 
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)} 
-                                              placeholder="Width" 
+                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                            <input
+                                              type="number"
+                                              inputMode="decimal"
+                                              value={sizeRow.width}
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
+                                              placeholder="Width"
                                               className="modern-form-control"
                                             />
                                           </td>
 
                                           {/* Height */}
-                                          <td style={{ padding: '6px' }}>
-                                            <input 
-                                              type="number" 
-                                              value={sizeRow.height} 
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)} 
-                                              placeholder="Height" 
+                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                            <input
+                                              type="number"
+                                              inputMode="decimal"
+                                              value={sizeRow.height}
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                              placeholder="Height"
                                               className="modern-form-control"
                                             />
                                           </td>
 
                                           {/* Pcs */}
-                                          <td style={{ padding: '6px' }}>
-                                            <input 
-                                              type="number" 
-                                              value={sizeRow.pcs} 
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)} 
+                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                            <input
+                                              type="number"
+                                              inputMode="numeric"
+                                              value={sizeRow.pcs}
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                              placeholder="Pcs"
                                               className="modern-form-control"
                                               style={{ textAlign: 'center' }}
                                             />
                                           </td>
 
                                           {/* Sq.Ft */}
-                                          <td style={{ padding: '6px' }}>
+                                          <td className="cell-sqft" style={{ padding: '6px' }}>
                                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                               <input 
                                                 type="text" 
@@ -1642,11 +1664,11 @@ const Quotations = () => {
 
                                           {/* Total Price */}
                                           {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
-                                              <input 
-                                                type="text" 
-                                                value={totalPrice.toFixed(2)} 
-                                                readOnly 
+                                            <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                              <input
+                                                type="text"
+                                                value={totalPrice.toFixed(2)}
+                                                readOnly
                                                 className="modern-form-control"
                                                 style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '13px' }}
                                               />
@@ -1655,7 +1677,7 @@ const Quotations = () => {
 
                                           {/* Block Actions */}
                                           {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                            <td rowSpan={block.sizes.length} className="cell-action" style={{ verticalAlign: 'top', paddingTop: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                               <button 
                                                 type="button" 
                                                 onClick={() => removeProductBlock(sec.id, block.id)} 
@@ -1796,7 +1818,7 @@ const Quotations = () => {
                                       </div>
 
                                       {/* Option Product Selector & Inputs */}
-                                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                                      <div className="option-grid-4col" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
                                         <div>
                                           <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Product Variant</label>
                                           <select
@@ -1845,11 +1867,29 @@ const Quotations = () => {
                                         </div>
                                       </div>
 
+                                      {/* Mobile-only Width/Height/Pcs header + quick Add Row button (hidden on desktop) */}
+                                      <div className="mobile-size-header-row">
+                                        <span className="mobile-size-header-cell">Width</span>
+                                        <span className="mobile-size-header-cell">Height</span>
+                                        <span className="mobile-size-header-cell">Pcs</span>
+                                        <span className="mobile-size-header-cell mobile-add-row-cell">
+                                          <button
+                                            type="button"
+                                            onClick={() => addSizeRowToBlock(sec.id, b.id)}
+                                            className="mobile-add-row-btn"
+                                            title="Add Row"
+                                          >
+                                            ➕ Row
+                                          </button>
+                                        </span>
+                                      </div>
+
                                       {/* Option Size Rows */}
                                       {b.sizes.map((sz, szIdx) => (
-                                        <div key={sz.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr 40px', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
+                                        <div key={sz.id} className="option-size-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr 40px', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
                                           <input
                                             type="number"
+                                            inputMode="decimal"
                                             placeholder="Width"
                                             value={sz.width}
                                             onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'width', e.target.value)}
@@ -1858,6 +1898,7 @@ const Quotations = () => {
                                           />
                                           <input
                                             type="number"
+                                            inputMode="decimal"
                                             placeholder="Height"
                                             value={sz.height}
                                             onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'height', e.target.value)}
@@ -1866,6 +1907,7 @@ const Quotations = () => {
                                           />
                                           <input
                                             type="number"
+                                            inputMode="numeric"
                                             placeholder="Pcs"
                                             value={sz.pcs}
                                             onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'pcs', e.target.value)}
@@ -1923,7 +1965,7 @@ const Quotations = () => {
               })}
 
               {/* BOTTOM SUMMARY FIELDS */}
-              <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Total Amount *</label>
                   <input type="text" value={financialSummary.subtotal.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: 'bold' }} />
@@ -1971,18 +2013,19 @@ const Quotations = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', margin: '24px 0 10px 0' }}>
-                <button 
-                  type="button" 
-                  className="btn-gradient-submit" 
+              <div className="form-btn-row" style={{ display: 'flex', justifyContent: 'center', gap: '16px', margin: '24px 0 10px 0', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-gradient-submit"
                   onClick={() => saveQuotation()} 
                   disabled={isSubmitting}
                 >
                   💾 {isSubmitting ? 'Submitting...' : 'Submit'}
                 </button>
-                <button 
-                  type="button" 
-                  className="btn-outline-back" 
+                <span className="mobile-page-label">{isEditMode ? 'Edit Quotation' : 'New Quotation'}</span>
+                <button
+                  type="button"
+                  className="btn-outline-back"
                   onClick={() => { setView('list'); resetForm(); }}
                 >
                   ⬅️ Back

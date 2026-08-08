@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
+import PhoneContactField from './PhoneContactField';
 
 const SupplierModal = ({ isOpen, onClose, onSupplierSaved, initialData = null, isViewOnly = false }) => {
   const [name, setName] = useState('');
@@ -153,12 +154,14 @@ const SupplierModal = ({ isOpen, onClose, onSupplierSaved, initialData = null, i
             {/* Mobile Number * */}
             <div className="custom-form-group">
               <label className="custom-form-label">Mobile Number {isViewOnly ? '' : '*'}</label>
-              <input
-                type="text"
-                className="custom-form-input"
+              <PhoneContactField
                 placeholder="Mobile Number *"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
+                onPick={(contact) => {
+                  setPhone(contact.phone);
+                  if (contact.name && !name) setName(contact.name);
+                }}
                 disabled={loading || isViewOnly}
                 required={!isViewOnly}
               />

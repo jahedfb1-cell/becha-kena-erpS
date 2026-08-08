@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { formatCurrency, formatDate } from '../utils/format';
 import CustomerModal from '../components/CustomerModal';
+import PhoneContactField from '../components/PhoneContactField';
 
 const Customers = () => {
   const { user } = useAuth();
@@ -412,12 +413,28 @@ const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
 
             <div className="form-group">
               <label>Primary Phone</label>
-              <input type="text" value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} disabled={loading} />
+              <PhoneContactField
+                className=""
+                value={form.phone}
+                onChange={(e) => handleChange('phone', e.target.value)}
+                onPick={(contact) => {
+                  handleChange('phone', contact.phone);
+                  if (contact.name && !form.name) handleChange('name', contact.name);
+                }}
+                disabled={loading}
+              />
             </div>
 
             <div className="form-group">
               <label>2nd Contact Number</label>
-              <input type="text" value={form.second_contact_number} onChange={(e) => handleChange('second_contact_number', e.target.value)} disabled={loading} placeholder="Alternate phone" />
+              <PhoneContactField
+                className=""
+                value={form.second_contact_number}
+                onChange={(e) => handleChange('second_contact_number', e.target.value)}
+                onPick={(contact) => handleChange('second_contact_number', contact.phone)}
+                disabled={loading}
+                placeholder="Alternate phone"
+              />
             </div>
 
             <div className="form-group">

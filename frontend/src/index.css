@@ -1094,6 +1094,17 @@ body {
   box-sizing: border-box;
 }
 
+/* On mobile, the print preview table is wider than the screen — let it
+   scroll horizontally within the modal instead of overflowing/clipping */
+@media (max-width: 640px) {
+  .custom-modal-form:has(.quotation-print-container) {
+    overflow-x: auto;
+  }
+  .quotation-print-container {
+    padding: 14px;
+  }
+}
+
 .print-header {
   display: flex;
   justify-content: space-between;
@@ -2079,6 +2090,334 @@ select.custom-form-input {
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+}
+
+/* ==========================================================================
+   Mobile responsive: Quotations & Orders pages
+   (list views, dynamic section/block builder forms, modals)
+   ========================================================================== */
+
+/* Prevent any horizontal page scroll from wide inline-styled layouts */
+.content-container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Ensure any table wrapper scrolls horizontally within itself, never the page */
+.card-table-wrapper,
+.responsive-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Two-column "main content + financial summary sidebar" layouts */
+.form-layout-grid {
+  min-width: 0;
+}
+
+/* Generic 3-column form grids used for header fields & bottom summary fields */
+.grid-3col {
+  min-width: 0;
+}
+
+/* Order detail 4-column info strip */
+.detail-info-grid {
+  min-width: 0;
+}
+
+/* Mobile-only Width/Height/Pcs header + quick Add Row button, shown above
+   each item block's size rows. Hidden on desktop where the real column
+   headers already exist. */
+.mobile-size-header-row {
+  display: none;
+}
+
+/* Mobile-only page-context label shown beside a "Back" button (e.g. "New
+   Quotation" / "Edit Quotation" / "Create Order") so a user scrolled far
+   down a long form still knows what page they're on. Hidden on desktop
+   where the page heading above is already visible. */
+.mobile-page-label {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Constrain any inline fixed-pixel-width inputs/selects/textareas so they
+     never force horizontal overflow (max-width wins over an explicit width) */
+  .content-container input:not([type="radio"]):not([type="checkbox"]),
+  .content-container select,
+  .content-container textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Comfortable touch target sizing for primary form controls */
+  .modern-form-control,
+  .custom-form-input,
+  .content-container input:not([type="radio"]):not([type="checkbox"]):not([type="checkbox"]),
+  .content-container select,
+  .primary-btn,
+  .btn-outline-back,
+  .btn-gradient-submit,
+  .save-btn,
+  .cancel-btn,
+  .logout-btn,
+  .text-btn {
+    min-height: 40px;
+  }
+
+  .content-container textarea {
+    min-height: 60px;
+  }
+
+  /* Page header rows (title + primary action button) stack on mobile */
+  .page-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .page-header-row h1 {
+    font-size: 18px;
+  }
+
+  .page-header-row > .primary-btn,
+  .page-header-row > button {
+    width: 100%;
+  }
+
+  /* Main content column + financial summary sidebar: stack to single column */
+  .form-layout-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 3-column header/summary field grids collapse to 1 column */
+  .grid-3col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Order detail 4-column info strip collapses to 1 column */
+  .detail-info-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .detail-info-grid > div[style*="border-left"] {
+    border-left: none !important;
+    padding-left: 0 !important;
+    border-top: 2px solid #fecdd3;
+    padding-top: 10px;
+    margin-top: 6px;
+  }
+
+  /* Option-group variant field grid & size-row grid collapse */
+  .option-grid-4col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Width / Height / Pcs must stay on one line on mobile (Sq.Ft + delete
+     button wrap to their own row underneath) */
+  .option-size-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Dynamic item-builder tables (Quotation & Direct Order section blocks):
+     collapse the table into stacked cards so Width/Height/Pcs can sit on
+     one line without needing horizontal scroll. Column headers are hidden
+     since each field already shows its own placeholder (Width/Height/Pcs). */
+  .item-builder-table thead {
+    display: none;
+  }
+
+  .item-builder-table,
+  .item-builder-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .item-builder-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #fff;
+  }
+
+  .item-builder-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Width / Height / Pcs: three equal columns on one row */
+  .item-builder-table td.cell-size {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  /* Mobile-only Width/Height/Pcs header row + quick Add Row button.
+     Matches the same 3-equal-column layout as the input row beneath it.
+     (Extra `.item-builder-table tr` selector needed to out-specificity the
+     generic `.item-builder-table tr` row styling applied above.) */
+  .item-builder-table tr.mobile-size-header-row,
+  .mobile-size-header-row {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 2px !important;
+    margin: 2px 0 4px !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .item-builder-table td.mobile-size-header-cell,
+  .mobile-size-header-cell {
+    flex: 1 1 0;
+    min-width: 0;
+    display: block;
+    width: auto;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text-heading, #0f172a);
+  }
+
+  .item-builder-table td.mobile-add-row-cell,
+  .mobile-add-row-cell {
+    flex: 0 0 auto !important;
+  }
+
+  .mobile-add-row-btn {
+    background: #0284c7;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .mobile-page-label {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted, #64748b);
+    background: var(--bg-subtle, #f1f5f9);
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-right: 8px;
+  }
+
+  /* Small inline labels for value-only fields whose column header is now
+     hidden (the Product select already shows its own chosen name, so it
+     does not need one) */
+  .item-builder-table td.cell-unitprice::before,
+  .item-builder-table td.cell-sqft::before,
+  .item-builder-table td.cell-total::before {
+    content: 'Unit Price';
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted, #94a3b8);
+    margin-bottom: 3px;
+  }
+
+  .item-builder-table td.cell-sqft::before {
+    content: 'Sq.Ft';
+  }
+
+  .item-builder-table td.cell-total::before {
+    content: 'Total Price';
+  }
+
+  /* Section card header (name input + Add Item/Option/Delete buttons) wraps */
+  .section-header-row {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+  }
+
+  .section-header-row > div:last-child {
+    flex-wrap: wrap;
+  }
+
+  .section-header-row button {
+    flex: 1 1 auto;
+  }
+
+  .section-name-input {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Row of action buttons under a form (Submit / Back, Add Section) stacks full-width */
+  .form-btn-row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .form-btn-row > button {
+    width: 100%;
+  }
+
+  /* List filter toolbars (search box + status select) stack full width */
+  .list-filter-row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .list-filter-row > * {
+    width: 100% !important;
+  }
+
+  .entries-search-row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .entries-search-row > div {
+    width: 100%;
+  }
+
+  .entries-search-row input {
+    width: 100% !important;
+  }
+
+  /* Secondary/duplicate print-action label text hidden on mobile; icon remains */
+  .btn-label-text {
+    display: none;
+  }
+
+  /* Secondary/less-critical table columns hidden on mobile (data still available
+     via View/Edit or View Details) */
+  .hide-mobile-col {
+    display: none;
+  }
+
+  /* Verbose page-heading suffixes/subtitles hidden on mobile only (kept on desktop) */
+  .hide-mobile-text {
+    display: none;
+  }
+
+  /* Modal cards never exceed the viewport width */
+  .custom-modal-container,
+  .modal-card {
+    width: calc(100% - 16px);
   }
 }
 

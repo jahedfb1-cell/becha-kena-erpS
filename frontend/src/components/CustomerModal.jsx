@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
+import PhoneContactField from './PhoneContactField';
 
 const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, initialData = null }) => {
   const [companyName, setCompanyName] = useState('');
@@ -203,12 +204,14 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                 <label className="custom-form-label">
                   1st Contact Number <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="text"
-                  className="custom-form-input"
+                <PhoneContactField
                   placeholder="e.g. 01700000000"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  onPick={(contact) => {
+                    setPhone(contact.phone);
+                    if (contact.name && !name) setName(contact.name);
+                  }}
                   disabled={loading}
                   required
                 />
@@ -237,24 +240,22 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
             <div className="custom-form-grid">
               <div className="custom-form-group">
                 <label className="custom-form-label">2nd Contact Number</label>
-                <input
-                  type="text"
-                  className="custom-form-input"
+                <PhoneContactField
                   placeholder="Optional Mobile"
                   value={secondContactNumber}
                   onChange={(e) => setSecondContactNumber(e.target.value)}
+                  onPick={(contact) => setSecondContactNumber(contact.phone)}
                   disabled={loading}
                 />
               </div>
 
               <div className="custom-form-group">
                 <label className="custom-form-label">3rd Contact Number</label>
-                <input
-                  type="text"
-                  className="custom-form-input"
+                <PhoneContactField
                   placeholder="Optional Mobile"
                   value={thirdContactNumber}
                   onChange={(e) => setThirdContactNumber(e.target.value)}
+                  onPick={(contact) => setThirdContactNumber(contact.phone)}
                   disabled={loading}
                 />
               </div>

@@ -266,17 +266,17 @@ const Orders = () => {
       cost_price: priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0,
       min_billing_sqft: defaultMinSqft,
       notes: defaultNotes,
-      sizes: [
-        {
-          id: Date.now() + 1,
-          width: '',
-          height: '',
-          pcs: 1,
-          actual_sqft: 0,
-          billed_sqft: 0,
-          line_total: 0
-        }
-      ]
+      // Start with 4 empty size rows so mobile users can fill in
+      // multiple window sizes right away; unused rows can be deleted.
+      sizes: Array.from({ length: 4 }, (_, i) => ({
+        id: Date.now() + i + 1,
+        width: '',
+        height: '',
+        pcs: 1,
+        actual_sqft: 0,
+        billed_sqft: 0,
+        line_total: 0
+      }))
     };
 
     setSections(prev => prev.map(sec => {
@@ -714,11 +714,11 @@ const Orders = () => {
               <p>Manage confirmed sales orders, manager approvals, and automated supplier routing</p>
             </div>
             <button className="primary-btn" onClick={() => { resetForm(); setView('form'); }}>
-              + Create Direct Confirmed Order
+              + Create Order
             </button>
           </div>
 
-          <div className="no-print" style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <div className="no-print list-filter-row" style={{ display: 'flex', gap: '16px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <input
               type="text"
               placeholder="Search by order number or customer..."
@@ -751,9 +751,9 @@ const Orders = () => {
                   <tr>
                     <th>Order Number</th>
                     <th>Customer</th>
-                    <th>Customer Address</th>
+                    <th className="hide-mobile-col">Customer Address</th>
                     <th>Delivery Address</th>
-                    <th>Salesman</th>
+                    <th className="hide-mobile-col">Salesman</th>
                     <th>Status</th>
                     <th>Date</th>
                     <th>Actions</th>
@@ -771,7 +771,7 @@ const Orders = () => {
                         <td>
                           <strong>{o.customer?.name || 'N/A'}</strong>
                         </td>
-                        <td>
+                        <td className="hide-mobile-col">
                           <div style={{ fontSize: '12px', color: 'var(--text-main)', maxWidth: '180px', whiteSpace: 'normal', lineHeight: '1.4' }}>
                             {o.customer?.address || 'N/A'}
                           </div>
@@ -781,7 +781,7 @@ const Orders = () => {
                             {o.delivery_address || o.customer?.address || 'N/A'}
                           </div>
                         </td>
-                        <td>{o.salesman?.name || o.creator?.name || '-'}</td>
+                        <td className="hide-mobile-col">{o.salesman?.name || o.creator?.name || '-'}</td>
                         <td>
                           <span className={`badge ${
                             o.status === 'approved' ? 'badge-success' :
@@ -840,10 +840,10 @@ const Orders = () => {
             <button className="logout-btn" onClick={() => setView('list')}>⬅️ Back to Orders List</button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
+          <div className="form-layout-grid" style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Customer & Info Card */}
-              <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 0.8fr 1.2fr', gap: '16px', alignItems: 'center' }}>
+              <div className="form-card-section detail-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 0.8fr 1.2fr', gap: '16px', alignItems: 'center' }}>
                 <div>
                   <span style={{ fontSize: '12px', textTransform: 'uppercase', color: '#64748b' }}>Customer Name</span>
                   <div style={{ fontWeight: 'bold', fontSize: '15px', marginTop: '4px' }}>{selectedOrder?.customer?.name}</div>
@@ -876,29 +876,31 @@ const Orders = () => {
               {/* Line Items Table */}
               <div className="welcome-banner" style={{ padding: '20px' }}>
                 <h3 style={{ margin: '0 0 16px', color: 'var(--text-heading)' }}>Product Line Items</h3>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Product</th>
-                      <th style={{ textAlign: 'center' }}>
-                        Dimensions<br />
-                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>widht &nbsp;|&nbsp; Height</span>
-                      </th>
-                      <th style={{ textAlign: 'center' }}>Pcs</th>
-                      <th style={{ textAlign: 'center' }}>Billed Sqft</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedOrder?.items?.map((item) => (
-                      <tr key={item.id}>
-                        <td><strong>{item.product?.product_code || item.variant?.name}</strong> - {item.product?.name || 'Blind Item'}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.width} in &nbsp;|&nbsp; {item.height} in</td>
-                        <td style={{ textAlign: 'center' }}>{item.pcs}</td>
-                        <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.billed_sqft} sqft</td>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th style={{ textAlign: 'center' }}>
+                          Dimensions<br />
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>widht &nbsp;|&nbsp; Height</span>
+                        </th>
+                        <th style={{ textAlign: 'center' }}>Pcs</th>
+                        <th style={{ textAlign: 'center' }}>Billed Sqft</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {selectedOrder?.items?.map((item) => (
+                        <tr key={item.id}>
+                          <td><strong>{item.product?.product_code || item.variant?.name}</strong> - {item.product?.name || 'Blind Item'}</td>
+                          <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.width} in &nbsp;|&nbsp; {item.height} in</td>
+                          <td style={{ textAlign: 'center' }}>{item.pcs}</td>
+                          <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.billed_sqft} sqft</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
@@ -948,9 +950,9 @@ const Orders = () => {
         <div className="animate-fade-in">
           <div className="page-header-row">
             <div>
-              <h1>Create Direct Confirmed Order</h1>
-              <p>Directly record a confirmed sales order with dynamic sections &amp; option groups</p>
+              <h1>Create Order</h1>
             </div>
+            <span className="mobile-page-label">Create Order</span>
             <button className="btn-outline-back" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to Orders List</button>
           </div>
 
@@ -961,10 +963,10 @@ const Orders = () => {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
+            <div className="form-layout-grid" style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
               <div>
                 {/* TOP HEADER SECTION MATCHING QUOTATIONS */}
-                <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                   <div className="form-group" style={{ margin: 0 }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Order Date *</label>
                     <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="modern-form-control" />
@@ -1071,7 +1073,7 @@ const Orders = () => {
                 </div>
 
                 {/* TOP BUILDER BUTTONS */}
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                <div className="form-btn-row" style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     onClick={addSection}
@@ -1094,11 +1096,12 @@ const Orders = () => {
                 {/* DYNAMIC SECTIONS & PRODUCT BLOCKS */}
                 {sections.map((sec) => (
                   <div key={sec.id} className="form-card-section" style={{ marginBottom: '24px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #f1f5f9', paddingBottom: '10px' }}>
+                    <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #f1f5f9', paddingBottom: '10px' }}>
                       <input
                         type="text"
                         value={sec.name}
                         onChange={(e) => updateSectionName(sec.id, e.target.value)}
+                        className="section-name-input"
                         style={{
                           fontSize: '16px',
                           fontWeight: 'bold',
@@ -1175,7 +1178,7 @@ const Orders = () => {
 
                             {/* Table of sizes */}
                             <div style={{ overflowX: 'auto' }}>
-                              <table className="data-table" style={{ width: '100%', margin: 0 }}>
+                              <table className="data-table item-builder-table" style={{ width: '100%', margin: 0 }}>
                                 <thead>
                                   <tr>
                                     <th style={{ width: '220px' }}>Product *</th>
@@ -1189,10 +1192,26 @@ const Orders = () => {
                                   </tr>
                                 </thead>
                                 <tbody>
+                                  {/* Mobile-only Width/Height/Pcs header + quick Add Row button (hidden on desktop) */}
+                                  <tr className="mobile-size-header-row">
+                                    <td className="mobile-size-header-cell">Width</td>
+                                    <td className="mobile-size-header-cell">Height</td>
+                                    <td className="mobile-size-header-cell">Pcs</td>
+                                    <td className="mobile-size-header-cell mobile-add-row-cell">
+                                      <button
+                                        type="button"
+                                        onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                        className="mobile-add-row-btn"
+                                        title="Add Row"
+                                      >
+                                        ➕ Row
+                                      </button>
+                                    </td>
+                                  </tr>
                                   {block.sizes.map((sizeRow, sIdx) => (
                                     <tr key={sizeRow.id}>
                                       {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
                                           <select
                                             value={block.product_id}
                                             onChange={(e) => handleBlockChange(sec.id, block.id, 'product_id', e.target.value)}
@@ -1207,7 +1226,7 @@ const Orders = () => {
                                       )}
 
                                       {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
                                           <input
                                             type="number"
                                             value={block.unit_price}
@@ -1218,9 +1237,10 @@ const Orders = () => {
                                         </td>
                                       )}
 
-                                      <td style={{ padding: '6px' }}>
+                                      <td className="cell-size" style={{ padding: '6px' }}>
                                         <input
                                           type="number"
+                                          inputMode="decimal"
                                           value={sizeRow.width}
                                           onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
                                           placeholder="Width"
@@ -1228,9 +1248,10 @@ const Orders = () => {
                                         />
                                       </td>
 
-                                      <td style={{ padding: '6px' }}>
+                                      <td className="cell-size" style={{ padding: '6px' }}>
                                         <input
                                           type="number"
+                                          inputMode="decimal"
                                           value={sizeRow.height}
                                           onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
                                           placeholder="Height"
@@ -1238,17 +1259,19 @@ const Orders = () => {
                                         />
                                       </td>
 
-                                      <td style={{ padding: '6px' }}>
+                                      <td className="cell-size" style={{ padding: '6px' }}>
                                         <input
                                           type="number"
+                                          inputMode="numeric"
                                           value={sizeRow.pcs}
                                           onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                          placeholder="Pcs"
                                           className="modern-form-control"
                                           style={{ textAlign: 'center' }}
                                         />
                                       </td>
 
-                                      <td style={{ padding: '6px' }}>
+                                      <td className="cell-sqft" style={{ padding: '6px' }}>
                                         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                           <input
                                             type="text"
@@ -1271,7 +1294,7 @@ const Orders = () => {
                                       </td>
 
                                       {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
                                           <input
                                             type="text"
                                             value={isSelected ? `৳${totalPrice.toFixed(2)}` : '৳0.00 (Unselected)'}
@@ -1283,7 +1306,7 @@ const Orders = () => {
                                       )}
 
                                       {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} style={{ verticalAlign: 'top', paddingTop: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-action" style={{ verticalAlign: 'top', paddingTop: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                           <button
                                             type="button"
                                             onClick={() => removeProductBlock(sec.id, block.id)}
@@ -1358,7 +1381,7 @@ const Orders = () => {
                 ))}
 
                 {/* BOTTOM SUMMARY FIELDS MATCHING QUOTATIONS */}
-                <div className="form-card-section" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                   <div className="form-group" style={{ margin: 0 }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Total Amount *</label>
                     <input type="text" value={financialSummary.subtotal.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: 'bold' }} />
@@ -1406,17 +1429,18 @@ const Orders = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', margin: '24px 0 10px 0' }}>
-                  <button 
-                    type="submit" 
-                    className="btn-gradient-submit" 
+                <div className="form-btn-row" style={{ display: 'flex', justifyContent: 'center', gap: '16px', margin: '24px 0 10px 0', flexWrap: 'wrap' }}>
+                  <button
+                    type="submit"
+                    className="btn-gradient-submit"
                     disabled={isSubmitting}
                   >
                     💾 {isSubmitting ? 'Submitting...' : 'Save Direct Order'}
                   </button>
-                  <button 
-                    type="button" 
-                    className="btn-outline-back" 
+                  <span className="mobile-page-label">Create Order</span>
+                  <button
+                    type="button"
+                    className="btn-outline-back"
                     onClick={() => { setView('list'); resetForm(); }}
                   >
                     ⬅️ Back
