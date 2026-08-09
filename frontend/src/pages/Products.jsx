@@ -171,7 +171,7 @@ const Products = () => {
               className="custom-form-input"
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px' }}
+              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
             >
               <option value="">All Categories</option>
               {categories.map((c) => (
@@ -186,7 +186,7 @@ const Products = () => {
               className="custom-form-input"
               value={filterSupplier}
               onChange={(e) => setFilterSupplier(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px' }}
+              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
             >
               <option value="">All Suppliers</option>
               {suppliers.map((s) => (
@@ -203,7 +203,7 @@ const Products = () => {
               placeholder="Min"
               value={filterPriceMin}
               onChange={(e) => setFilterPriceMin(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px' }}
+              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
             />
           </div>
 
@@ -215,7 +215,7 @@ const Products = () => {
               placeholder="Max"
               value={filterPriceMax}
               onChange={(e) => setFilterPriceMax(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px' }}
+              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
             />
           </div>
 
@@ -227,7 +227,7 @@ const Products = () => {
               placeholder="Code or Name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px' }}
+              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
             />
           </div>
 
