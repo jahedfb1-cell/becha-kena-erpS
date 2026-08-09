@@ -25,11 +25,17 @@ const Products = () => {
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const response = await api.get('/products');
+      const response = await api.get('/products', { timeout: 20000 });
       setProducts(response.data.data || []);
     } catch (err) {
-      setError('Failed to retrieve products list.');
+      console.error('Products fetch failed:', err);
+      const detail = err.code === 'ECONNABORTED'
+        ? 'Request timed out. Please check your connection and try again.'
+        : (err.response?.data?.message || err.message || 'Unknown error');
+      setError(`Failed to retrieve products list. (${detail})`);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
