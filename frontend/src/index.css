@@ -46,17 +46,15 @@
   --text-48: 48px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-base: #0f172a;
-    --bg-card: #1e293b;
-    --border: #334155;
-    --text-main: #94a3b8;
-    --text-heading: #f8fafc;
-    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
-  }
-}
+/* This app is intentionally light-mode-only (the dark mode toggle was
+   removed from the Dashboard by design) — do NOT auto-switch these
+   variables based on the visitor's OS/browser dark-mode preference.
+   Many components hardcode light backgrounds without a matching dynamic
+   text color, so letting --text-heading/--bg-base flip to dark-mode
+   values here made text invisible (e.g. white-on-white) all over the
+   app for anyone with a system dark theme. Kept as a comment for
+   history; do not re-enable without auditing every hardcoded
+   background in the app first. */
 
 body {
   margin: 0;
@@ -2191,19 +2189,24 @@ select.custom-form-input {
     width: 100%;
   }
 
-  /* Main content column + financial summary sidebar: stack to single column */
+  /* Main content column + financial summary sidebar: stack to single column.
+     minmax(0, 1fr) (not plain 1fr) is required here — a bare 1fr track keeps
+     an implicit minimum size equal to its content's min-content width, so
+     wide descendants (e.g. the item-builder table's fixed-width cells)
+     silently blow the grid track out past the viewport instead of actually
+     shrinking to fit. */
   .form-layout-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   /* 3-column header/summary field grids collapse to 1 column */
   .grid-3col {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   /* Order detail 4-column info strip collapses to 1 column */
   .detail-info-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .detail-info-grid > div[style*="border-left"] {
@@ -2216,7 +2219,7 @@ select.custom-form-input {
 
   /* Option-group variant field grid & size-row grid collapse */
   .option-grid-4col {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   /* Desktop option-variant size grid is superseded by .mobile-size-card */
@@ -2352,7 +2355,16 @@ select.custom-form-input {
   }
 
   .mobile-size-box {
-    flex: 0 0 auto;
+    /* Flexible, not fixed-pixel: on a real phone the row also has to fit
+       the +/- buttons beside it, and the available width varies by device
+       and by whether this is the last row (which also carries the "+" add
+       button). Fixed 80/80/65px widths were tuned against an inflated
+       container caused by a CSS Grid track-sizing bug (see .form-layout-grid)
+       and don't actually fit real narrow phones now that it's fixed —
+       flex-basis + min-width lets these always shrink to whatever space
+       is really available instead of overflowing. */
+    flex: 1 1 0;
+    min-width: 0;
     height: 34px;
     border-radius: 4px;
     border: 1px solid #e2e8f0 !important;
@@ -2364,24 +2376,21 @@ select.custom-form-input {
     padding: 0 2px !important;
   }
 
-  /* Fixed widths: Width 80px / Height 80px / Pcs 65px */
-  .mobile-size-row .mobile-size-box:nth-of-type(1) {
-    width: 80px !important;
-  }
-
+  /* Width/Height get equal share; Pcs a little narrower (fewer digits) */
+  .mobile-size-row .mobile-size-box:nth-of-type(1),
   .mobile-size-row .mobile-size-box:nth-of-type(2) {
-    width: 80px !important;
+    flex: 1.15 1 0;
   }
 
   .mobile-size-row .mobile-size-box:nth-of-type(3) {
-    width: 65px !important;
+    flex: 0.85 1 0;
   }
 
   .mobile-size-del-btn,
   .mobile-size-add-btn {
     flex: 0 0 auto;
-    width: 35px;
-    height: 35px;
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
     border: none;
     font-size: 14px;

@@ -1376,7 +1376,7 @@ const Quotations = () => {
           <div className="form-layout-grid" style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
             <div>
               {/* TOP HEADER SECTION */}
-              <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quotation Date *</label>
                   <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="modern-form-control" />
@@ -1921,7 +1921,7 @@ const Quotations = () => {
                                       </div>
 
                                       {/* Option Product Selector & Inputs */}
-                                      <div className="option-grid-4col" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+                                      <div className="option-grid-4col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
                                         <div>
                                           <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Product Variant</label>
                                           <select
@@ -2131,43 +2131,43 @@ const Quotations = () => {
               })}
 
               {/* BOTTOM SUMMARY FIELDS */}
-              <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
+              <div className="form-card-section grid-3col" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Total Amount *</label>
                   <input type="text" value={financialSummary.subtotal.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: 'bold' }} />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Convence Amount *</label>
                   <input type="number" value={convenienceCharge} onChange={(e) => setConvenienceCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Other Charge Label</label>
                   <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. servicing charge" className="modern-form-control" />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Others Charge</label>
                   <input type="number" value={otherCharge} onChange={(e) => setOtherCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Vat %</label>
                   <input type="number" value={vatPercentage} onChange={(e) => setVatPercentage(parseFloat(e.target.value) || 0)} className="modern-form-control" />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Net Amount *</label>
                   <input type="text" value={financialSummary.netAmount.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: '800', color: 'var(--primary)', fontSize: '15px' }} />
                 </div>
 
-                <div className="form-group" style={{ gridColumn: 'span 3', margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 100%' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Remarks</label>
                   <input type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="If have any note" className="modern-form-control" />
                 </div>
 
-                <div className="form-group" style={{ gridColumn: 'span 3', margin: 0 }}>
+                <div className="form-group" style={{ margin: 0, flex: '1 1 100%' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Note</label>
                   <textarea 
                     value={terms} 
