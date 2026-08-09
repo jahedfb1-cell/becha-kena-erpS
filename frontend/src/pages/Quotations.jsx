@@ -45,6 +45,7 @@ const Quotations = () => {
   const [selectedTopProductId, setSelectedTopProductId] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [lastAddedProductName, setLastAddedProductName] = useState('');
 
   // Confirmation Modals
   const [convertConfirmTarget, setConvertConfirmTarget] = useState(null);
@@ -1349,8 +1350,9 @@ const Quotations = () => {
         /* Create/Edit Form View */
         <div className="animate-fade-in">
           <div className="page-header-row">
-            <div>
+            <div className="page-header-title-row">
               <h1>{isEditMode ? 'Edit Quotation' : <>New Quotation <span className="hide-mobile-text">(Dynamic Builder)</span></>}</h1>
+              <button className="btn-outline-back mobile-only-btn" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
               <p className="hide-mobile-text">Organize items into dynamic sections, options variations, and print toggles</p>
             </div>
             <div className="form-btn-row" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -1362,8 +1364,7 @@ const Quotations = () => {
               >
                 ➕ Add Section / Group
               </button>
-              <span className="mobile-page-label">{isEditMode ? 'Edit Quotation' : 'New Quotation'}</span>
-              <button className="btn-outline-back" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
+              <button className="btn-outline-back desktop-only-btn" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
             </div>
           </div>
 
@@ -1377,8 +1378,8 @@ const Quotations = () => {
             <div>
               {/* TOP HEADER SECTION */}
               <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quotation Date *</label>
+                <div className="form-group mobile-inline-field" style={{ margin: 0 }}>
+                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Qut. Date *</label>
                   <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="modern-form-control" />
                 </div>
 
@@ -1431,7 +1432,7 @@ const Quotations = () => {
                 </div>
 
                 <div className="form-group" style={{ margin: 0, position: 'relative' }}>
-                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quick Add Product to Section *</label>
+                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Select Product *</label>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
                       <input
@@ -1461,12 +1462,18 @@ const Quotations = () => {
                                   setSelectedTopProductId('');
                                   setProductSearchQuery('');
                                   setShowProductDropdown(false);
+                                  setLastAddedProductName(p.product_code ? `${p.product_code} - ${p.name}` : p.name);
                                 }}
                               >
                                 <strong>{p.product_code || '—'}</strong> - {p.name}
                               </div>
                             ))
                           )}
+                        </div>
+                      )}
+                      {lastAddedProductName && (
+                        <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: '#16a34a' }}>
+                          ✓ Added: {lastAddedProductName}
                         </div>
                       )}
                     </div>
@@ -1486,11 +1493,11 @@ const Quotations = () => {
               <div className="form-card-section" style={{ padding: '16px 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', margin: 0 }}>Delivery Address</label>
-                  <label style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
-                    <input 
-                      type="checkbox" 
-                      checked={sameAsCustomerAddress} 
-                      onChange={(e) => setSameAsCustomerAddress(e.target.checked)} 
+                  <label className="hide-mobile-text" style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={sameAsCustomerAddress}
+                      onChange={(e) => setSameAsCustomerAddress(e.target.checked)}
                       style={{ marginRight: '6px', width: 'auto' }}
                     />
                     🔴 Same as Customer Address
@@ -1516,7 +1523,7 @@ const Quotations = () => {
                 });
 
                 return (
-                  <div key={sec.id} className="form-card-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '12px', padding: '20px', marginBottom: '24px', position: 'relative' }}>
+                  <div key={sec.id} className="form-card-section mobile-simple-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '12px', padding: '20px', marginBottom: '24px', position: 'relative' }}>
                     {/* Section Card Header */}
                     <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: 'var(--bg-subtle, #f8fafc)', padding: '12px 16px', borderRadius: '8px', borderLeft: '4px solid #0284c7' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
@@ -1827,10 +1834,11 @@ const Quotations = () => {
                                       {/* Product Specification Box */}
                                       <tr style={{ background: '#f8fafc' }}>
                                         <td colSpan="8" style={{ padding: '8px 14px' }}>
-                                          <textarea 
-                                            value={block.notes || ''} 
+                                          <textarea
+                                            className="product-notes-textarea"
+                                            value={block.notes || ''}
                                             onChange={(e) => handleBlockChange(sec.id, block.id, 'notes', e.target.value)}
-                                            rows="2" 
+                                            rows="2"
                                             style={{ width: '100%', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', resize: 'vertical', background: '#fff' }}
                                             placeholder="Enter specification details..."
                                           />
@@ -2142,12 +2150,12 @@ const Quotations = () => {
                   <input type="number" value={convenienceCharge} onChange={(e) => setConvenienceCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
                 </div>
 
-                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
+                <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Other Charge Label</label>
                   <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. servicing charge" className="modern-form-control" />
                 </div>
 
-                <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
+                <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 150px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Others Charge</label>
                   <input type="number" value={otherCharge} onChange={(e) => setOtherCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
                 </div>
@@ -2162,7 +2170,7 @@ const Quotations = () => {
                   <input type="text" value={financialSummary.netAmount.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: '800', color: 'var(--primary)', fontSize: '15px' }} />
                 </div>
 
-                <div className="form-group" style={{ margin: 0, flex: '1 1 100%' }}>
+                <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 100%' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Remarks</label>
                   <input type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="If have any note" className="modern-form-control" />
                 </div>
@@ -2188,10 +2196,10 @@ const Quotations = () => {
                 >
                   💾 {isSubmitting ? 'Submitting...' : 'Submit'}
                 </button>
-                <span className="mobile-page-label">{isEditMode ? 'Edit Quotation' : 'New Quotation'}</span>
+                <span className="mobile-page-label hide-mobile-text">{isEditMode ? 'Edit Quotation' : 'New Quotation'}</span>
                 <button
                   type="button"
-                  className="btn-outline-back"
+                  className="btn-outline-back hide-mobile-text"
                   onClick={() => { setView('list'); resetForm(); }}
                 >
                   ⬅️ Back

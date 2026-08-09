@@ -174,9 +174,9 @@ const NotificationBell = () => {
         )}
       </button>
 
-      {/* Notification Dropdown Drawer */}
+      {/* Notification Dropdown Drawer (becomes a full-screen panel on mobile — see .notification-bell-container in index.css) */}
       {isOpen && (
-        <div style={{
+        <div className="notification-panel" style={{
           position: 'absolute',
           right: 0,
           top: '42px',
@@ -201,6 +201,15 @@ const NotificationBell = () => {
             backgroundColor: '#f8fafc'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                className="notification-panel-back"
+                onClick={() => setIsOpen(false)}
+                style={{ display: 'none', background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: 'var(--text-heading)', padding: '0 4px 0 0' }}
+                title="Close"
+              >
+                ←
+              </button>
               <strong style={{ fontSize: '15px', color: 'var(--text-heading)' }}>Notifications</strong>
               {unreadCount > 0 && (
                 <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#dbeafe', color: '#1e40af', fontWeight: 'bold' }}>
@@ -210,14 +219,14 @@ const NotificationBell = () => {
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               {unreadCount > 0 && (
-                <button 
-                  onClick={handleMarkAllRead} 
+                <button
+                  onClick={handleMarkAllRead}
                   style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: '500' }}
                 >
                   Mark all read
                 </button>
               )}
-              <button 
+              <button
                 onClick={() => { setIsOpen(false); setIsSettingsOpen(true); }}
                 style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '14px', cursor: 'pointer' }}
                 title="Notification Settings"

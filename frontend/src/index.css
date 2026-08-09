@@ -2125,6 +2125,13 @@ select.custom-form-input {
   min-width: 0;
 }
 
+/* Back-to-list button shown beside the page title on mobile, and inside
+   the button row on desktop (see .desktop-only-btn) — see the mobile
+   media query below for the actual swap. */
+.mobile-only-btn {
+  display: none;
+}
+
 /* Mobile-only Width/Height/Pcs card (dark header bar + rounded size-input
    rows + totals bar). Hidden on desktop where the real table columns
    already show this data. */
@@ -2504,7 +2511,7 @@ select.custom-form-input {
   }
 
   .item-builder-table td.cell-total::before {
-    content: 'Total Price';
+    content: 'Total Tk.';
   }
 
   /* Section card header (name input + Add Item/Option/Delete buttons) wraps */
@@ -2571,15 +2578,114 @@ select.custom-form-input {
     display: none;
   }
 
-  /* Verbose page-heading suffixes/subtitles hidden on mobile only (kept on desktop) */
+  /* Verbose page-heading suffixes/subtitles/fields hidden on mobile only
+     (kept on desktop). !important because this is also applied to
+     elements that set their own inline `display` (e.g. flex labels). */
   .hide-mobile-text {
-    display: none;
+    display: none !important;
   }
 
   /* Modal cards never exceed the viewport width */
   .custom-modal-container,
   .modal-card {
     width: calc(100% - 16px);
+  }
+
+  /* Notification bell dropdown becomes a full-screen panel on mobile —
+     the fixed 360px-wide dropdown positioned "right: 0" relative to the
+     bell button would otherwise render mostly off-screen. */
+  .notification-panel {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    border-radius: 0 !important;
+    z-index: 2000 !important;
+  }
+
+  .notification-panel-back {
+    display: inline-flex !important;
+  }
+
+  /* Page title + Back-to-List button share one row on mobile; the
+     duplicate Back-to-List button in the .form-btn-row (desktop layout)
+     is hidden so it doesn't also appear a second time below
+     "Add Section / Group". */
+  .page-header-title-row {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+
+  .page-header-title-row h1 {
+    margin: 0;
+  }
+
+  .mobile-only-btn {
+    display: inline-flex !important;
+    flex: 0 0 auto;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    white-space: nowrap;
+  }
+
+  .desktop-only-btn {
+    display: none !important;
+  }
+
+  /* Quotation/Order Date: label + date picker share one row instead of
+     stacking, to save vertical space on mobile. */
+  .mobile-inline-field {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .mobile-inline-field label {
+    margin-bottom: 0 !important;
+    white-space: nowrap;
+  }
+
+  .mobile-inline-field input {
+    width: auto !important;
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+
+  /* Section card: drop the bordered "card" look on mobile, keep it simple */
+  .mobile-simple-section {
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Per-item Product picker is redundant on mobile once a product has
+     been chosen via "Select Product *" above — hide it inside each
+     item's row so the row only shows Unit Price / Total / Action. */
+  .item-builder-table td.cell-product {
+    display: none !important;
+  }
+
+  /* Unit Price and Total Tk. sit side by side instead of stacking */
+  .item-builder-table td.cell-unitprice,
+  .item-builder-table td.cell-total {
+    flex: 1 1 45% !important;
+    width: auto !important;
+  }
+
+  /* Product specification/notes box: bigger and borderless on mobile */
+  .product-notes-textarea {
+    border: none !important;
+    min-height: 90px !important;
+    background: var(--bg-subtle, #f8fafc) !important;
   }
 }
 

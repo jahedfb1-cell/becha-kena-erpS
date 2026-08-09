@@ -47,6 +47,7 @@ const Orders = () => {
   const [selectedTopProductId, setSelectedTopProductId] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [lastAddedProductName, setLastAddedProductName] = useState('');
 
   // Dynamic Section-based Form State
   const [sections, setSections] = useState([
@@ -961,11 +962,11 @@ const Orders = () => {
         /* Direct Order Creation Form View (Dynamic Section & Option Builder) */
         <div className="animate-fade-in">
           <div className="page-header-row">
-            <div>
+            <div className="page-header-title-row">
               <h1>Create Order</h1>
+              <button className="btn-outline-back mobile-only-btn" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
             </div>
-            <span className="mobile-page-label">Create Order</span>
-            <button className="btn-outline-back" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to Orders List</button>
+            <button className="btn-outline-back desktop-only-btn" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to Orders List</button>
           </div>
 
           <form onSubmit={handleCreateDirectOrder}>
@@ -979,7 +980,7 @@ const Orders = () => {
               <div>
                 {/* TOP HEADER SECTION MATCHING QUOTATIONS */}
                 <div className="form-card-section grid-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                  <div className="form-group" style={{ margin: 0 }}>
+                  <div className="form-group mobile-inline-field" style={{ margin: 0 }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Order Date *</label>
                     <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="modern-form-control" />
                   </div>
@@ -1033,7 +1034,7 @@ const Orders = () => {
                   </div>
 
                   <div className="form-group" style={{ margin: 0, position: 'relative' }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quick Add Product to Section *</label>
+                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Select Product *</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <div style={{ flex: 1, position: 'relative' }}>
                         <input
@@ -1063,6 +1064,7 @@ const Orders = () => {
                                     setSelectedTopProductId('');
                                     setProductSearchQuery('');
                                     setShowProductDropdown(false);
+                                    setLastAddedProductName(p.product_code ? `${p.product_code} - ${p.name}` : p.name);
                                   }}
                                 >
                                   <strong>{p.product_code || '—'}</strong> - {p.name}
@@ -1081,6 +1083,11 @@ const Orders = () => {
                         +
                       </button>
                     </div>
+                    {lastAddedProductName && (
+                      <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: '#16a34a' }}>
+                        ✓ Added: {lastAddedProductName}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1088,7 +1095,7 @@ const Orders = () => {
                 <div className="form-card-section" style={{ padding: '16px 20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', margin: 0 }}>Delivery Address</label>
-                    <label style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
+                    <label className="hide-mobile-text" style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
                       <input 
                         type="checkbox" 
                         checked={sameAsCustomerAddress} 
@@ -1130,7 +1137,7 @@ const Orders = () => {
 
                 {/* DYNAMIC SECTIONS & PRODUCT BLOCKS */}
                 {sections.map((sec) => (
-                  <div key={sec.id} className="form-card-section" style={{ marginBottom: '24px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+                  <div key={sec.id} className="form-card-section mobile-simple-section" style={{ marginBottom: '24px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
                     <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #f1f5f9', paddingBottom: '10px' }}>
                       <input
                         type="text"
@@ -1455,6 +1462,7 @@ const Orders = () => {
                                   <tr style={{ background: '#f8fafc' }}>
                                     <td colSpan="7" style={{ padding: '8px 14px' }}>
                                       <textarea
+                                        className="product-notes-textarea"
                                         value={block.notes || ''}
                                         onChange={(e) => handleBlockChange(sec.id, block.id, 'notes', e.target.value)}
                                         rows="2"
@@ -1494,12 +1502,12 @@ const Orders = () => {
                     <input type="number" value={convenienceCharge} onChange={(e) => setConvenienceCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
                   </div>
 
-                  <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
+                  <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 150px' }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Other Charge Label</label>
                     <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. old blinds serviceing charge" className="modern-form-control" />
                   </div>
 
-                  <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
+                  <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 150px' }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Others Charge</label>
                     <input type="number" value={otherCharge} onChange={(e) => setOtherCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
                   </div>
@@ -1514,7 +1522,7 @@ const Orders = () => {
                     <input type="text" value={financialSummary.netAmount.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: '800', color: 'var(--primary)', fontSize: '15px' }} />
                   </div>
 
-                  <div className="form-group" style={{ margin: 0, flex: '1 1 100%' }}>
+                  <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 100%' }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Remarks</label>
                     <input type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="If have any note" className="modern-form-control" />
                   </div>
@@ -1539,10 +1547,10 @@ const Orders = () => {
                   >
                     💾 {isSubmitting ? 'Submitting...' : 'Save Direct Order'}
                   </button>
-                  <span className="mobile-page-label">Create Order</span>
+                  <span className="mobile-page-label hide-mobile-text">Create Order</span>
                   <button
                     type="button"
-                    className="btn-outline-back"
+                    className="btn-outline-back hide-mobile-text"
                     onClick={() => { setView('list'); resetForm(); }}
                   >
                     ⬅️ Back
