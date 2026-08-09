@@ -227,7 +227,12 @@ const Quotations = () => {
     return products.filter(p => {
       const code = p.product_code ? p.product_code.toLowerCase() : '';
       const name = p.name ? p.name.toLowerCase() : '';
-      return code.includes(q) || name.includes(q);
+      const supplierMatch = Array.isArray(p.supplier_links) && p.supplier_links.some(link => {
+        const supName = link.supplier?.name ? link.supplier.name.toLowerCase() : '';
+        const supCompany = link.supplier?.company_name ? link.supplier.company_name.toLowerCase() : '';
+        return supName.includes(q) || supCompany.includes(q);
+      });
+      return code.includes(q) || name.includes(q) || supplierMatch;
     });
   }, [products, productSearchQuery]);
 
@@ -1466,6 +1471,11 @@ const Quotations = () => {
                                 }}
                               >
                                 <strong>{p.product_code || '—'}</strong> - {p.name}
+                                {Array.isArray(p.supplier_links) && p.supplier_links.length > 0 && (
+                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                                    Supplier: {p.supplier_links.map(l => l.supplier?.name).filter(Boolean).join(', ')}
+                                  </div>
+                                )}
                               </div>
                             ))
                           )}
