@@ -85,6 +85,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [PaymentController::class, 'index']);
         Route::post('/', [PaymentController::class, 'store']);
         Route::post('/{id}/void', [PaymentController::class, 'voidPayment']);
+        Route::post('/{id}/clear-cheque', [PaymentController::class, 'clearCheque']);
     });
 
     // Audit Logs

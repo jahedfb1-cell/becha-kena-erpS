@@ -60,6 +60,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'payments:create',
             'payments:apply-discount',
             'payments:void',
+            'payments:clear-cheque',
 
             // Vouchers & Expenses
             'vouchers:create',
@@ -139,6 +140,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'quotations:convert',
             'orders:view-team',
             'payments:create',
+            'payments:clear-cheque',
             'complaints:create',
             'reports:view-sales',
             'reports:view-purchase',
