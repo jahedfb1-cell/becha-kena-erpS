@@ -45,7 +45,9 @@ const Orders = () => {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [sameAsCustomerAddress, setSameAsCustomerAddress] = useState(false);
   const [selectedTopProductId, setSelectedTopProductId] = useState('');
-  
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
   // Dynamic Section-based Form State
   const [sections, setSections] = useState([
     {
@@ -205,6 +207,16 @@ const Orders = () => {
       return name.includes(q) || compName.includes(q) || code.includes(q) || phone.includes(q);
     });
   }, [customers, customerSearchQuery, selectedCustomerObj]);
+
+  const filteredProductsDropdown = useMemo(() => {
+    if (!productSearchQuery) return products;
+    const q = productSearchQuery.toLowerCase().trim();
+    return products.filter(p => {
+      const code = p.product_code ? p.product_code.toLowerCase() : '';
+      const name = p.name ? p.name.toLowerCase() : '';
+      return code.includes(q) || name.includes(q);
+    });
+  }, [products, productSearchQuery]);
 
   // ----------------------------------------------------
   // Dynamic Section & Option Helper Methods (Identical to Quotations)
@@ -1020,27 +1032,50 @@ const Orders = () => {
                     </div>
                   </div>
 
-                  <div className="form-group" style={{ margin: 0 }}>
+                  <div className="form-group" style={{ margin: 0, position: 'relative' }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Quick Add Product to Section *</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <select 
-                        value={selectedTopProductId} 
-                        onChange={(e) => {
-                          if (e.target.value && sections.length > 0) {
-                            addProductBlockToSection(sections[0].id, e.target.value);
-                          }
-                        }}
-                        className="modern-form-control"
-                      >
-                        <option value="">Select Product...</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.id}>{p.product_code || p.name}</option>
-                        ))}
-                      </select>
-                      <button 
-                        type="button" 
-                        className="btn-icon-square" 
-                        onClick={() => setIsProductModalOpen(true)} 
+                      <div style={{ flex: 1, position: 'relative' }}>
+                        <input
+                          type="text"
+                          placeholder="Search product by code or name..."
+                          value={productSearchQuery}
+                          onChange={(e) => {
+                            setProductSearchQuery(e.target.value);
+                            setShowProductDropdown(true);
+                          }}
+                          onFocus={() => setShowProductDropdown(true)}
+                          className="modern-form-control"
+                        />
+                        {showProductDropdown && (
+                          <div className="search-dropdown-list">
+                            {filteredProductsDropdown.length === 0 ? (
+                              <div className="dropdown-item empty">No products found</div>
+                            ) : (
+                              filteredProductsDropdown.map(p => (
+                                <div
+                                  key={p.id}
+                                  className="dropdown-item"
+                                  onClick={() => {
+                                    if (sections.length > 0) {
+                                      addProductBlockToSection(sections[0].id, p.id);
+                                    }
+                                    setSelectedTopProductId('');
+                                    setProductSearchQuery('');
+                                    setShowProductDropdown(false);
+                                  }}
+                                >
+                                  <strong>{p.product_code || '—'}</strong> - {p.name}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-icon-square"
+                        onClick={() => setIsProductModalOpen(true)}
                         title="Add New Product"
                       >
                         +
