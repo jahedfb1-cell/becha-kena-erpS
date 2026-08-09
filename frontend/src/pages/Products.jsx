@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import ProductModal from '../components/ProductModal';
@@ -11,6 +11,12 @@ const Products = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Filters
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterPriceMin, setFilterPriceMin] = useState('');
+  const [filterPriceMax, setFilterPriceMax] = useState('');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -69,11 +75,59 @@ const Products = () => {
     fetchProducts();
   };
 
-  const filteredProducts = products.filter(
-    (p) =>
+  // Preferred supplier link (priority_rank === 1, else first link)
+  const getPreferredLink = (product) => {
+    const links = product.supplierLinks || product.supplier_links || [];
+    return links.find((l) => parseInt(l.priority_rank) === 1) || links[0];
+  };
+
+  // Unique category / supplier lists derived from the loaded products,
+  // so the filter dropdowns only ever show options that actually exist.
+  const categories = useMemo(() => {
+    const map = new Map();
+    products.forEach((p) => {
+      if (p.category?.id) map.set(p.category.id, p.category.name);
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [products]);
+
+  const suppliers = useMemo(() => {
+    const map = new Map();
+    products.forEach((p) => {
+      const link = getPreferredLink(p);
+      if (link?.supplier?.id) map.set(link.supplier.id, link.supplier.name);
+    });
+    return Array.from(map, ([id, name]) => ({ id, name }));
+  }, [products]);
+
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch =
       p.product_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      p.name?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory = filterCategory
+      ? String(p.category?.id) === filterCategory
+      : true;
+
+    const prefLink = getPreferredLink(p);
+    const matchesSupplier = filterSupplier
+      ? String(prefLink?.supplier?.id) === filterSupplier
+      : true;
+
+    const price = parseFloat(p.default_unit_price) || 0;
+    const matchesMinPrice = filterPriceMin ? price >= parseFloat(filterPriceMin) : true;
+    const matchesMaxPrice = filterPriceMax ? price <= parseFloat(filterPriceMax) : true;
+
+    return matchesSearch && matchesCategory && matchesSupplier && matchesMinPrice && matchesMaxPrice;
+  });
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setFilterCategory('');
+    setFilterSupplier('');
+    setFilterPriceMin('');
+    setFilterPriceMax('');
+  };
 
   return (
     <div className="content-container">
@@ -99,22 +153,89 @@ const Products = () => {
 
       {/* Main Card / Table Wrapper */}
       <div className="card-table-wrapper" style={{ padding: '20px', background: '#fff', borderRadius: '10px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', color: '#333' }}>
-            PRODUCT LIST
-          </h3>
+        <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', color: '#333' }}>
+          PRODUCT LIST
+        </h3>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label style={{ fontSize: '13px', color: '#555' }}>Search:</label>
+        {/* Filter & Search Bar */}
+        <div className="list-filter-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '10px', marginBottom: '18px' }}>
+          <div style={{ minWidth: '170px', flex: '1 1 170px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Category</label>
+            <select
+              className="custom-form-input"
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px' }}
+            >
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ minWidth: '170px', flex: '1 1 170px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Supplier</label>
+            <select
+              className="custom-form-input"
+              value={filterSupplier}
+              onChange={(e) => setFilterSupplier(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px' }}
+            >
+              <option value="">All Suppliers</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ minWidth: '110px', flex: '1 1 110px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Price Min (৳)</label>
+            <input
+              type="number"
+              className="custom-form-input"
+              placeholder="Min"
+              value={filterPriceMin}
+              onChange={(e) => setFilterPriceMin(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px' }}
+            />
+          </div>
+
+          <div style={{ minWidth: '110px', flex: '1 1 110px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Price Max (৳)</label>
+            <input
+              type="number"
+              className="custom-form-input"
+              placeholder="Max"
+              value={filterPriceMax}
+              onChange={(e) => setFilterPriceMax(e.target.value)}
+              style={{ width: '100%', padding: '7px 10px' }}
+            />
+          </div>
+
+          <div style={{ minWidth: '200px', flex: '2 1 200px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Search (Code or Name)</label>
             <input
               type="text"
               className="custom-form-input"
               placeholder="Code or Name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '200px', padding: '6px 10px' }}
+              style={{ width: '100%', padding: '7px 10px' }}
             />
           </div>
+
+          <button
+            onClick={handleResetFilters}
+            className="logout-btn"
+            style={{ padding: '8px 16px', height: '36px', whiteSpace: 'nowrap' }}
+          >
+            Reset Filters
+          </button>
+        </div>
+
+        <div style={{ fontSize: '13px', color: '#888', marginBottom: '10px' }}>
+          Showing {filteredProducts.length} of {products.length} products
         </div>
 
         {error && <div className="alert alert-danger mb-3">{error}</div>}
@@ -142,10 +263,7 @@ const Products = () => {
             </thead>
             <tbody>
               {filteredProducts.map((product, index) => {
-                // Find preferred supplier link (priority_rank === 1 or first link)
-                const links = product.supplierLinks || product.supplier_links || [];
-                const prefLink =
-                  links.find((l) => parseInt(l.priority_rank) === 1) || links[0];
+                const prefLink = getPreferredLink(product);
                 const prefSupplierName = prefLink?.supplier?.name || '-';
                 const rawCost = prefLink?.cost_price;
                 const buyPrice = (rawCost !== undefined && rawCost !== null && rawCost !== '')
