@@ -25,6 +25,7 @@ import Settings from './pages/Settings';
 
 import QuotationPrintPage from './pages/QuotationPrintPage';
 import InvoicePrintPage from './pages/InvoicePrintPage';
+import ChallanPrintPage from './pages/ChallanPrintPage';
 
 function App() {
   return (
@@ -44,6 +45,14 @@ function App() {
           element={
             <ProtectedRoute>
               <InvoicePrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/invoices/print/:id/challan"
+          element={
+            <ProtectedRoute>
+              <ChallanPrintPage />
             </ProtectedRoute>
           }
         />

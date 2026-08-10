@@ -103,7 +103,7 @@ const InvoicePrintPage = () => {
   const customer = invoice.customer || invoice.quotation?.customer || {};
   const quotation = invoice.quotation || {};
   const items = quotation.items || invoice.items || [];
-  const challanNo = invoice.challans && invoice.challans.length > 0 ? invoice.challans[0].challan_number : (invoice.challan_number || 'N/A');
+  const challanNo = invoice.delivery_challans?.[0]?.challan_number || 'N/A';
   const poNo = invoice.po_number || quotation.po_number || 'N/A';
 
   const buildGroups = (rawItems) => {
@@ -213,6 +213,21 @@ const InvoicePrintPage = () => {
             }}
           >
             📝 Pad Invoice
+          </button>
+          <button
+            onClick={() => navigate(`/invoices/print/${id}/challan`)}
+            style={{
+              padding: '6px 14px',
+              fontSize: '13px',
+              fontWeight: 600,
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              background: '#059669',
+              color: '#fff'
+            }}
+          >
+            🚚 Delivery Challan
           </button>
         </div>
 
