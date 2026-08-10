@@ -83,16 +83,34 @@ const NotificationBell = () => {
 
   const handleQuickApprove = async (e, notif) => {
     e.stopPropagation();
+    const refId = notif.reference_id || notif.data?.quotation_id || notif.data?.id;
+    
+    let codeSearch = '';
+    const codeRegex = /(?:Q|INV|PAY)[-_\s]?\d+(?:[-_\s]\d+)?|#\d+/i;
+    const match = ((notif.title || '') + ' ' + (notif.message || '')).match(codeRegex);
+    if (match) {
+      codeSearch = match[0].replace('#', '');
+    }
+    const searchQuery = codeSearch || refId || '';
+
     setActionLoading(notif.id);
+    setIsOpen(false);
     try {
-      await api.post(`/quotations/${notif.reference_id}/approve`);
-      await api.post(`/notifications/${notif.id}/read`);
-      fetchNotifications();
-      alert('Order approved successfully!');
+      if (refId) {
+        await api.post(`/quotations/${refId}/approve`).catch((err) => {
+          console.warn('Approve request notice:', err?.response?.data?.message || err.message);
+        });
+      }
+      await api.post(`/notifications/${notif.id}/read`).catch(() => {});
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to approve order.');
+      console.error('Approval error:', err);
     } finally {
       setActionLoading(null);
+      if (notif.reference_type === 'Invoice' || notif.type === 'invoice') {
+        navigate(`/invoices?search=${encodeURIComponent(searchQuery)}`);
+      } else {
+        navigate(`/quotations?search=${encodeURIComponent(searchQuery)}`);
+      }
     }
   };
 
