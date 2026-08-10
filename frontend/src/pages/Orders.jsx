@@ -215,12 +215,7 @@ const Orders = () => {
     return products.filter(p => {
       const code = p.product_code ? p.product_code.toLowerCase() : '';
       const name = p.name ? p.name.toLowerCase() : '';
-      const supplierMatch = Array.isArray(p.supplier_links) && p.supplier_links.some(link => {
-        const supName = link.supplier?.name ? link.supplier.name.toLowerCase() : '';
-        const supCompany = link.supplier?.company_name ? link.supplier.company_name.toLowerCase() : '';
-        return supName.includes(q) || supCompany.includes(q);
-      });
-      return code.includes(q) || name.includes(q) || supplierMatch;
+      return code.includes(q) || name.includes(q);
     });
   }, [products, productSearchQuery]);
 
@@ -1073,11 +1068,6 @@ const Orders = () => {
                                   }}
                                 >
                                   <strong>{p.product_code || '—'}</strong> - {p.name}
-                                  {Array.isArray(p.supplier_links) && p.supplier_links.length > 0 && (
-                                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                                      Supplier: {p.supplier_links.map(l => l.supplier?.name).filter(Boolean).join(', ')}
-                                    </div>
-                                  )}
                                 </div>
                               ))
                             )}
@@ -1235,10 +1225,11 @@ const Orders = () => {
                                   <tr>
                                     <th style={{ width: '220px' }}>Product *</th>
                                     <th style={{ width: '110px' }}>Unit Price</th>
-                                    <th style={{ width: '85px' }}>Width</th>
-                                    <th style={{ width: '85px' }}>Height</th>
+                                    <th style={{ width: '90px' }}>Width</th>
+                                    <th style={{ width: '90px' }}>Height</th>
                                     <th style={{ width: '65px' }}>Pcs</th>
                                     <th style={{ width: '110px' }}>Sq.Ft</th>
+                                    <th className="cell-total-sqft-th" style={{ width: '90px' }}>Total Sq.Ft</th>
                                     <th style={{ width: '130px' }}>Total Price</th>
                                     <th style={{ width: '110px', textAlign: 'center' }}>Action</th>
                                   </tr>
@@ -1246,7 +1237,7 @@ const Orders = () => {
                                 <tbody>
                                   {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
                                   <tr className="mobile-size-card-row">
-                                    <td colSpan="8" className="mobile-size-card-cell">
+                                    <td colSpan="9" className="mobile-size-card-cell">
                                       <div className="mobile-size-card">
                                         <div className="mobile-size-header-bar">
                                           <div className="mobile-size-header-item">
@@ -1412,6 +1403,19 @@ const Orders = () => {
                                         </div>
                                       </td>
 
+                                      {/* Total Sq.Ft (block total, desktop-only - hidden on mobile via .cell-total-sqft CSS) */}
+                                      {sIdx === 0 && (
+                                        <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '6px' }}>
+                                          <input
+                                            type="text"
+                                            value={totalBilledSqft.toFixed(2)}
+                                            readOnly
+                                            className="modern-form-control"
+                                            style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
+                                          />
+                                        </td>
+                                      )}
+
                                       {sIdx === 0 && (
                                         <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
                                           <input
@@ -1470,7 +1474,7 @@ const Orders = () => {
                                   ))}
 
                                   <tr style={{ background: '#f8fafc' }}>
-                                    <td colSpan="7" style={{ padding: '8px 14px' }}>
+                                    <td colSpan="8" style={{ padding: '8px 14px' }}>
                                       <textarea
                                         className="product-notes-textarea"
                                         value={block.notes || ''}

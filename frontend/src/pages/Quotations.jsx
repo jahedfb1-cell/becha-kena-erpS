@@ -227,12 +227,7 @@ const Quotations = () => {
     return products.filter(p => {
       const code = p.product_code ? p.product_code.toLowerCase() : '';
       const name = p.name ? p.name.toLowerCase() : '';
-      const supplierMatch = Array.isArray(p.supplier_links) && p.supplier_links.some(link => {
-        const supName = link.supplier?.name ? link.supplier.name.toLowerCase() : '';
-        const supCompany = link.supplier?.company_name ? link.supplier.company_name.toLowerCase() : '';
-        return supName.includes(q) || supCompany.includes(q);
-      });
-      return code.includes(q) || name.includes(q) || supplierMatch;
+      return code.includes(q) || name.includes(q);
     });
   }, [products, productSearchQuery]);
 
@@ -1471,11 +1466,6 @@ const Quotations = () => {
                                 }}
                               >
                                 <strong>{p.product_code || '—'}</strong> - {p.name}
-                                {Array.isArray(p.supplier_links) && p.supplier_links.length > 0 && (
-                                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                                    Supplier: {p.supplier_links.map(l => l.supplier?.name).filter(Boolean).join(', ')}
-                                  </div>
-                                )}
                               </div>
                             ))
                           )}
@@ -1595,6 +1585,7 @@ const Quotations = () => {
                                   <th style={{ width: '90px' }}>Height</th>
                                   <th style={{ width: '70px' }}>Pcs</th>
                                   <th style={{ width: '120px' }}>Sq.Ft</th>
+                                  <th className="cell-total-sqft-th" style={{ width: '90px' }}>Total Sq.Ft</th>
                                   <th style={{ width: '140px' }}>Total Price</th>
                                   <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
                                 </tr>
@@ -1609,7 +1600,7 @@ const Quotations = () => {
                                     <React.Fragment key={block.id}>
                                       {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
                                       <tr className="mobile-size-card-row">
-                                        <td colSpan="8" className="mobile-size-card-cell">
+                                        <td colSpan="9" className="mobile-size-card-cell">
                                           <div className="mobile-size-card">
                                             <div className="mobile-size-header-bar">
                                               <div className="mobile-size-header-item">
@@ -1781,6 +1772,19 @@ const Quotations = () => {
                                               )}
                                             </div>
                                           </td>
+
+                                          {/* Total Sq.Ft (block total, desktop-only - hidden on mobile via .cell-total-sqft CSS) */}
+                                          {sIdx === 0 && (
+                                            <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '6px' }}>
+                                              <input
+                                                type="text"
+                                                value={totalBilledSqft.toFixed(2)}
+                                                readOnly
+                                                className="modern-form-control"
+                                                style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
+                                              />
+                                            </td>
+                                          )}
 
                                           {/* Total Price */}
                                           {sIdx === 0 && (

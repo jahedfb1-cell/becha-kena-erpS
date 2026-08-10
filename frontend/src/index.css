@@ -2275,7 +2275,8 @@ select.custom-form-input {
      shown twice. Product/Unit Price/Total Price/Action cells are left
      alone and keep stacking as before. */
   .item-builder-table td.cell-size,
-  .item-builder-table td.cell-sqft {
+  .item-builder-table td.cell-sqft,
+  .item-builder-table td.cell-total-sqft {
     display: none !important;
   }
 
