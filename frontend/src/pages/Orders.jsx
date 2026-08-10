@@ -1374,9 +1374,8 @@ const Orders = () => {
                                               style={{ cursor: 'pointer', padding: '9px 12px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '8px', background: 'var(--bg-base, #ffffff)' }}
                                               title="Click to change product"
                                             >
-                                              <strong style={{ fontSize: '13px' }}>{block.product_code ? block.product_code.toUpperCase() : (block.product_name || '—')}</strong>
-                                              <div style={{ marginTop: '4px', fontSize: '11px', fontWeight: '600', color: '#16a34a' }}>
-                                                ✓ {block.product_code ? block.product_code.toUpperCase() : ''} <span style={{ color: '#94a3b8', fontWeight: '500' }}>(tap to change)</span>
+                                              <div style={{ fontSize: '13px', fontWeight: '600', color: '#16a34a' }}>
+                                                ✓ {block.product_code ? block.product_code.toUpperCase() : (block.product_name || '—')} <span style={{ color: '#94a3b8', fontWeight: '500' }}>(tap to change)</span>
                                               </div>
                                             </div>
                                           )}
