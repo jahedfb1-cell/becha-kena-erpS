@@ -1228,7 +1228,7 @@ const Orders = () => {
                                     <th style={{ width: '90px' }}>Width</th>
                                     <th style={{ width: '90px' }}>Height</th>
                                     <th style={{ width: '65px' }}>Pcs</th>
-                                    <th style={{ width: '110px' }}>Sq.Ft</th>
+                                    <th style={{ width: '105px' }}>Sq.Ft</th>
                                     <th className="cell-total-sqft-th" style={{ width: '90px' }}>Total Sq.Ft</th>
                                     <th style={{ width: '130px' }}>Total Price</th>
                                     <th style={{ width: '110px', textAlign: 'center' }}>Action</th>

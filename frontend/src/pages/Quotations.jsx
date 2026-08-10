@@ -1584,7 +1584,7 @@ const Quotations = () => {
                                   <th style={{ width: '90px' }}>Width</th>
                                   <th style={{ width: '90px' }}>Height</th>
                                   <th style={{ width: '70px' }}>Pcs</th>
-                                  <th style={{ width: '120px' }}>Sq.Ft</th>
+                                  <th style={{ width: '105px' }}>Sq.Ft</th>
                                   <th className="cell-total-sqft-th" style={{ width: '90px' }}>Total Sq.Ft</th>
                                   <th style={{ width: '140px' }}>Total Price</th>
                                   <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
