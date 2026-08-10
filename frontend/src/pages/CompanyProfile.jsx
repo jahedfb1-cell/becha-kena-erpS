@@ -20,8 +20,10 @@ const CompanyProfile = () => {
 
   const [companyLogoFile, setCompanyLogoFile] = useState(null);
   const [invoiceLogoFile, setInvoiceLogoFile] = useState(null);
+  const [faviconFile, setFaviconFile] = useState(null);
   const [companyLogoPreview, setCompanyLogoPreview] = useState('/logo-demo.svg');
   const [invoiceLogoPreview, setInvoiceLogoPreview] = useState('/logo-demo.svg');
+  const [faviconPreview, setFaviconPreview] = useState('/logo-demo.svg');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,6 +31,7 @@ const CompanyProfile = () => {
 
   const companyLogoRef = useRef(null);
   const invoiceLogoRef = useRef(null);
+  const faviconRef = useRef(null);
 
   // Load current profile on mount
   useEffect(() => {
@@ -48,10 +51,12 @@ const CompanyProfile = () => {
         });
         setCompanyLogoPreview(d.company_logo_url || '/logo-demo.svg');
         setInvoiceLogoPreview(d.invoice_logo_url || '/logo-demo.svg');
+        setFaviconPreview(d.favicon_url || '/logo-demo.svg');
       })
       .catch(() => {
         setCompanyLogoPreview('/logo-demo.svg');
         setInvoiceLogoPreview('/logo-demo.svg');
+        setFaviconPreview('/logo-demo.svg');
       })
       .finally(() => setLoading(false));
   }, []);
@@ -67,6 +72,9 @@ const CompanyProfile = () => {
     if (type === 'company') {
       setCompanyLogoFile(file);
       setCompanyLogoPreview(url);
+    } else if (type === 'favicon') {
+      setFaviconFile(file);
+      setFaviconPreview(url);
     } else {
       setInvoiceLogoFile(file);
       setInvoiceLogoPreview(url);
@@ -86,6 +94,7 @@ const CompanyProfile = () => {
       Object.entries(form).forEach(([k, v]) => fd.append(k, v ?? ''));
       if (companyLogoFile) fd.append('company_logo', companyLogoFile);
       if (invoiceLogoFile) fd.append('invoice_logo', invoiceLogoFile);
+      if (faviconFile) fd.append('favicon', faviconFile);
 
       const res = await axios.post('/company-profile', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -93,8 +102,19 @@ const CompanyProfile = () => {
       const d = res.data?.data || res.data;
       if (d.company_logo_url) setCompanyLogoPreview(d.company_logo_url);
       if (d.invoice_logo_url) setInvoiceLogoPreview(d.invoice_logo_url);
+      if (d.favicon_url) {
+        setFaviconPreview(d.favicon_url);
+        let link = document.querySelector("link[rel*='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'shortcut icon';
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = d.favicon_url;
+      }
       setCompanyLogoFile(null);
       setInvoiceLogoFile(null);
+      setFaviconFile(null);
       showToast('Company profile updated successfully!', 'success');
     } catch (err) {
       showToast(err?.response?.data?.message || 'Failed to save company profile.', 'error');
@@ -426,7 +446,7 @@ const CompanyProfile = () => {
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
 
             {/* Company Logo Box */}
             <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px' }}>
@@ -526,6 +546,57 @@ const CompanyProfile = () => {
               {invoiceLogoFile && (
                 <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   ✓ Selected: {invoiceLogoFile.name}
+                </div>
+              )}
+            </div>
+
+            {/* Browser Favicon Icon Box */}
+            <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-heading)', margin: 0 }}>
+                  Browser Favicon Icon
+                </label>
+                <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                  Browser Tab Icon
+                </span>
+              </div>
+
+              <div
+                onClick={() => faviconRef.current?.click()}
+                style={{
+                  height: '140px', border: '2px dashed #cbd5e1', borderRadius: '8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', background: '#ffffff', position: 'relative',
+                  overflow: 'hidden', transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+              >
+                {faviconPreview ? (
+                  <img
+                    src={faviconPreview}
+                    alt="Favicon Preview"
+                    style={{ maxHeight: '80px', maxWidth: '80px', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '28px', marginBottom: '4px' }}>🌐</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>Click to upload Favicon</div>
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="file"
+                ref={faviconRef}
+                accept="image/png,image/jpeg,image/jpg,image/x-icon,image/vnd.microsoft.icon"
+                style={{ display: 'none' }}
+                onChange={e => handleFileChange(e, 'favicon')}
+              />
+
+              {faviconFile && (
+                <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  ✓ Selected: {faviconFile.name}
                 </div>
               )}
             </div>
