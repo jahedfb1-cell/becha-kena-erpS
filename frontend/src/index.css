@@ -1321,6 +1321,18 @@ body {
   padding: 0 !important;
 }
 
+@media print {
+  /* The outer page wrapper's min-height:100vh (needed on screen to keep
+     the grey/white surround tall enough behind the "paper" card) has no
+     meaning in print and was silently forcing an extra, near-blank second
+     page - the wrapper's real height should come only from its actual
+     content (.printable-area), never from a leftover viewport-sized rule. */
+  .print-page-wrapper {
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+}
+
 /* Print Media Rules - Single Page A4 Optimized */
 @media print {
   @page {

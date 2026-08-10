@@ -160,7 +160,7 @@ const QuotationPrintPage = () => {
   const hasMultipleSectionsOrOptions = items.some(i => i.option_group_id || i.group_id);
 
   return (
-    <div style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
+    <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
       <div className="no-print" style={{ maxWidth: '900px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -270,7 +270,12 @@ const QuotationPrintPage = () => {
       <div
         style={{
           maxWidth: '850px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
-          ...(isPad ? { display: 'flex', flexDirection: 'column', minHeight: '297mm', boxSizing: 'border-box' } : {})
+          // 281mm = 297mm A4 height minus the @page rule's 8mm top + 8mm
+          // bottom margins - the actual printable content area on one
+          // sheet. Using the full 297mm here would be taller than what
+          // fits on a page, spilling the filler's blank space onto a
+          // second, near-empty page.
+          ...(isPad ? { display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box' } : {})
         }}
         className={isPad ? 'printable-area pad-stretch-area' : 'printable-area'}
       >
