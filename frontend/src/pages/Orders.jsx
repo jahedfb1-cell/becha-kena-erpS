@@ -49,6 +49,10 @@ const Orders = () => {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [lastAddedProductName, setLastAddedProductName] = useState('');
 
+  // Change-product picker (per row, in the item-builder table)
+  const [productChangeBlockId, setProductChangeBlockId] = useState(null);
+  const [productChangeQuery, setProductChangeQuery] = useState('');
+
   // Dynamic Section-based Form State
   const [sections, setSections] = useState([
     {
@@ -218,6 +222,16 @@ const Orders = () => {
       return code.includes(q) || name.includes(q);
     });
   }, [products, productSearchQuery]);
+
+  const filteredProductsForChange = useMemo(() => {
+    if (!productChangeQuery) return products;
+    const q = productChangeQuery.toLowerCase().trim();
+    return products.filter(p => {
+      const code = p.product_code ? p.product_code.toLowerCase() : '';
+      const name = p.name ? p.name.toLowerCase() : '';
+      return code.includes(q) || name.includes(q);
+    });
+  }, [products, productChangeQuery]);
 
   // ----------------------------------------------------
   // Dynamic Section & Option Helper Methods (Identical to Quotations)
@@ -1322,16 +1336,50 @@ const Orders = () => {
                                     <tr key={sizeRow.id}>
                                       {sIdx === 0 && (
                                         <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
-                                          <select
-                                            value={block.product_id}
-                                            onChange={(e) => handleBlockChange(sec.id, block.id, 'product_id', e.target.value)}
-                                            className="modern-form-control"
-                                            style={{ fontWeight: 'bold', fontSize: '13px' }}
-                                          >
-                                            {products.map(p => (
-                                              <option key={p.id} value={p.id}>{p.product_code ? p.product_code.toUpperCase() : p.name}</option>
-                                            ))}
-                                          </select>
+                                          {productChangeBlockId === block.id ? (
+                                            <div style={{ position: 'relative' }}>
+                                              <input
+                                                type="text"
+                                                autoFocus
+                                                placeholder="Search product by code or name..."
+                                                value={productChangeQuery}
+                                                onChange={(e) => setProductChangeQuery(e.target.value)}
+                                                onBlur={() => setTimeout(() => setProductChangeBlockId(null), 200)}
+                                                className="modern-form-control"
+                                                style={{ fontWeight: 'bold', fontSize: '13px' }}
+                                              />
+                                              <div className="search-dropdown-list">
+                                                {filteredProductsForChange.length === 0 ? (
+                                                  <div className="dropdown-item empty">No products found</div>
+                                                ) : (
+                                                  filteredProductsForChange.map(p => (
+                                                    <div
+                                                      key={p.id}
+                                                      className="dropdown-item"
+                                                      onMouseDown={() => {
+                                                        handleBlockChange(sec.id, block.id, 'product_id', p.id);
+                                                        setProductChangeBlockId(null);
+                                                        setProductChangeQuery('');
+                                                      }}
+                                                    >
+                                                      <strong>{p.product_code ? p.product_code.toUpperCase() : p.name}</strong>
+                                                    </div>
+                                                  ))
+                                                )}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <div
+                                              onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
+                                              style={{ cursor: 'pointer', padding: '9px 12px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '8px', background: 'var(--bg-base, #ffffff)' }}
+                                              title="Click to change product"
+                                            >
+                                              <strong style={{ fontSize: '13px' }}>{block.product_code ? block.product_code.toUpperCase() : (block.product_name || '—')}</strong>
+                                              <div style={{ marginTop: '4px', fontSize: '11px', fontWeight: '600', color: '#16a34a' }}>
+                                                ✓ {block.product_code ? block.product_code.toUpperCase() : ''} <span style={{ color: '#94a3b8', fontWeight: '500' }}>(tap to change)</span>
+                                              </div>
+                                            </div>
+                                          )}
                                         </td>
                                       )}
 

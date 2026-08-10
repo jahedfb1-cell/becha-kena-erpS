@@ -2678,12 +2678,10 @@ select.custom-form-input {
     box-shadow: none !important;
   }
 
-  /* Per-item Product picker is redundant on mobile once a product has
-     been chosen via "Select Product *" above — hide it inside each
-     item's row so the row only shows Unit Price / Total / Action. */
-  .item-builder-table td.cell-product {
-    display: none !important;
-  }
+  /* Per-item Product picker: lets a row's product be changed after the
+     fact (not just at "Select Product *" add-time), so it stays visible
+     on mobile too - just inherits the standard stacked-block <td> sizing
+     from the base .item-builder-table td rule above. */
 
   /* Unit Price and Total Tk. sit side by side instead of stacking */
   .item-builder-table td.cell-unitprice,
