@@ -132,7 +132,7 @@ const ChallanPrintPage = () => {
   const groups = buildGroups(items);
 
   return (
-    <div style={{ background: '#e2e8f0', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
+    <div style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
       <div className="no-print" style={{ maxWidth: '850px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
         <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>🚚 Delivery Challan: {challan.challan_number}</div>
