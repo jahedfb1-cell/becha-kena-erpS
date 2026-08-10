@@ -272,7 +272,13 @@ const InvoicePrintPage = () => {
       </div>
 
       {/* ── PRINTABLE DOCUMENT CANVAS ── */}
-      <div style={{ maxWidth: '850px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)' }} className="printable-area">
+      <div
+        style={{
+          maxWidth: '850px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
+          ...(isPad ? { display: 'flex', flexDirection: 'column', minHeight: '297mm', boxSizing: 'border-box' } : {})
+        }}
+        className={isPad ? 'printable-area pad-stretch-area' : 'printable-area'}
+      >
         
         {/* HEADER */}
         {!isPad ? (
@@ -374,8 +380,14 @@ const InvoicePrintPage = () => {
           <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
         </div>
 
-        {/* Item Table */}
-        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        {/* Item Table - on pad paper the wrapper flex-grows to fill the
+            leftover page height; a blank filler row (added further down,
+            right after the real item rows) absorbs that height so the
+            summary rows and signature stay pinned to the bottom instead of
+            floating with empty white space below them. Nothing about the
+            table's own content, columns, or formatting changes either way. */}
+        <div style={isPad ? { display: 'flex', flexDirection: 'column', flex: '1 1 auto' } : undefined}>
+        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', ...(isPad ? { flex: '1 1 auto' } : {}) }}>
           <thead>
             {isDetailed ? (
               <>
@@ -525,6 +537,17 @@ const InvoicePrintPage = () => {
               );
             })}
 
+            {/* Pad-print only: absorbs the leftover vertical space so the
+                summary rows below and the signature block stay pinned to
+                the bottom of the A4 sheet even when there's only 1-2 line
+                items, instead of leaving a blank gap. Invisible otherwise -
+                no border, no content, no effect on normal print/PDF views. */}
+            {isPad && (
+              <tr className="pad-filler-row">
+                <td colSpan={isDetailed ? 9 : 6} style={{ border: 'none', padding: 0 }}></td>
+              </tr>
+            )}
+
             {/* Convenience Charge Row */}
             {parseFloat(quotation.convenience_charge) > 0 && (
               <tr>
@@ -615,6 +638,7 @@ const InvoicePrintPage = () => {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Amount in Words (Matching Reference Layout) */}
         <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', border: '1px solid #d1d5db', margin: '10px 0', fontSize: '12px', borderRadius: '2px' }}>

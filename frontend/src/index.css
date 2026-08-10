@@ -1306,6 +1306,21 @@ body {
   margin-top: 10px;
 }
 
+/* Pad-print filler row: on pre-printed pad paper, absorbs whatever
+   vertical space is left in the item table (after the real rows, before
+   the summary rows) so a short invoice/quotation still fills the A4 sheet
+   instead of leaving a blank gap above the totals/signature. Only present
+   when isPad is true (see InvoicePrintPage.jsx / QuotationPrintPage.jsx);
+   has no content and no border, so it's invisible either way. */
+.pad-filler-row {
+  height: 100%;
+}
+.pad-filler-row td {
+  height: 100%;
+  border: none !important;
+  padding: 0 !important;
+}
+
 /* Print Media Rules - Single Page A4 Optimized */
 @media print {
   @page {
@@ -1375,6 +1390,15 @@ body {
     display: block !important;
     page-break-inside: avoid !important;
     page-break-after: avoid !important;
+  }
+
+  /* Pad-print stretch mode needs the printable area to actually be a flex
+     column (so the item table's wrapper can flex-grow into the leftover
+     page height) - the more specific two-class selector wins over the
+     display:block !important above without touching the non-pad case. */
+  .printable-area.pad-stretch-area {
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   .printable-area * {
