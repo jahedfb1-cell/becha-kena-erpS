@@ -1064,10 +1064,10 @@ const Orders = () => {
                                     setSelectedTopProductId('');
                                     setProductSearchQuery('');
                                     setShowProductDropdown(false);
-                                    setLastAddedProductName(p.product_code ? `${p.product_code} - ${p.name}` : p.name);
+                                    setLastAddedProductName(p.product_code ? p.product_code.toUpperCase() : p.name);
                                   }}
                                 >
-                                  <strong>{p.product_code || '—'}</strong> - {p.name}
+                                  <strong>{p.product_code ? p.product_code.toUpperCase() : (p.name || '—')}</strong>
                                 </div>
                               ))
                             )}
@@ -1329,7 +1329,7 @@ const Orders = () => {
                                             style={{ fontWeight: 'bold', fontSize: '13px' }}
                                           >
                                             {products.map(p => (
-                                              <option key={p.id} value={p.id}>{p.product_code ? `${p.product_code} - ${p.name}` : p.name}</option>
+                                              <option key={p.id} value={p.id}>{p.product_code ? p.product_code.toUpperCase() : p.name}</option>
                                             ))}
                                           </select>
                                         </td>
