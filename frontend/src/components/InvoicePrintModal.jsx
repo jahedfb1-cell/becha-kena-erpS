@@ -243,7 +243,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
             ) : (
               /* Spacer and Metadata only for pre-printed Pad paper */
               <div style={{ display: 'block', marginBottom: '16px' }}>
-                <div style={{ height: '110px' }} className="pad-print-spacer"></div>
+                <div style={{ height: '30mm' }} className="pad-print-spacer"></div>
                 <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, color: '#1a2f5a', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
                   Invoice
                 </div>

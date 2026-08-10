@@ -386,7 +386,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
             ) : (
               /* Spacer for pre-printed Pad paper */
               <div style={{ display: 'block', marginBottom: '16px' }}>
-                <div style={{ height: '110px' }} className="pad-print-spacer"></div>
+                <div style={{ height: '30mm' }} className="pad-print-spacer"></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div></div>
                   <div style={{ fontSize: '24px', fontWeight: 800, color: '#000' }}>{documentTitle}</div>
