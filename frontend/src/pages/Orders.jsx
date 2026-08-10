@@ -140,6 +140,32 @@ const Orders = () => {
     }
   };
 
+  // Groups line items so a product with several sizes shows its
+  // Product cell once (rowSpan) instead of repeating it per size row.
+  const buildOrderLineItemGroups = (items) => {
+    const groups = [];
+    (items || []).forEach((item) => {
+      const sectionName = item.section_name || 'Main Items';
+      const optGrpId = item.option_group_id || 'no_opt';
+      const prodId = item.product_id;
+      const variantName = item.variant?.name || item.product?.product_code || '';
+      const isSel = item.is_selected !== false ? 'selected' : 'unselected';
+      const optVarId = item.option_variant_id || item.notes || '';
+
+      const key = (optGrpId && optGrpId !== 'no_opt')
+        ? `${sectionName}___${optGrpId}___${isSel}___${prodId}___${item.unit_price}___${optVarId}`
+        : `${sectionName}___${prodId}-${variantName}___${item.unit_price}`;
+
+      let existing = groups.find(g => g.key === key);
+      if (!existing) {
+        existing = { key, rows: [] };
+        groups.push(existing);
+      }
+      existing.rows.push(item);
+    });
+    return groups;
+  };
+
   const handleApprove = async (id) => {
     try {
       await api.post(`/quotations/${id}/approve`);
@@ -917,13 +943,19 @@ const Orders = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedOrder?.items?.map((item) => (
-                        <tr key={item.id}>
-                          <td><strong>{item.product?.product_code || item.variant?.name}</strong> - {item.product?.name || 'Blind Item'}</td>
-                          <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.width} in &nbsp;|&nbsp; {item.height} in</td>
-                          <td style={{ textAlign: 'center' }}>{item.pcs}</td>
-                          <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.billed_sqft} sqft</td>
-                        </tr>
+                      {buildOrderLineItemGroups(selectedOrder?.items).map((group) => (
+                        group.rows.map((item, rowInGroup) => (
+                          <tr key={item.id}>
+                            {rowInGroup === 0 && (
+                              <td rowSpan={group.rows.length} style={{ verticalAlign: 'top' }}>
+                                <strong>{item.product?.product_code || item.variant?.name}</strong> - {item.product?.name || 'Blind Item'}
+                              </td>
+                            )}
+                            <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.width} in &nbsp;|&nbsp; {item.height} in</td>
+                            <td style={{ textAlign: 'center' }}>{item.pcs}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.billed_sqft} sqft</td>
+                          </tr>
+                        ))
                       ))}
                     </tbody>
                   </table>

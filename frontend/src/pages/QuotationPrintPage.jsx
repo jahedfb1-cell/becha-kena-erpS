@@ -105,7 +105,11 @@ const QuotationPrintPage = () => {
 
   const buildGroups = (rawItems) => {
     const map = new Map();
-    let unGroupedList = [];
+    // Same product/section/price (e.g. several sizes of one item) needs to
+    // group together too, not just option-group items - otherwise
+    // Description of Goods/Colors repeats once per size instead of once
+    // per product.
+    const unGroupedMap = new Map();
     let groupSeqCounter = 1;
 
     rawItems.forEach(item => {
@@ -127,15 +131,18 @@ const QuotationPrintPage = () => {
         }
         map.get(optionKey).rows.push({ item, idx: item.id });
       } else {
-        unGroupedList.push({ item, idx: item.id });
+        const variantName = item.variant?.name || item.product?.product_code || '';
+        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}`;
+        if (!unGroupedMap.has(groupKey)) {
+          unGroupedMap.set(groupKey, { optionLabel: null, rows: [] });
+        }
+        unGroupedMap.get(groupKey).rows.push({ item, idx: item.id });
       }
     });
 
     const result = [];
     map.forEach(val => result.push(val));
-    unGroupedList.forEach(single => {
-      result.push({ optionLabel: null, rows: [single] });
-    });
+    unGroupedMap.forEach(val => result.push(val));
     return result;
   };
 
