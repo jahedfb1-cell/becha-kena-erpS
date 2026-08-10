@@ -231,7 +231,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, color: '#1a2f5a', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
+                <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#1a2f5a', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
                   Invoice
                 </div>
 
@@ -244,7 +244,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
               /* Spacer and Metadata only for pre-printed Pad paper */
               <div style={{ display: 'block', marginBottom: '16px' }}>
                 <div style={{ height: '36mm' }} className="pad-print-spacer"></div>
-                <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, color: '#1a2f5a', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
+                <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#1a2f5a', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
                   Invoice
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#111', fontWeight: 600, padding: '4px 0' }}>
@@ -258,9 +258,10 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
             <div style={{ width: '280px', border: '1.5px solid #000', padding: '8px 12px', marginBottom: '16px', borderRadius: '2px', background: '#fff' }}>
               <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline' }}>Bill To:</div>
               <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-              {customer?.company_name && <div style={{ fontSize: '12px', color: '#222' }}>Attn: {customer.name}</div>}
               <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
+              {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
+              )}
             </div>
 
             {/* Item Table */}

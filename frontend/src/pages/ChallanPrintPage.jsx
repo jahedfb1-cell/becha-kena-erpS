@@ -194,7 +194,7 @@ const ChallanPrintPage = () => {
           </div>
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 800, letterSpacing: '6px', textDecoration: 'underline', margin: '12px 0 16px' }}>
+        <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', letterSpacing: '6px', textDecoration: 'underline', margin: '12px 0 16px', color: '#000' }}>
           DELIVERY CHALLAN
         </div>
 

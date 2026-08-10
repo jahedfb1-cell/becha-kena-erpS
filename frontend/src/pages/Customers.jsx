@@ -365,6 +365,7 @@ const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showAdditional, setShowAdditional] = useState(Boolean(customer.second_contact_number || customer.email || customer.opening_balance));
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -443,31 +444,68 @@ const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
             </div>
 
             <div className="form-group">
-              <label>2nd Contact Number</label>
-              <PhoneContactField
-                className=""
-                value={form.second_contact_number}
-                onChange={(e) => handleChange('second_contact_number', e.target.value)}
-                onPick={(contact) => handleChange('second_contact_number', contact.phone)}
-                disabled={loading}
-                placeholder="Alternate phone"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Email Address</label>
-              <input type="email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} disabled={loading} />
-            </div>
-
-            <div className="form-group">
               <label>Customer Category *</label>
               <select value={form.customer_category_id} onChange={(e) => handleChange('customer_category_id', e.target.value)} required disabled={loading}
-                style={{ padding: '8px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }}>
-                <option value="">Select Category...</option>
+                style={{ padding: '8px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: '#ffffff', color: '#000000', fontWeight: '500' }}>
+                <option value="" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Select Category...</option>
                 {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  <option key={cat.id} value={cat.id} style={{ color: '#000000', backgroundColor: '#ffffff' }}>{cat.name}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Additional Contacts & Details */}
+            <div style={{
+              gridColumn: '1 / -1',
+              margin: '10px 0',
+              background: 'var(--bg-card, rgba(255,255,255,0.02))',
+              border: '1px solid var(--border)',
+              borderRadius: '12px',
+              overflow: 'hidden'
+            }}>
+              <div
+                onClick={() => setShowAdditional(!showAdditional)}
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  color: 'var(--primary)',
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  background: showAdditional ? 'rgba(56, 189, 248, 0.08)' : 'transparent'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📞</span> Additional Contacts &amp; Details:
+                </div>
+                <span style={{ fontSize: '12px', color: 'var(--primary)' }}>
+                  {showAdditional ? '▲' : '▼'}
+                </span>
+              </div>
+
+              {showAdditional && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', padding: '18px', borderTop: '1px solid var(--border)' }}>
+                  <div className="form-group">
+                    <label>2nd Contact Number</label>
+                    <PhoneContactField
+                      className=""
+                      value={form.second_contact_number}
+                      onChange={(e) => handleChange('second_contact_number', e.target.value)}
+                      onPick={(contact) => handleChange('second_contact_number', contact.phone)}
+                      disabled={loading}
+                      placeholder="Alternate phone"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Email Address (Optional)</label>
+                    <input type="email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} disabled={loading} />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="form-group" style={{ gridColumn: 'span 2' }}>

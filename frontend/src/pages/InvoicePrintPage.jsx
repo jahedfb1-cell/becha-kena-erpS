@@ -363,21 +363,21 @@ const InvoicePrintPage = () => {
             }}></div>
 
                 {/* 3-Column Info Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
+                  <div>
                     Mobile : {companyProfile?.mobile || '01629000200'}<br/>
                     Email : {companyProfile?.email || 'dhakablinds@gmail.com'}<br/>
                     Web : {companyProfile?.company_web || 'www.dhakablinds.com'}
                     {companyProfile?.vat_reg_no && <div>VAT Reg No : {companyProfile.vat_reg_no}</div>}
                   </div>
 
-                  <div style={{ textAlign: 'center', flex: 1.5 }}>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#000', letterSpacing: '0.5px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
                       Invoice
                     </div>
                   </div>
 
-                  <div style={{ textAlign: 'right', flex: 1, fontSize: '12px' }}>
+                  <div style={{ textAlign: 'right', fontSize: '12px' }}>
                     <div>Date : <strong>{formatDate(invoice.invoice_date || invoice.created_at || new Date())}</strong></div>
                     <div>Invoice No. : <strong>{invoice.invoice_number}</strong></div>
                     <div>Challan : <strong>{challanNo}</strong> | PO No : <strong>{poNo}</strong></div>
@@ -401,9 +401,9 @@ const InvoicePrintPage = () => {
             }}>
               Office Address : Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center' }}>
               <div></div>
-              <div style={{ fontSize: '24px', fontWeight: 800, color: '#000' }}>Invoice</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', textAlign: 'center' }}>Invoice</div>
               <div style={{ textAlign: 'right', fontSize: '12px' }}>
                 <div>Date : <strong>{formatDate(invoice.invoice_date || invoice.created_at || new Date())}</strong></div>
                 <div>Invoice No. : <strong>{invoice.invoice_number}</strong></div>
@@ -416,9 +416,10 @@ const InvoicePrintPage = () => {
         <div style={{ width: '280px', border: '1.5px solid #000', padding: '8px 12px', marginBottom: '16px', borderRadius: '2px', background: '#fff' }}>
           <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline' }}>Bill To:</div>
           <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-          {customer?.company_name && <div style={{ fontSize: '12px', color: '#222' }}>Attn: {customer.name}</div>}
           <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
-          <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
+          {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+            <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
+          )}
         </div>
 
         {/* Item Table - on pad paper the wrapper flex-grows to fill the

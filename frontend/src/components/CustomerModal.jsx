@@ -18,6 +18,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
   const [categoryId, setCategoryId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showAdditional, setShowAdditional] = useState(false);
 
   // Fetch categories when modal opens
   useEffect(() => {
@@ -51,6 +52,13 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
         if (initialData.customer_category_id) {
           setCategoryId(initialData.customer_category_id);
         }
+        if (initialData.second_contact_number || initialData.third_contact_number || initialData.email || initialData.opening_balance) {
+          setShowAdditional(true);
+        } else {
+          setShowAdditional(false);
+        }
+      } else {
+        setShowAdditional(false);
       }
     }
   }, [isOpen, initialData]);
@@ -74,7 +82,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     }
 
     if (!address.trim()) {
-      setError('Address 1 is required.');
+      setError('Address Line 1 is required.');
       return;
     }
 
@@ -141,12 +149,13 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     setContactShowStatus('show_contact_number');
     setOpeningBalance('');
     setError('');
+    setShowAdditional(false);
     onClose();
   };
 
   return (
     <div className="custom-modal-overlay">
-      <div className="custom-modal-container large-modal animate-fade-in">
+      <div className="custom-modal-container large-modal animate-fade-in" style={{ maxWidth: '820px', width: '100%' }}>
         
         {/* Header */}
         <div className="custom-modal-header">
@@ -167,7 +176,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
           )}
 
           {/* Section 1: Basic Information */}
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px', marginBottom: '16px' }}>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               🏢 Primary Information
             </div>
@@ -217,49 +226,6 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                 />
               </div>
 
-              <div className="custom-form-group">
-                <label className="custom-form-label">Email ID (Optional)</label>
-                <input
-                  type="email"
-                  className="custom-form-input"
-                  placeholder="client@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 2: Secondary Contacts & Category */}
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              📞 Additional Contacts & Category
-            </div>
-
-            <div className="custom-form-grid">
-              <div className="custom-form-group">
-                <label className="custom-form-label">2nd Contact Number</label>
-                <PhoneContactField
-                  placeholder="Optional Mobile"
-                  value={secondContactNumber}
-                  onChange={(e) => setSecondContactNumber(e.target.value)}
-                  onPick={(contact) => setSecondContactNumber(contact.phone)}
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="custom-form-group">
-                <label className="custom-form-label">3rd Contact Number</label>
-                <PhoneContactField
-                  placeholder="Optional Mobile"
-                  value={thirdContactNumber}
-                  onChange={(e) => setThirdContactNumber(e.target.value)}
-                  onPick={(contact) => setThirdContactNumber(contact.phone)}
-                  disabled={loading}
-                />
-              </div>
-
               {categories.length > 0 && (
                 <div className="custom-form-group">
                   <label className="custom-form-label">Customer Category</label>
@@ -268,35 +234,116 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
                     disabled={loading}
+                    style={{ color: '#000000', backgroundColor: '#ffffff', fontWeight: '500' }}
                   >
                     {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      <option key={cat.id} value={cat.id} style={{ color: '#000000', backgroundColor: '#ffffff' }}>{cat.name}</option>
                     ))}
                   </select>
-                </div>
-              )}
-
-              {isAdmin && (
-                <div className="custom-form-group">
-                  <label className="custom-form-label">Opening Balance (Tk)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="custom-form-input"
-                    placeholder="0.00"
-                    value={openingBalance}
-                    onChange={(e) => setOpeningBalance(e.target.value)}
-                    disabled={loading}
-                  />
                 </div>
               )}
             </div>
           </div>
 
-          {/* Section 3: Address & Notes */}
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px' }}>
+          {/* Section 2: Secondary Contacts & Details
+              flexShrink: 0 is required here - .custom-modal-form is a flex
+              column container (see index.css), and a flex item with
+              overflow:hidden (needed below only to keep this box's rounded
+              corners clipping its content) otherwise gets an automatic
+              min-height of 0 per the flexbox spec. Without flexShrink:0,
+              this was the one item allowed to shrink past its own content,
+              so the flex-shrink algorithm crushed it to 0px height whenever
+              the form's total content exceeded the modal's visible area -
+              hiding this whole section, not just clipping it. */}
+          <div style={{
+            marginBottom: '16px',
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '14px',
+            overflow: 'hidden',
+            flexShrink: 0
+          }}>
+            <div
+              onClick={() => setShowAdditional(!showAdditional)}
+              style={{
+                fontSize: '14px',
+                fontWeight: 700,
+                color: '#38bdf8',
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                userSelect: 'none',
+                background: showAdditional ? 'rgba(56, 189, 248, 0.08)' : 'transparent'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>📞</span> Additional Contacts &amp; Details:
+              </div>
+              <span style={{ fontSize: '12px', color: '#38bdf8' }}>
+                {showAdditional ? '▲' : '▼'}
+              </span>
+            </div>
+
+            {showAdditional && (
+              <div className="custom-form-grid animate-fade-in" style={{ padding: '18px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="custom-form-group">
+                  <label className="custom-form-label">2nd Contact Number</label>
+                  <PhoneContactField
+                    placeholder="Optional Mobile"
+                    value={secondContactNumber}
+                    onChange={(e) => setSecondContactNumber(e.target.value)}
+                    onPick={(contact) => setSecondContactNumber(contact.phone)}
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="custom-form-group">
+                  <label className="custom-form-label">3rd Contact Number</label>
+                  <PhoneContactField
+                    placeholder="Optional Mobile"
+                    value={thirdContactNumber}
+                    onChange={(e) => setThirdContactNumber(e.target.value)}
+                    onPick={(contact) => setThirdContactNumber(contact.phone)}
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="custom-form-group">
+                  <label className="custom-form-label">Email ID (Optional)</label>
+                  <input
+                    type="email"
+                    className="custom-form-input"
+                    placeholder="client@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+
+                {isAdmin && (
+                  <div className="custom-form-group">
+                    <label className="custom-form-label">Opening Balance (Tk)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="custom-form-input"
+                      placeholder="0.00"
+                      value={openingBalance}
+                      onChange={(e) => setOpeningBalance(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Section 3: Address & Notes (Always Visible) */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px', marginBottom: '16px' }}>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              📍 Address & Additional Remarks
+              📍 Address &amp; Additional Remarks
             </div>
 
             <div className="custom-form-grid">
@@ -328,7 +375,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
               </div>
 
               <div className="custom-form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="custom-form-label">Notes & Remarks</label>
+                <label className="custom-form-label">Notes &amp; Remarks</label>
                 <input
                   type="text"
                   className="custom-form-input"

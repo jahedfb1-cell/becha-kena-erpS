@@ -354,12 +354,9 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                       <span>Email: <strong>{companyProfile?.email || 'dhakablinds@gmail.com'}</strong></span>
                       <span>Web: <strong>{companyProfile?.company_web || 'www.dhakablinds.com'}</strong></span>
                     </div>
-                  </div>
-                )}
-
                 {/* 3-Column Info Header: Address / Spacer (Left) | Document Title (Center) | Date & Order No (Right) */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
-                  <div style={{ flex: 1 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
+                  <div>
                     {!isOrder && (
                       <>
                         <strong>{companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh,.'}</strong><br/>
@@ -371,25 +368,27 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                     )}
                   </div>
 
-                  <div style={{ textAlign: 'center', flex: 1 }}>
-                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#000', letterSpacing: '0.5px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
                       {documentTitle}
                     </div>
                   </div>
 
-                  <div style={{ textAlign: 'right', flex: 1, fontSize: '12px' }}>
+                  <div style={{ textAlign: 'right', fontSize: '12px' }}>
                     <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
                     <div>{documentNoLabel} : <strong>{quotation.quotation_number}</strong></div>
                   </div>
                 </div>
               </div>
+                )}
+              </div>
             ) : (
               /* Spacer for pre-printed Pad paper */
               <div style={{ display: 'block', marginBottom: '16px' }}>
                 <div style={{ height: '36mm' }} className="pad-print-spacer"></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center' }}>
                   <div></div>
-                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#000' }}>{documentTitle}</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', textAlign: 'center' }}>{documentTitle}</div>
                   <div style={{ textAlign: 'right', fontSize: '12px' }}>
                     <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
                     <div>{documentNoLabel} : <strong>{quotation.quotation_number}</strong></div>
@@ -408,14 +407,15 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                   </div>
                 )}
                 <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-                {customer?.company_name && <div style={{ fontSize: '12px', color: '#222' }}>Attn: {customer.name}</div>}
                 <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
                 {quotation.delivery_address && (
                   <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '2px' }}>
                     Delivery Address: {quotation.delivery_address}
                   </div>
                 )}
-                <div style={{ fontSize: '12px', color: '#333' }}>Mobile: {customer?.phone}</div>
+                {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                  <div style={{ fontSize: '12px', color: '#333' }}>Mobile: {customer.phone}</div>
+                )}
               </div>
 
               {/* Order Reference & Marketing Person Box (Right) */}
