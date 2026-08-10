@@ -333,7 +333,7 @@ const QuotationPrintPage = () => {
           </div>
         ) : (
           <div style={{ display: 'block', marginBottom: '16px' }}>
-            <div style={{ height: '30mm' }} className="pad-print-spacer"></div>
+            <div style={{ height: '36mm' }} className="pad-print-spacer"></div>
             {/* Office Address Centered Line for Pad Paper Print */}
             <div style={{
               fontSize: '11px',
