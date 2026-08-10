@@ -631,15 +631,6 @@ const InvoicePrintPage = () => {
           </div>
         </div>
 
-        {/* Terms & Conditions */}
-        <div style={{ margin: '8px 0' }}>
-          <strong style={{ fontSize: '11px', color: '#000', display: 'block', marginBottom: '2px' }}>TERMS &amp; CONDITIONS:</strong>
-          <div style={{ border: '1px solid #d1d5db', padding: '8px 12px', fontSize: '10.5px', color: '#333', background: '#fafafa', borderRadius: '2px', lineHeight: '1.4' }}>
-            {companyProfile?.terms_conditions || `You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.
-Please make your payment by cash or cheque in favour of "Dhaka Blinds" we hope you'll find ours rates reasonable and place an order with us.`}
-          </div>
-        </div>
-
         {/* ── BOTTOM CENTERED ACTION BUTTONS (PRINT & BACK) ── */}
         <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '24px', paddingBottom: '10px' }}>
           <button
