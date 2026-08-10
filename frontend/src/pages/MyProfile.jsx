@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../api/axios';
 import { useAuth } from '../store/AuthContext';
+import { normalizeBdPhone } from '../utils/format';
 
 const MyProfile = () => {
   const { user, setUser } = useAuth();
@@ -350,6 +351,7 @@ const MyProfile = () => {
                   }}
                   value={profileForm.phone}
                   onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))}
+                  onBlur={e => setProfileForm(p => ({ ...p, phone: normalizeBdPhone(e.target.value) }))}
                   placeholder="e.g. 01700000000"
                 />
               </div>

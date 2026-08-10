@@ -29,6 +29,35 @@ export const formatDate = (dateString) => {
 };
 
 /**
+ * Normalize a phone number into standard Bangladeshi mobile format:
+ * 11 digits starting with 0, no spaces/dashes/country code (e.g. 01811941600).
+ *
+ * Accepts whatever the user actually typed - "+880 1715-100033",
+ * "0 1715-100033", "8801715100033", "1715100033" - and cleans it up.
+ * Anything that isn't a recognizable 10/11-digit BD mobile number (a
+ * landline, a foreign number, an incomplete number) is left as
+ * digits-only, since forcing an 11-digit "01..." shape onto it would be
+ * wrong, not just unformatted.
+ */
+export const normalizeBdPhone = (raw) => {
+  if (!raw) return raw;
+  let digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Strip a leading country code, tolerating a stray extra 0 before it
+  // (e.g. "+880...", "880...", "0880...").
+  digits = digits.replace(/^0*880/, '');
+  // Collapse any remaining leading zeros to a single one.
+  digits = digits.replace(/^0+/, '');
+
+  if (digits.length === 10) {
+    digits = '0' + digits;
+  }
+
+  return digits;
+};
+
+/**
  * Format square feet formatting
  */
 export const formatSqft = (value) => {

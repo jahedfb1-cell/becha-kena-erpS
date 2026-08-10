@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
+import { normalizeBdPhone } from '../utils/format';
 
 const AccessSetup = () => {
   const { user: currentUser } = useAuth();
@@ -496,6 +497,7 @@ const AccessSetup = () => {
                   required
                   value={newUser.phone}
                   onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                  onBlur={(e) => setNewUser(prev => ({ ...prev, phone: normalizeBdPhone(e.target.value) }))}
                   placeholder="e.g. 01700000000"
                   style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
                 />

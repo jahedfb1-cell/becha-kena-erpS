@@ -1,5 +1,6 @@
 import React from 'react';
 import { isContactPickerSupported, pickContact } from '../utils/contactPicker';
+import { normalizeBdPhone } from '../utils/format';
 
 /**
  * A phone-number <input> with an optional "📱 import from contacts" button
@@ -29,6 +30,17 @@ const PhoneContactField = ({
     }
   };
 
+  // Normalize to standard "01XXXXXXXXX" Bangladeshi mobile format once the
+  // user leaves the field, however they typed it in ("+880 1715-100033",
+  // "0 1715-100033", etc.) - doesn't interfere with typing itself.
+  const handleBlur = (e) => {
+    const raw = e.target.value;
+    const normalized = normalizeBdPhone(raw);
+    if (normalized !== raw && onChange) {
+      onChange({ target: { value: normalized } });
+    }
+  };
+
   return (
     <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
       <input
@@ -37,6 +49,7 @@ const PhoneContactField = ({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        onBlur={handleBlur}
         disabled={disabled}
         required={required}
         style={{ flex: 1, ...inputStyle }}
