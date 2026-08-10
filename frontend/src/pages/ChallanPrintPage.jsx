@@ -48,6 +48,28 @@ const ChallanPrintPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  useEffect(() => {
+    if (invoice) {
+      const rawCustomerName = invoice.customer?.name || 'Customer';
+      
+      const categories = Array.from(new Set(
+        (invoice.items || [])
+          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
+          .filter(Boolean)
+      ));
+      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
+
+      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
+
+      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Delivery Challan _ by Dhaka Blinds`;
+      document.title = customTitle;
+
+      return () => {
+        document.title = 'Becha Kena ERP';
+      };
+    }
+  }, [invoice]);
+
   const handleGenerateChallan = async () => {
     setGenerating(true);
     try {

@@ -1321,6 +1321,25 @@ body {
   padding: 0 !important;
 }
 
+/* Generic (any print type) version of the exact same fill mechanism as
+   .pad-filler-row above - absorbs leftover vertical space in the item
+   table so a 1-2 row Detailed/View invoice or quotation also fills the
+   A4 sheet and keeps the totals/signature block pinned to the bottom,
+   not just the pad-print variants. Kept as its own class (rather than
+   reusing .pad-filler-row) so the pad-only class keeps its original,
+   pad-only meaning unchanged. Each <td> keeps its left/right column
+   border (set inline, matching the real data cells) so the vertical
+   column-divider lines run continuously through the blank space instead
+   of stopping after the last real row - only the row's own top/bottom
+   spacing is stripped here, not the column lines. */
+.a4-filler-row {
+  height: 100%;
+}
+.a4-filler-row td {
+  height: 100%;
+  padding: 0 !important;
+}
+
 @media print {
   /* The outer page wrapper's min-height:100vh (needed on screen to keep
      the grey/white surround tall enough behind the "paper" card) has no
@@ -1409,6 +1428,14 @@ body {
      page height) - the more specific two-class selector wins over the
      display:block !important above without touching the non-pad case. */
   .printable-area.pad-stretch-area {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Same override, generalized to every print type via a new class name
+     (see .a4-filler-row above) so .pad-stretch-area's own, pad-only
+     meaning is left untouched. */
+  .printable-area.a4-stretch-area {
     display: flex !important;
     flex-direction: column !important;
   }
@@ -2741,6 +2768,27 @@ select.custom-form-input {
     background: var(--bg-subtle, #f8fafc) !important;
   }
 }
+
+/* Interlinked Clickable Navigation Link Styles */
+.clickable-link {
+  color: var(--primary, #007bff);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  transition: color 0.15s ease-in-out;
+  text-align: left;
+}
+
+.clickable-link:hover {
+  color: var(--primary-hover, #0056b3);
+  text-decoration: underline;
+}
+
 
 
 

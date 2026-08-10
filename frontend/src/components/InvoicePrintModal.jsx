@@ -498,7 +498,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                     <td colSpan={isDetailed ? 8 : 5} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#000' }}>
                       Balance Due
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '13px', color: 'var(--danger)', paddingRight: '8px' }}>
+                    <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '13px', color: '#000', paddingRight: '8px' }}>
                       {(parseFloat(invoice.due_amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                   </tr>

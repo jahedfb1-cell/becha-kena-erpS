@@ -68,6 +68,38 @@ const InvoicePrintPage = () => {
     fetchData();
   }, [id]);
 
+  useEffect(() => {
+    if (invoice) {
+      const rawCustomerName = invoice.customer?.name || 'Customer';
+      
+      const categories = Array.from(new Set(
+        (invoice.items || [])
+          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
+          .filter(Boolean)
+      ));
+      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
+
+      const printButtonNames = {
+        'detailed': 'Detailed Invoice',
+        'simplified': 'View Print',
+        'pad-sizes': 'Pad Invoice (Sizes)',
+        'pad': 'Pad Invoice',
+        'pad-detailed': 'Pad Invoice (Sizes)',
+        'pad-simplified': 'Pad Invoice',
+      };
+      const buttonName = printButtonNames[printType] || 'View Print';
+
+      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
+
+      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by Dhaka Blinds`;
+      document.title = customTitle;
+
+      return () => {
+        document.title = 'Becha Kena ERP';
+      };
+    }
+  }, [invoice, printType]);
+
   const handlePrint = () => {
     window.print();
   };
@@ -279,10 +311,14 @@ const InvoicePrintPage = () => {
           // bottom margins - the actual printable content area on one
           // sheet. Using the full 297mm here would be taller than what
           // fits on a page, spilling the filler's blank space onto a
-          // second, near-empty page.
-          ...(isPad ? { display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box' } : {})
+          // second, near-empty page. Applied for every print type (not
+          // just pad) so a short Detailed/View invoice also stretches to
+          // fill the sheet; real multi-page data still paginates normally
+          // since flex only ever grows into leftover space, never shrinks
+          // content that's already taller than one page.
+          display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box'
         }}
-        className={isPad ? 'printable-area pad-stretch-area' : 'printable-area'}
+        className={'printable-area a4-stretch-area' + (isPad ? ' pad-stretch-area' : '')}
       >
         
         {/* HEADER */}
@@ -391,8 +427,8 @@ const InvoicePrintPage = () => {
             summary rows and signature stay pinned to the bottom instead of
             floating with empty white space below them. Nothing about the
             table's own content, columns, or formatting changes either way. */}
-        <div style={isPad ? { display: 'flex', flexDirection: 'column', flex: '1 1 auto' } : undefined}>
-        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', ...(isPad ? { flex: '1 1 auto' } : {}) }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
+        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto' }}>
           <thead>
             {isDetailed ? (
               <>
@@ -542,16 +578,23 @@ const InvoicePrintPage = () => {
               );
             })}
 
-            {/* Pad-print only: absorbs the leftover vertical space so the
-                summary rows below and the signature block stay pinned to
-                the bottom of the A4 sheet even when there's only 1-2 line
-                items, instead of leaving a blank gap. Invisible otherwise -
-                no border, no content, no effect on normal print/PDF views. */}
-            {isPad && (
-              <tr className="pad-filler-row">
-                <td colSpan={isDetailed ? 9 : 6} style={{ border: 'none', padding: 0 }}></td>
-              </tr>
-            )}
+            {/* Absorbs the leftover vertical space so the summary rows
+                below and the signature block stay pinned to the bottom of
+                the A4 sheet even when there's only 1-2 line items, instead
+                of leaving a blank gap. Each cell keeps the same left/right
+                column border as the real data cells so the vertical
+                column-divider lines run continuously down through the blank
+                space instead of stopping after the last real row - but NOT
+                a top border, so there's no extra horizontal line right
+                where the real content ends and the blank space begins.
+                Has no effect once real data already fills or exceeds a
+                page, since flex only grows into space that's actually left
+                over. */}
+            <tr className="a4-filler-row">
+              {Array.from({ length: isDetailed ? 9 : 6 }).map((_, colIdx) => (
+                <td key={colIdx} style={{ borderTop: 'hidden', borderBottom: '1px solid #cbd5e1', borderLeft: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', padding: 0 }}></td>
+              ))}
+            </tr>
 
             {/* Convenience Charge Row */}
             {parseFloat(quotation.convenience_charge) > 0 && (
@@ -636,7 +679,7 @@ const InvoicePrintPage = () => {
                 <td colSpan={isDetailed ? 8 : 5} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#000', border: '1px solid #cbd5e1' }}>
                   Balance Due
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '13px', color: 'var(--danger)', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
+                <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '13px', color: '#000', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
                   {(parseFloat(invoice.due_amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
