@@ -66,6 +66,18 @@ const Payments = () => {
     }
   };
 
+  const handleClearCheque = async (id, paymentNo, status) => {
+    const label = status === 'cleared' ? 'cleared' : 'bounced';
+    if (!confirm(`Mark cheque payment ${paymentNo} as ${label}?${status === 'cleared' ? ' This will notify the salesman.' : ''}`)) return;
+    try {
+      await api.post(`/payments/${id}/clear-cheque`, { status });
+      alert(`Payment ${paymentNo} marked as ${label}.`);
+      fetchPayments();
+    } catch (err) {
+      alert(err.response?.data?.message || `Failed to mark cheque as ${label}.`);
+    }
+  };
+
   // Filter search locally
   const filteredPayments = useMemo(() => {
     return payments.filter(p => {
@@ -271,6 +283,15 @@ const Payments = () => {
                         <div>
                           <strong>{p.bank_name || 'Bank'}</strong>
                           {p.cheque_number && <div style={{ color: '#475569' }}>Cheque: {p.cheque_number}</div>}
+                          {p.cheque_status === 'pending' && (
+                            <span className="badge badge-warning" style={{ marginTop: '4px', display: 'inline-block' }}>⏳ Pending Clearance</span>
+                          )}
+                          {p.cheque_status === 'cleared' && (
+                            <span className="badge badge-success" style={{ marginTop: '4px', display: 'inline-block' }}>✅ Cleared</span>
+                          )}
+                          {p.cheque_status === 'bounced' && (
+                            <span className="badge badge-danger" style={{ marginTop: '4px', display: 'inline-block' }}>❌ Bounced</span>
+                          )}
                         </div>
                       )}
                       {p.payment_method === 'mobile' && (
@@ -281,6 +302,9 @@ const Payments = () => {
                       )}
                       {p.payment_method === 'cash' && (
                         <span style={{ color: '#64748b', fontStyle: 'italic' }}>Cash Receipt</span>
+                      )}
+                      {p.collection_channel === 'field_technician' && (
+                        <div style={{ color: '#b45309', marginTop: '4px' }}>🔧 Collected by: {p.collected_by_name}</div>
                       )}
                     </td>
                     <td>
@@ -297,6 +321,26 @@ const Payments = () => {
                       >
                         👁️ Details
                       </button>
+                      {p.payment_method === 'bank' && p.cheque_status === 'pending' && (can('payments:clear-cheque') || user?.role === 'admin') && (
+                        <>
+                          <button
+                            type="button"
+                            className="text-btn"
+                            onClick={() => handleClearCheque(p.id, p.payment_number, 'cleared')}
+                            style={{ color: 'var(--success)', marginRight: '8px' }}
+                          >
+                            ✅ Mark Cleared
+                          </button>
+                          <button
+                            type="button"
+                            className="text-btn"
+                            onClick={() => handleClearCheque(p.id, p.payment_number, 'bounced')}
+                            style={{ color: 'var(--danger)', marginRight: '8px' }}
+                          >
+                            ❌ Mark Bounced
+                          </button>
+                        </>
+                      )}
                       {(can('payments:void') || user?.role === 'admin') && (
                         <button
                           type="button"
@@ -351,6 +395,20 @@ const Payments = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <span style={{ color: '#64748b', fontSize: '13px' }}>Bank Name & Cheque:</span>
                     <strong>{selectedPayment.bank_name} ({selectedPayment.cheque_number})</strong>
+                  </div>
+                )}
+                {selectedPayment.cheque_status && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#64748b', fontSize: '13px' }}>Cheque Status:</span>
+                    <span className={`badge ${selectedPayment.cheque_status === 'cleared' ? 'badge-success' : selectedPayment.cheque_status === 'bounced' ? 'badge-danger' : 'badge-warning'}`} style={{ textTransform: 'capitalize' }}>
+                      {selectedPayment.cheque_status}
+                    </span>
+                  </div>
+                )}
+                {selectedPayment.collection_channel === 'field_technician' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#64748b', fontSize: '13px' }}>Collected By:</span>
+                    <strong>🔧 {selectedPayment.collected_by_name}</strong>
                   </div>
                 )}
                 {selectedPayment.mobile_provider && (

@@ -16,6 +16,10 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
   const [mobileProvider, setMobileProvider] = useState('bKash');
   const [transactionId, setTransactionId] = useState('');
 
+  // Who actually collected the money
+  const [collectionChannel, setCollectionChannel] = useState('office');
+  const [collectedByName, setCollectedByName] = useState('');
+
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,6 +31,8 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
       setDiscountAmount('');
       setPaymentMethod('cash');
       setPaymentDate(new Date().toISOString().substring(0, 10));
+      setCollectionChannel('office');
+      setCollectedByName('');
     }
   }, [isOpen, invoice]);
 
@@ -62,6 +68,11 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
       return;
     }
 
+    if (collectionChannel === 'field_technician' && !collectedByName.trim()) {
+      setError('Please enter the technician/collector name.');
+      return;
+    }
+
     setLoading(true);
     try {
       const payload = {
@@ -71,6 +82,8 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
         payment_date: paymentDate,
         discount_amount: discAmt,
         notes,
+        collection_channel: collectionChannel,
+        collected_by_name: collectionChannel === 'field_technician' ? collectedByName.trim() : null,
       };
 
       if (paymentMethod === 'bank') {
@@ -102,6 +115,8 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
     setChequeNumber('');
     setMobileProvider('bKash');
     setTransactionId('');
+    setCollectionChannel('office');
+    setCollectedByName('');
     setNotes('');
     setError('');
     onClose();
@@ -308,6 +323,9 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
                   className="custom-form-input"
                 />
               </div>
+              <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: '#93c5fd', background: 'rgba(59, 130, 246, 0.08)', padding: '8px 10px', borderRadius: '8px' }}>
+                ℹ️ Cheque payments are recorded as <strong>pending clearance</strong>. The salesman won't be notified until you mark it Cleared from the Payments list once it clears the bank.
+              </div>
             </div>
           )}
 
@@ -342,6 +360,61 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
               </div>
             </div>
           )}
+
+          {/* Who Collected This Payment */}
+          <div>
+            <label className="custom-form-label" style={{ display: 'block', marginBottom: '8px' }}>
+              Collected By
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div
+                onClick={() => setCollectionChannel('office')}
+                style={{
+                  border: `2px solid ${collectionChannel === 'office' ? '#10b981' : 'rgba(255,255,255,0.1)'}`,
+                  backgroundColor: collectionChannel === 'office' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.03)',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '18px', marginBottom: '2px' }}>🏢</div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: collectionChannel === 'office' ? '#34d399' : '#cbd5e1' }}>
+                  Office
+                </div>
+              </div>
+              <div
+                onClick={() => setCollectionChannel('field_technician')}
+                style={{
+                  border: `2px solid ${collectionChannel === 'field_technician' ? '#f59e0b' : 'rgba(255,255,255,0.1)'}`,
+                  backgroundColor: collectionChannel === 'field_technician' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255,255,255,0.03)',
+                  padding: '10px',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '18px', marginBottom: '2px' }}>🔧</div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: collectionChannel === 'field_technician' ? '#fbbf24' : '#cbd5e1' }}>
+                  Field Technician
+                </div>
+              </div>
+            </div>
+            {collectionChannel === 'field_technician' && (
+              <div className="custom-form-group" style={{ marginTop: '10px' }}>
+                <label className="custom-form-label" style={{ color: '#fbbf24' }}>Technician / Collector Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Karim"
+                  value={collectedByName}
+                  onChange={(e) => setCollectedByName(e.target.value)}
+                  disabled={loading}
+                  required
+                  className="custom-form-input"
+                />
+              </div>
+            )}
+          </div>
 
           {/* Payment Date & Remarks */}
           <div className="custom-form-grid">
