@@ -1584,7 +1584,7 @@ const Quotations = () => {
                                   <th style={{ width: '90px' }}>Width</th>
                                   <th style={{ width: '90px' }}>Height</th>
                                   <th style={{ width: '70px' }}>Pcs</th>
-                                  <th style={{ width: '105px' }}>Sq.Ft</th>
+                                  <th style={{ width: '120px' }}>Sq.Ft</th>
                                   <th className="cell-total-sqft-th" style={{ width: '90px' }}>Total Sq.Ft</th>
                                   <th style={{ width: '140px' }}>Total Price</th>
                                   <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
@@ -1753,12 +1753,12 @@ const Quotations = () => {
                                           {/* Sq.Ft */}
                                           <td className="cell-sqft" style={{ padding: '6px' }}>
                                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                              <input 
-                                                type="text" 
-                                                value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'} 
-                                                readOnly 
+                                              <input
+                                                type="text"
+                                                value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'}
+                                                readOnly
                                                 className="modern-form-control"
-                                                style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
+                                                style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '9px 4px', minWidth: 0 }}
                                               />
                                               {block.sizes.length > 1 && (
                                                 <button 

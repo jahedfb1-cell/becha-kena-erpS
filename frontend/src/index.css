@@ -597,6 +597,16 @@ body {
   text-align: left;
 }
 
+/* Item-builder tables (Quotation/Order size-entry grids) need their column
+   widths to actually be honored - plain auto layout lets wide columns
+   (Product, Total Price, Action) steal space from narrow ones like Sq.Ft,
+   shrinking them well below their set width and truncating values like
+   "102.50". Fixed layout makes every <th width> authoritative; the
+   .overflowX:auto wrapper around the table handles the rest. */
+.item-builder-table {
+  table-layout: fixed;
+}
+
 .data-table th,
 .data-table td {
   padding: 14px 20px;
