@@ -14,6 +14,7 @@ import Quotations from './pages/Quotations';
 import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
 import Payments from './pages/Payments';
+import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
 import AuditLogs from './pages/AuditLogs';
 import AccessSetup from './pages/AccessSetup';
@@ -116,6 +117,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <Payments />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Notifications route */}
+          <Route
+            path="notifications"
+            element={
+              <ProtectedRoute>
+                <Notifications />
               </ProtectedRoute>
             }
           />

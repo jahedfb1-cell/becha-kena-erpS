@@ -334,6 +334,19 @@ const NotificationBell = () => {
               })
             )}
           </div>
+
+          {/* Footer - link to the full notifications page */}
+          <div
+            style={{ borderTop: '1px solid var(--border)', padding: '10px 16px', textAlign: 'center', backgroundColor: '#f8fafc', flexShrink: 0 }}
+          >
+            <button
+              type="button"
+              onClick={() => { setIsOpen(false); navigate('/notifications'); }}
+              style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+            >
+              View all notifications →
+            </button>
+          </div>
         </div>
       )}
 

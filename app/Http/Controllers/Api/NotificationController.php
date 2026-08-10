@@ -18,6 +18,8 @@ class NotificationController extends Controller
         $userId = $request->user()->id;
 
         $notifications = Notification::where('user_id', $userId)
+            ->when($request->filled('type'), fn ($q) => $q->where('type', $request->get('type')))
+            ->when($request->filled('is_read'), fn ($q) => $q->where('is_read', $request->boolean('is_read')))
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 20));
 
