@@ -70,7 +70,7 @@ const InvoicePrintPage = () => {
 
   useEffect(() => {
     if (invoice) {
-      const rawCustomerName = invoice.customer?.name || 'Customer';
+      const rawCustomerName = invoice.customer?.company_name || invoice.customer?.name || 'Customer';
       
       const categories = Array.from(new Set(
         (invoice.items || [])

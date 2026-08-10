@@ -92,8 +92,6 @@ class PaymentController extends Controller
             // bank_name/provider column) never fails at the database level.
             'bank_name'       => 'required_if:payment_method,bank|string|max:100',
             'mobile_provider' => 'required_if:payment_method,mobile|string|max:100',
-            'collection_channel' => 'nullable|in:office,field_technician',
-            'collected_by_name'  => 'required_if:collection_channel,field_technician|nullable|string|max:100',
         ]);
 
         $invoice = Invoice::find($request->invoice_id);
@@ -110,12 +108,7 @@ class PaymentController extends Controller
 
         $user = $request->user();
 
-        // Classify before/after this payment so the notification can say
-        // "Advance" / "Partial" / "Full" / "Final Settlement" instead of a
-        // generic "Payment Received" for every entry.
-        $previousStatus = $invoice->payment_status;
-
-        return DB::transaction(function () use ($request, $invoice, $user, $previousStatus) {
+        return DB::transaction(function () use ($request, $invoice, $user) {
             $payment = $this->paymentService->processPayment($request->all(), $invoice, $user->id);
 
             AuditLog::record(
@@ -129,76 +122,14 @@ class PaymentController extends Controller
                 "Created payment {$payment->payment_number} for invoice {$invoice->invoice_number}"
             );
 
-            $invoice->refresh();
-            $isNowPaid = $invoice->payment_status === 'paid';
-            $classification = $previousStatus === 'unpaid'
-                ? ($isNowPaid ? 'Full Payment' : 'Advance Payment')
-                : ($isNowPaid ? 'Final Settlement' : 'Partial Payment');
-
-            // Trigger Notification Event: direction-aware (see NotificationService::notifyPaymentEvent)
-            $this->notificationService->notifyPaymentEvent($payment, $classification, $user);
+            // Trigger Notification Event: Payment Received -> Notify Admins & Salesman
+            $this->notificationService->notifyPaymentReceived($payment);
 
             return $this->createdResponse(
                 $payment->load(['customer', 'invoice']),
                 "Payment {$payment->payment_number} processed successfully."
             );
         });
-    }
-
-    /**
-     * Accounts/Manager marks a bank-cheque payment as cleared or bounced.
-     * The salesman is only notified of a received payment at this point for
-     * bank/cheque payments (see NotificationService::notifyPaymentEvent).
-     */
-    public function clearCheque(int $id, Request $request): JsonResponse
-    {
-        if (!$request->user()->can('payments:clear-cheque')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
-        $request->validate([
-            'status' => 'required|in:cleared,bounced',
-        ]);
-
-        $payment = Payment::active()->find($id);
-        if (!$payment) {
-            return $this->notFoundResponse('Payment not found.');
-        }
-
-        if ($payment->payment_method !== 'bank') {
-            return $this->errorResponse('Only bank/cheque payments have a clearance status.', 422);
-        }
-
-        if ($payment->cheque_status !== 'pending') {
-            return $this->errorResponse("This cheque is already marked '{$payment->cheque_status}'.", 422);
-        }
-
-        $user = $request->user();
-        $oldSnapshot = $payment->toArray();
-
-        $payment->cheque_status = $request->status;
-        $payment->save();
-
-        AuditLog::record(
-            $user->id,
-            $user->name,
-            'update',
-            Payment::class,
-            $payment->id,
-            $oldSnapshot,
-            $payment->toArray(),
-            "Marked cheque #{$payment->cheque_number} as {$request->status} for payment {$payment->payment_number}"
-        );
-
-        if ($request->status === 'cleared') {
-            $invoice = $payment->invoice;
-            $classification = $invoice && $invoice->payment_status === 'paid' ? 'Final Settlement' : 'Payment';
-            $this->notificationService->notifyChequeCleared($payment, $classification);
-        } else {
-            $this->notificationService->notifyChequeBounced($payment);
-        }
-
-        return $this->successResponse($payment->fresh(), "Cheque marked as {$request->status}.");
     }
 
     public function voidPayment(int $id, Request $request): JsonResponse

@@ -51,16 +51,16 @@ class NotificationService
     }
 
     /**
-     * Event 1: Quotation Created -> Notify all Admins
+     * Event 1: Quotation Created -> Notify all Admins & Managers
      */
     public function notifyQuotationCreated(Quotation $quotation): void
     {
-        $admins = User::where('role', 'admin')->get();
+        $approvers = User::whereIn('role', ['admin', 'manager'])->get();
         $quoteNo = $quotation->quotation_number ?? "#{$quotation->id}";
 
-        foreach ($admins as $admin) {
+        foreach ($approvers as $approver) {
             $this->createNotification(
-                $admin->id,
+                $approver->id,
                 "New Quotation Created",
                 "Quotation {$quoteNo} has been created.",
                 "quotation",
@@ -180,122 +180,32 @@ class NotificationService
     }
 
     /**
-     * Event 6: Payment Entered -> direction-aware notification.
-     *
-     * The recipient depends on WHO entered the payment, so nobody gets
-     * notified about their own action:
-     *  - Salesman enters an advance/partial/full payment on their own order
-     *    -> notify Accounts (admin + manager roles), so they know money
-     *    came in and needs to be reconciled/banked.
-     *  - Accounts/Manager enters a payment (confirming cash in hand, a
-     *    mobile transfer, or logging what a field technician collected at
-     *    the customer's site) -> notify the order's salesman that the
-     *    customer's payment was received. Bank/cheque payments are the one
-     *    exception: the salesman isn't told yet (cheque_status=pending) -
-     *    that notification fires later from clearCheque() once the cheque
-     *    actually clears, per the "cq pass hoile" requirement.
-     *
-     * $classification is one of: 'Advance Payment', 'Partial Payment',
-     * 'Full Payment', 'Final Settlement' - computed by the caller from the
-     * invoice's payment_status before/after this payment.
+     * Event 6: Payment Received -> Notify Admins & Salesman
      */
-    public function notifyPaymentEvent(Payment $payment, string $classification, User $actor): void
+    public function notifyPaymentReceived(Payment $payment): void
     {
-        $quotation = $payment->invoice?->quotation;
-        $salesmanId = $quotation?->salesman_id;
-        $orderNo = $quotation?->quotation_number ?? ($payment->invoice ? "Invoice #{$payment->invoice->invoice_number}" : "#{$payment->id}");
-        $amount = number_format($payment->amount, 2);
         $paymentNo = $payment->payment_number ?? "#{$payment->id}";
+        $amount = number_format($payment->amount, 2);
 
-        $isActorSalesman = $actor->role === 'salesman' || (method_exists($actor, 'hasRole') && $actor->hasRole('salesman'));
-
-        if ($isActorSalesman) {
-            // Flow A: salesman recorded it -> tell accounts (admin + manager),
-            // skipping the actor themselves (a salesman is never also an
-            // admin/manager here, but this guard keeps it safe either way).
-            $accountsUsers = User::whereIn('role', ['admin', 'manager'])->where('id', '!=', $actor->id)->get();
-            foreach ($accountsUsers as $user) {
-                $this->createNotification(
-                    $user->id,
-                    "{$classification} Entered",
-                    "{$actor->name} recorded a {$classification} of ৳{$amount} ({$paymentNo}) for Order {$orderNo}.",
-                    "payment",
-                    "Payment",
-                    $payment->id
-                );
-            }
-            return;
-        }
-
-        // Flow B: accounts/manager (or staff) entered it - this represents
-        // confirmed receipt, whether handed in at the office or collected by
-        // a technician on-site.
-        if ($payment->payment_method === 'bank') {
-            // Cheque payments wait for clearCheque() before the salesman is told.
-            return;
-        }
-
-        if ($salesmanId && $salesmanId !== $actor->id) {
-            $source = $payment->collection_channel === 'field_technician'
-                ? " (collected on-site by {$payment->collected_by_name})"
-                : '';
+        // 1. Notify Admins
+        $admins = User::where('role', 'admin')->get();
+        foreach ($admins as $admin) {
             $this->createNotification(
-                $salesmanId,
-                "{$classification} Received",
-                "{$classification} of ৳{$amount} received for Order {$orderNo}{$source}.",
+                $admin->id,
+                "Payment Received",
+                "Payment {$paymentNo} of ৳{$amount} received.",
                 "payment",
                 "Payment",
                 $payment->id
             );
         }
-    }
 
-    /**
-     * Event 7: Cheque cleared -> now tell the salesman their customer's
-     * payment actually came through (mirrors Flow B above, deferred until
-     * clearance instead of firing at entry time).
-     */
-    public function notifyChequeCleared(Payment $payment, string $classification): void
-    {
-        $quotation = $payment->invoice?->quotation;
-        $salesmanId = $quotation?->salesman_id;
-        if (!$salesmanId) {
-            return;
-        }
-
-        $orderNo = $quotation?->quotation_number ?? "Invoice #{$payment->invoice->invoice_number}";
-        $amount = number_format($payment->amount, 2);
-
-        $this->createNotification(
-            $salesmanId,
-            "{$classification} Received (Cheque Cleared)",
-            "Cheque #{$payment->cheque_number} of ৳{$amount} for Order {$orderNo} has cleared.",
-            "payment",
-            "Payment",
-            $payment->id
-        );
-    }
-
-    /**
-     * Event 8: Cheque bounced -> alert accounts + the salesman so the order
-     * doesn't stay marked as paid.
-     */
-    public function notifyChequeBounced(Payment $payment): void
-    {
-        $quotation = $payment->invoice?->quotation;
-        $orderNo = $quotation?->quotation_number ?? ($payment->invoice ? "Invoice #{$payment->invoice->invoice_number}" : "#{$payment->id}");
-        $amount = number_format($payment->amount, 2);
-
-        $recipients = User::whereIn('role', ['admin', 'manager'])->get();
-        if ($quotation?->salesman_id) {
-            $recipients->push(User::find($quotation->salesman_id));
-        }
-
-        foreach ($recipients->filter()->unique('id') as $user) {
+        // 2. Notify Salesman if payment is linked to quotation/invoice
+        if ($payment->invoice && $payment->invoice->quotation && $payment->invoice->quotation->salesman_id) {
             $this->createNotification(
-                $user->id,
-                "Cheque Bounced",
-                "Cheque #{$payment->cheque_number} of ৳{$amount} for Order {$orderNo} has bounced. Please follow up with the customer.",
+                $payment->invoice->quotation->salesman_id,
+                "Payment Received for Order",
+                "Payment {$paymentNo} of ৳{$amount} received for Invoice #{$payment->invoice->invoice_number}.",
                 "payment",
                 "Payment",
                 $payment->id

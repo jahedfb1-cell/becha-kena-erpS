@@ -42,28 +42,19 @@ class PaymentService
         $discountAmount = (float) ($data['discount_amount'] ?? 0);
         $totalCredit = $amount + $discountAmount;
 
-        // Bank/cheque payments start out unconfirmed — the salesman is only
-        // notified once accounts/manager marks the cheque cleared (see
-        // PaymentController::clearCheque). Cash and mobile are treated as
-        // instantly settled since there's no clearance step for them.
-        $chequeStatus = $data['payment_method'] === 'bank' ? 'pending' : null;
-
         $payment = Payment::create([
-            'payment_number'      => $paymentNumber,
-            'invoice_id'          => $invoice->id,
-            'customer_id'         => $invoice->customer_id,
-            'amount'              => $amount,
-            'payment_method'      => $data['payment_method'],
-            'bank_name'           => $data['bank_name'] ?? null,
-            'mobile_provider'     => $data['mobile_provider'] ?? null,
-            'transaction_id'      => $data['transaction_id'] ?? null,
-            'cheque_number'       => $data['cheque_number'] ?? null,
-            'cheque_status'       => $chequeStatus,
-            'collection_channel'  => $data['collection_channel'] ?? 'office',
-            'collected_by_name'   => $data['collected_by_name'] ?? null,
-            'payment_date'        => $data['payment_date'],
-            'notes'               => $data['notes'] ?? null,
-            'created_by'          => $userId,
+            'payment_number'   => $paymentNumber,
+            'invoice_id'       => $invoice->id,
+            'customer_id'      => $invoice->customer_id,
+            'amount'           => $amount,
+            'payment_method'   => $data['payment_method'],
+            'bank_name'        => $data['bank_name'] ?? null,
+            'mobile_provider'  => $data['mobile_provider'] ?? null,
+            'transaction_id'   => $data['transaction_id'] ?? null,
+            'cheque_number'    => $data['cheque_number'] ?? null,
+            'payment_date'     => $data['payment_date'],
+            'notes'            => $data['notes'] ?? null,
+            'created_by'       => $userId,
         ]);
 
         // 1. Update Invoice amounts & status

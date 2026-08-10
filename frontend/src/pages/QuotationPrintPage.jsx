@@ -70,7 +70,7 @@ const QuotationPrintPage = () => {
 
   useEffect(() => {
     if (quotation) {
-      const rawCustomerName = quotation.customer?.name || 'Customer';
+      const rawCustomerName = quotation.customer?.company_name || quotation.customer?.name || 'Customer';
       
       const categories = Array.from(new Set(
         (quotation.items || [])
