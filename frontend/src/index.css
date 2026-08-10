@@ -607,6 +607,14 @@ body {
   table-layout: fixed;
 }
 
+/* The "Select Product *" search box above the table already confirms
+   which product was added; the per-row Product Code/Name picker
+   duplicated that, so it's hidden on both desktop and mobile. */
+.item-builder-table th.cell-product-th,
+.item-builder-table td.cell-product {
+  display: none !important;
+}
+
 .data-table th,
 .data-table td {
   padding: 14px 20px;

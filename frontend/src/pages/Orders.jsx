@@ -1269,7 +1269,7 @@ const Orders = () => {
                               <table className="data-table item-builder-table" style={{ width: '100%', margin: 0 }}>
                                 <thead>
                                   <tr>
-                                    <th style={{ width: '220px' }}>Product *</th>
+                                    <th className="cell-product-th" style={{ width: '220px' }}>Product *</th>
                                     <th style={{ width: '110px' }}>Unit Price</th>
                                     <th style={{ width: '90px' }}>Width</th>
                                     <th style={{ width: '90px' }}>Height</th>

@@ -1593,7 +1593,7 @@ const Quotations = () => {
                             <table className="data-table item-builder-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                               <thead>
                                 <tr>
-                                  <th style={{ width: '180px' }}>Product Code / Name *</th>
+                                  <th className="cell-product-th" style={{ width: '180px' }}>Product Code / Name *</th>
                                   <th style={{ width: '120px' }}>Unit Price</th>
                                   <th style={{ width: '90px' }}>Width</th>
                                   <th style={{ width: '90px' }}>Height</th>
