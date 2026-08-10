@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -138,6 +138,15 @@ const Quotations = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q) {
+      setFilterSearch(decodeURIComponent(q));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (view === 'form') {
@@ -1250,8 +1259,29 @@ const Quotations = () => {
                   ) : (
                     paginatedQuotations.map((q) => (
                       <tr key={q.id}>
-                        <td><strong>{q.quotation_number}</strong></td>
-                        <td>{q.customer?.name}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="clickable-link"
+                            onClick={() => handleEditClick(q)}
+                            disabled={q.status === 'invoiced'}
+                            style={{ fontWeight: 800 }}
+                          >
+                            {q.quotation_number}
+                          </button>
+                        </td>
+                        <td>
+                          {q.customer ? (
+                            <Link
+                              to={`/customers?search=${encodeURIComponent(q.customer.name)}`}
+                              className="clickable-link"
+                            >
+                              {q.customer.name}
+                            </Link>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td>{q.salesman?.name}</td>
                         <td>{formatCurrency(q.net_amount)}</td>
                         <td>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -53,6 +53,15 @@ const Invoices = () => {
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices]);
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q) {
+      setFilterSearch(decodeURIComponent(q));
+    }
+  }, [searchParams]);
 
   const loadInvoiceDetails = async (id) => {
     try {
@@ -226,8 +235,28 @@ const Invoices = () => {
                   ) : (
                     filteredInvoices.map((inv) => (
                       <tr key={inv.id}>
-                        <td><strong>{inv.invoice_number}</strong></td>
-                        <td>{inv.customer?.name}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="clickable-link"
+                            onClick={() => loadInvoiceDetails(inv.id)}
+                            style={{ fontWeight: 800 }}
+                          >
+                            {inv.invoice_number}
+                          </button>
+                        </td>
+                        <td>
+                          {inv.customer ? (
+                            <Link
+                              to={`/customers?search=${encodeURIComponent(inv.customer.name)}`}
+                              className="clickable-link"
+                            >
+                              {inv.customer.name}
+                            </Link>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td>{formatDate(inv.invoice_date)}</td>
                         <td>{formatCurrency(inv.grand_total)}</td>
                         <td>{formatCurrency(inv.paid_amount)}</td>

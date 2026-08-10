@@ -1,106 +1,125 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
+import { formatDate } from '../utils/format';
 
-/**
- * Full notification history - the bell dropdown only ever shows the most
- * recent 15; this page uses the same /api/notifications endpoint's
- * pagination (already returned by the backend, just never consumed until
- * now) to show everything, with type/read filters and the same
- * Approve/Reject actions the bell offers for eligible admin/manager users.
- */
 const Notifications = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
+  const [error, setError] = useState('');
 
-  const [page, setPage] = useState(1);
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [totalNotifications, setTotalNotifications] = useState(0);
+  const [perPage, setPerPage] = useState(20);
 
-  const [filterType, setFilterType] = useState('');
-  const [filterRead, setFilterRead] = useState('');
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'unread', 'read'
+  const [typeFilter, setTypeFilter] = useState(''); // '', 'quotation', 'order', 'invoice', 'payment', 'complaint', 'system'
 
-  const isApprover = user && (user.role === 'admin' || user.role === 'manager');
+  // Read highlight ID from location state
+  const highlightId = location.state?.highlightId || null;
 
-  const fetchNotifications = useCallback(async (targetPage = 1) => {
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      return `${formatDate(dateStr)} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const fetchNotifications = useCallback(async (page = 1) => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ per_page: '20', page: String(targetPage) });
-      if (filterType) params.set('type', filterType);
-      if (filterRead) params.set('is_read', filterRead === 'read' ? '1' : '0');
+      const params = {
+        page,
+        per_page: perPage,
+      };
 
-      const res = await api.get(`/notifications?${params.toString()}`);
+      if (typeFilter) {
+        params.type = typeFilter;
+      }
+      if (statusFilter === 'unread') {
+        params.is_read = false;
+      } else if (statusFilter === 'read') {
+        params.is_read = true;
+      }
+
+      const res = await api.get('/notifications', { params });
       if (res.data) {
         setNotifications(res.data.data || []);
         setUnreadCount(res.data.unread_count || 0);
-        setPage(res.data.meta?.current_page || 1);
+        setCurrentPage(res.data.meta?.current_page || 1);
         setLastPage(res.data.meta?.last_page || 1);
-        setTotal(res.data.meta?.total || 0);
+        setTotalNotifications(res.data.meta?.total || 0);
       }
     } catch (err) {
-      console.error('Error loading notifications:', err);
-      setError('Failed to retrieve notifications.');
+      setError(err.response?.data?.message || 'Failed to retrieve notifications.');
     } finally {
       setLoading(false);
     }
-  }, [filterType, filterRead]);
+  }, [perPage, typeFilter, statusFilter]);
 
   useEffect(() => {
     fetchNotifications(1);
   }, [fetchNotifications]);
 
+  // Handle Mark as Read
+  const handleMarkAsRead = async (notif) => {
+    if (notif.is_read) return;
+    try {
+      await api.post(`/notifications/${notif.id}/read`);
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error('Error marking notification as read:', err);
+    }
+  };
+
+  // Handle Mark All Read
   const handleMarkAllRead = async () => {
+    if (unreadCount === 0) return;
     try {
       await api.post('/notifications/read-all');
-      fetchNotifications(page);
+      setUnreadCount(0);
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      alert('All notifications marked as read.');
     } catch (err) {
-      alert('Failed to mark all as read.');
+      alert('Failed to mark all notifications as read.');
     }
   };
 
-  const handleNotificationClick = async (notif) => {
-    if (!notif.is_read) {
-      try {
-        await api.post(`/notifications/${notif.id}/read`);
-        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      } catch (err) {
-        console.error('Error marking notification as read:', err);
-      }
-    }
-
-    if (notif.reference_type === 'Quotation' || notif.type === 'quotation' || notif.type === 'order') {
-      navigate('/quotations');
-    } else if (notif.reference_type === 'Invoice' || notif.type === 'invoice') {
-      navigate('/invoices');
-    } else if (notif.reference_type === 'Payment' || notif.type === 'payment') {
-      navigate('/payments');
-    }
-  };
-
+  // Quick Approval Eligibility
   const isApproveEligible = (notif) => {
-    if (!isApprover || !notif.reference_id) return false;
+    if (!user || (user.role !== 'admin' && user.role !== 'manager')) return false;
+    if (!notif.reference_id) return false;
+
     const refType = notif.reference_type || '';
     const nType = notif.type || '';
+
     const isOrderOrQuote = refType === 'Quotation' || nType === 'quotation' || nType === 'order';
     return isOrderOrQuote && !notif.is_read;
   };
 
-  const handleQuickApprove = async (e, notif) => {
-    e.stopPropagation();
+  // Handle Quick Approve
+  const handleApprove = async (notif) => {
     setActionLoading(notif.id);
     try {
       await api.post(`/quotations/${notif.reference_id}/approve`);
       await api.post(`/notifications/${notif.id}/read`);
-      fetchNotifications(page);
+      fetchNotifications(currentPage);
       alert('Order approved successfully!');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to approve order.');
@@ -109,15 +128,19 @@ const Notifications = () => {
     }
   };
 
-  const handleQuickReject = async (e, notif) => {
-    e.stopPropagation();
+  // Handle Quick Reject
+  const handleReject = async (notif) => {
     const reason = prompt('Enter rejection reason:');
     if (reason === null) return;
+    if (!reason.trim()) {
+      alert('Rejection reason is required.');
+      return;
+    }
     setActionLoading(notif.id);
     try {
-      await api.post(`/quotations/${notif.reference_id}/reject`, { reason });
+      await api.post(`/quotations/${notif.reference_id}/reject`, { rejection_reason: reason });
       await api.post(`/notifications/${notif.id}/read`);
-      fetchNotifications(page);
+      fetchNotifications(currentPage);
       alert('Order rejected.');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to reject order.');
@@ -126,154 +149,311 @@ const Notifications = () => {
     }
   };
 
-  const getTypeBadgeStyle = (type) => {
-    switch (type) {
-      case 'quotation': return { bg: '#eff6ff', color: '#2563eb' };
-      case 'order': return { bg: '#fef3c7', color: '#d97706' };
-      case 'invoice': return { bg: '#f0fdf4', color: '#16a34a' };
-      case 'payment': return { bg: '#faf5ff', color: '#9333ea' };
-      case 'complaint': return { bg: '#fef2f2', color: '#dc2626' };
-      default: return { bg: '#f1f5f9', color: '#475569' };
+  // Navigate to Related Source Entity page
+  const handleViewSource = (notif) => {
+    handleMarkAsRead(notif);
+    const searchVal = notif.reference_id;
+    
+    // Attempt to parse out a quotation/invoice/payment number if present in text
+    let codeSearch = '';
+    const codeRegex = /(?:Q|INV|PAY)[-_\s]?\d+(?:[-_\s]\d+)?|#\d+/i;
+    const match = ((notif.title || '') + ' ' + (notif.message || '')).match(codeRegex);
+    if (match) {
+      codeSearch = match[0].replace('#', '');
+    }
+
+    const searchQuery = codeSearch || searchVal;
+
+    if (notif.reference_type === 'Quotation' || notif.type === 'quotation' || notif.type === 'order') {
+      navigate(`/quotations?search=${encodeURIComponent(searchQuery)}`);
+    } else if (notif.reference_type === 'Invoice' || notif.type === 'invoice') {
+      navigate(`/invoices?search=${encodeURIComponent(searchQuery)}`);
+    } else if (notif.reference_type === 'Payment' || notif.type === 'payment') {
+      navigate(`/payments?search=${encodeURIComponent(searchQuery)}`);
     }
   };
+
+  // Color styles based on type
+  const getTypeStyles = (type) => {
+    switch (type) {
+      case 'quotation':
+        return { border: '4px solid #3b82f6', badgeClass: 'badge-info', label: 'Quotation' };
+      case 'order':
+        return { border: '4px solid #f59e0b', badgeClass: 'badge-warning', label: 'Order' };
+      case 'invoice':
+        return { border: '4px solid #10b981', badgeClass: 'badge-success', label: 'Invoice' };
+      case 'payment':
+        return { border: '4px solid #8b5cf6', badgeClass: 'badge-outline', label: 'Payment', customBadgeStyle: { color: '#8b5cf6', borderColor: '#8b5cf6' } };
+      case 'complaint':
+        return { border: '4px solid #ef4444', badgeClass: 'badge-danger', label: 'Complaint' };
+      default:
+        return { border: '4px solid #64748b', badgeClass: 'badge-outline', label: 'System' };
+    }
+  };
+
+  // Local Filtered list (client-side filters on current page's results, standard fallback)
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter(notif => {
+      // Status Filter
+      if (statusFilter === 'unread' && notif.is_read) return false;
+      if (statusFilter === 'read' && !notif.is_read) return false;
+
+      // Type Filter
+      if (typeFilter && notif.type !== typeFilter) return false;
+
+      return true;
+    });
+  }, [notifications, statusFilter, typeFilter]);
 
   return (
     <div className="content-container animate-fade-in">
       <div className="page-header-row">
         <div>
-          <h1>Notifications</h1>
-          <p>Everything sent to your account — approvals, orders, invoices, and payments, scoped to your role.</p>
+          <h1>Notification Center</h1>
+          <p>Manage system notifications, alerts, and document approval actions</p>
         </div>
-        {unreadCount > 0 && (
-          <button className="logout-btn" onClick={handleMarkAllRead}>
-            ✓ Mark all as read
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllRead}
+              className="logout-btn"
+              style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              ✓ Mark All Read
+            </button>
+          )}
+          <button
+            onClick={() => fetchNotifications(1)}
+            className="primary-btn"
+            disabled={loading}
+            style={{ minWidth: '100px' }}
+          >
+            {loading ? 'Refreshing...' : '🔄 Refresh'}
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="welcome-banner" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '16px', alignItems: 'flex-end' }}>
-        <div className="form-group" style={{ margin: 0, flex: '1 1 180px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600' }}>Type</label>
-          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="modern-form-control" style={{ padding: '8px 12px', fontSize: '13px' }}>
+      {/* Filters Banner */}
+      <div className="welcome-banner" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', padding: '20px', marginBottom: '16px' }}>
+        <div className="form-group" style={{ margin: 0 }}>
+          <label>Read Status</label>
+          <select 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ padding: '8px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-card)' }}
+          >
+            <option value="all">All Notifications</option>
+            <option value="unread">Unread Only</option>
+            <option value="read">Read Only</option>
+          </select>
+        </div>
+
+        <div className="form-group" style={{ margin: 0 }}>
+          <label>Notification Type</label>
+          <select 
+            value={typeFilter} 
+            onChange={(e) => setTypeFilter(e.target.value)}
+            style={{ padding: '8px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-card)' }}
+          >
             <option value="">All Types</option>
-            <option value="quotation">Quotation</option>
-            <option value="order">Order</option>
-            <option value="invoice">Invoice</option>
-            <option value="payment">Payment</option>
-            <option value="complaint">Complaint</option>
-            <option value="system">System</option>
+            <option value="quotation">Quotations</option>
+            <option value="order">Orders</option>
+            <option value="invoice">Invoices</option>
+            <option value="payment">Payments</option>
+            <option value="complaint">Complaints</option>
+            <option value="system">System Alerts</option>
           </select>
-        </div>
-        <div className="form-group" style={{ margin: 0, flex: '1 1 160px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600' }}>Status</label>
-          <select value={filterRead} onChange={(e) => setFilterRead(e.target.value)} className="modern-form-control" style={{ padding: '8px 12px', fontSize: '13px' }}>
-            <option value="">All</option>
-            <option value="unread">Unread</option>
-            <option value="read">Read</option>
-          </select>
-        </div>
-        <div style={{ fontSize: '12px', color: 'var(--text-main)', paddingBottom: '8px' }}>
-          {unreadCount} unread · {total} total
         </div>
       </div>
 
-      {error && (
-        <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <div className="alert alert-danger" style={{ marginBottom: '16px' }}>{error}</div>}
 
+      {/* List Container */}
       {loading ? (
-        <div className="flex-center" style={{ padding: '40px' }}><div className="spinner"></div></div>
+        <div className="flex-center" style={{ padding: '60px' }}>
+          <div className="spinner"></div>
+        </div>
+      ) : filteredNotifications.length === 0 ? (
+        <div className="welcome-banner" style={{ textAlign: 'center', padding: '48px', color: 'var(--text-main)' }}>
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔔</div>
+          <h3>No notifications found</h3>
+          <p>All caught up! There are no alerts matching your criteria.</p>
+        </div>
       ) : (
-        <div className="welcome-banner" style={{ padding: 0, overflow: 'hidden' }}>
-          {notifications.length === 0 ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
-              🔔 No notifications found.
-            </div>
-          ) : (
-            notifications.map((notif) => {
-              const badge = getTypeBadgeStyle(notif.type);
-              return (
-                <div
-                  key={notif.id}
-                  onClick={() => handleNotificationClick(notif)}
-                  style={{
-                    padding: '16px 20px',
-                    borderBottom: '1px solid var(--border)',
-                    cursor: 'pointer',
-                    backgroundColor: notif.is_read ? 'transparent' : 'rgba(59, 130, 246, 0.06)',
-                    display: 'flex',
-                    gap: '14px',
-                    alignItems: 'flex-start'
-                  }}
-                >
-                  <span style={{
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    backgroundColor: badge.bg,
-                    color: badge.color,
-                    marginTop: '2px',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {notif.type}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
-                      <div style={{ fontWeight: notif.is_read ? '600' : '700', fontSize: '14px', color: 'var(--text-heading)' }}>
-                        {notif.title}
-                        {!notif.is_read && <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2563eb', marginLeft: '8px', verticalAlign: 'middle' }}></span>}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                        {new Date(notif.created_at).toLocaleString()}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-main)', lineHeight: '1.5', marginTop: '4px' }}>
-                      {notif.message}
-                    </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {filteredNotifications.map((notif) => {
+            const isHighlighted = highlightId && Number(notif.id) === Number(highlightId);
+            const { border, badgeClass, label, customBadgeStyle } = getTypeStyles(notif.type);
+            const isPendingApproval = isApproveEligible(notif);
 
-                    {isApproveEligible(notif) && (
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }} onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={(e) => handleQuickApprove(e, notif)}
-                          disabled={actionLoading === notif.id}
-                          style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', backgroundColor: '#10b981', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                        >
-                          ✅ Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleQuickReject(e, notif)}
-                          disabled={actionLoading === notif.id}
-                          style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
-                        >
-                          ❌ Reject
-                        </button>
-                      </div>
+            return (
+              <div
+                key={notif.id}
+                onClick={() => handleMarkAsRead(notif)}
+                style={{
+                  display: 'flex',
+                  borderLeft: border,
+                  backgroundColor: isHighlighted ? '#eff6ff' : notif.is_read ? 'var(--bg-card)' : '#f0f9ff',
+                  borderRadius: '8px',
+                  boxShadow: 'var(--shadow)',
+                  padding: '16px 20px',
+                  border: isHighlighted ? '1px solid #3b82f6' : '1px solid var(--border)',
+                  borderLeftWidth: '5px',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '20px',
+                  cursor: notif.is_read ? 'default' : 'pointer'
+                }}
+                className="animate-fade-in"
+              >
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span 
+                      className={`badge ${badgeClass}`} 
+                      style={{ fontSize: '11px', textTransform: 'uppercase', ...(customBadgeStyle || {}) }}
+                    >
+                      {label}
+                    </span>
+                    {!notif.is_read && (
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></span>
+                    )}
+                    {isHighlighted && (
+                      <span style={{ fontSize: '11px', color: '#2563eb', fontWeight: 'bold', backgroundColor: '#dbeafe', padding: '2px 8px', borderRadius: '12px' }}>
+                        Selected
+                      </span>
                     )}
                   </div>
+
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-heading)' }}>
+                    {notif.title}
+                  </h3>
+
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                    {notif.message}
+                  </p>
+
+                  <span style={{ fontSize: '11px', color: '#6c757d', marginTop: '4px' }}>
+                    {formatDateTime(notif.created_at)}
+                  </span>
                 </div>
-              );
-            })
-          )}
+
+                {/* Quick actions block */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                  {/* Approve / Reject buttons */}
+                  {isPendingApproval && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleApprove(notif)}
+                        disabled={actionLoading === notif.id}
+                        className="primary-btn"
+                        style={{
+                          backgroundColor: '#10b981',
+                          borderColor: '#10b981',
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#fff',
+                          minHeight: '34px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {actionLoading === notif.id ? '...' : '✅ Approve'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleReject(notif)}
+                        disabled={actionLoading === notif.id}
+                        className="danger-btn"
+                        style={{
+                          backgroundColor: '#ef4444',
+                          borderColor: '#ef4444',
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          color: '#fff',
+                          minHeight: '34px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {actionLoading === notif.id ? '...' : '❌ Reject'}
+                      </button>
+                    </>
+                  )}
+
+                  {/* View Details Link */}
+                  {notif.reference_id && (
+                    <button
+                      type="button"
+                      onClick={() => handleViewSource(notif)}
+                      className="logout-btn"
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        minHeight: '34px',
+                        borderColor: 'var(--border)'
+                      }}
+                    >
+                      👁️ View Document
+                    </button>
+                  )}
+
+                  {/* Mark single notification as read */}
+                  {!notif.is_read && !isPendingApproval && (
+                    <button
+                      type="button"
+                      onClick={() => handleMarkAsRead(notif)}
+                      className="logout-btn"
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        minHeight: '34px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--primary)'
+                      }}
+                      title="Mark as read"
+                    >
+                      ✓ Read
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination Controls */}
       {lastPage > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginTop: '20px' }}>
-          <button className="logout-btn" disabled={page <= 1} onClick={() => fetchNotifications(page - 1)} style={{ padding: '6px 14px' }}>
-            ← Previous
-          </button>
-          <span style={{ fontSize: '13px', color: 'var(--text-main)' }}>Page {page} of {lastPage}</span>
-          <button className="logout-btn" disabled={page >= lastPage} onClick={() => fetchNotifications(page + 1)} style={{ padding: '6px 14px' }}>
-            Next →
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 8px', borderTop: '1px solid var(--border)', marginTop: '20px' }}>
+          <span style={{ fontSize: '13px' }}>
+            Showing page <strong>{currentPage}</strong> of <strong>{lastPage}</strong> (Total: <strong>{totalNotifications}</strong> alerts)
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className="logout-btn"
+              onClick={() => fetchNotifications(currentPage - 1)}
+              disabled={currentPage === 1 || loading}
+              style={{ padding: '6px 16px', fontSize: '13px' }}
+            >
+              Previous
+            </button>
+            <button
+              className="logout-btn"
+              onClick={() => fetchNotifications(currentPage + 1)}
+              disabled={currentPage === lastPage || loading}
+              style={{ padding: '6px 16px', fontSize: '13px' }}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>

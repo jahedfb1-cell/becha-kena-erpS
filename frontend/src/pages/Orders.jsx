@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -119,6 +119,15 @@ const Orders = () => {
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q) {
+      setFilterSearch(decodeURIComponent(q));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (view === 'form') {
@@ -820,9 +829,27 @@ const Orders = () => {
                   ) : (
                     filteredOrders.map((o) => (
                       <tr key={o.id}>
-                        <td><strong>{o.quotation_number}</strong></td>
                         <td>
-                          <strong>{o.customer?.name || 'N/A'}</strong>
+                          <button
+                            type="button"
+                            className="clickable-link"
+                            onClick={() => loadOrderDetails(o.id)}
+                            style={{ fontWeight: 800 }}
+                          >
+                            {o.quotation_number}
+                          </button>
+                        </td>
+                        <td>
+                          {o.customer ? (
+                            <Link
+                              to={`/customers?search=${encodeURIComponent(o.customer.name)}`}
+                              className="clickable-link"
+                            >
+                              {o.customer.name}
+                            </Link>
+                          ) : (
+                            'N/A'
+                          )}
                         </td>
                         <td className="hide-mobile-col">
                           <div style={{ fontSize: '12px', color: 'var(--text-main)', maxWidth: '180px', whiteSpace: 'normal', lineHeight: '1.4' }}>

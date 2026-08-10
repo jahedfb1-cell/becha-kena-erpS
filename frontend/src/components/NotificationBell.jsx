@@ -14,6 +14,16 @@ const NotificationBell = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? '' : d.toLocaleString();
+    } catch {
+      return '';
+    }
+  };
+
   const fetchNotifications = async () => {
     try {
       const res = await api.get('/notifications?per_page=15');
@@ -55,15 +65,7 @@ const NotificationBell = () => {
     }
 
     setIsOpen(false);
-
-    // Navigation logic based on reference_type or type
-    if (notif.reference_type === 'Quotation' || notif.type === 'quotation' || notif.type === 'order') {
-      navigate('/quotations');
-    } else if (notif.reference_type === 'Invoice' || notif.type === 'invoice') {
-      navigate('/invoices');
-    } else if (notif.reference_type === 'Payment' || notif.type === 'payment') {
-      navigate('/payments');
-    }
+    navigate('/notifications', { state: { highlightId: notif.id } });
   };
 
   // Quick Approve / Reject directly inside Notification bell
@@ -100,7 +102,7 @@ const NotificationBell = () => {
     if (reason === null) return;
     setActionLoading(notif.id);
     try {
-      await api.post(`/quotations/${notif.reference_id}/reject`, { reason });
+      await api.post(`/quotations/${notif.reference_id}/reject`, { rejection_reason: reason });
       await api.post(`/notifications/${notif.id}/read`);
       fetchNotifications();
       alert('Order rejected.');
@@ -280,7 +282,7 @@ const NotificationBell = () => {
                         {notif.message}
                       </div>
                       <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
-                        {new Date(notif.created_at).toLocaleString()}
+                        {formatDateTime(notif.created_at)}
                       </div>
 
                       {/* Quick Approve / Reject Action Buttons in Notification Bell */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { formatCurrency, formatDate } from '../utils/format';
@@ -21,6 +22,14 @@ const Customers = () => {
 
   // Customer Modal toggle (quick add)
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('search');
+    if (q) {
+      setFilterSearch(decodeURIComponent(q));
+    }
+  }, [searchParams]);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -123,7 +132,15 @@ const Customers = () => {
                     filteredCustomers.map((c) => (
                       <tr key={c.id}>
                         <td><strong>{c.customer_code}</strong></td>
-                        <td>{c.name}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="clickable-link"
+                            onClick={() => loadCustomerDetails(c.id)}
+                          >
+                            {c.name}
+                          </button>
+                        </td>
                         <td>{c.company_name || <span style={{ color: 'var(--text-main)' }}>—</span>}</td>
                         <td>{c.phone || '—'}</td>
                         <td><span className="badge badge-outline">{c.category?.name}</span></td>
