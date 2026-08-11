@@ -206,15 +206,22 @@ const ChallanPrintPage = () => {
 
         {/* Bill To / Ship To boxes */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginBottom: '20px' }}>
-          <div style={{ flex: 1, border: '1px solid #000', padding: '8px 12px', borderRadius: '2px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline' }}>Bill To :</div>
-            <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-            <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka'}</div>
-            <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>DELIVERY CHALLAN to :</div>
+            <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px', height: 'calc(100% - 22px)' }}>
+              <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka'}</div>
+              {customer?.address_2 && (
+                <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+              )}
+              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
+            </div>
           </div>
-          <div style={{ flex: 1, border: '1px solid #000', padding: '8px 12px', borderRadius: '2px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline' }}>Ship To:</div>
-            <div style={{ fontSize: '12px', color: '#333' }}>{shipToAddress}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Ship To:</div>
+            <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px', height: 'calc(100% - 22px)' }}>
+              <div style={{ fontSize: '12px', color: '#333' }}>{shipToAddress}</div>
+            </div>
           </div>
         </div>
 

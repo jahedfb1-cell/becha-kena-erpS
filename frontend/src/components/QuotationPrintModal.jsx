@@ -400,22 +400,27 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
             {/* ── 2-COLUMN METADATA HEADER BOX ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', gap: '16px', marginBottom: '16px' }}>
               {/* Customer Box (Left) */}
-              <div style={{ flex: 1.2, border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff' }}>
+              <div style={{ flex: 1.2 }}>
                 {!isOrder && (
-                  <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>
                     Quotation To:
                   </div>
                 )}
-                <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-                <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
-                {quotation.delivery_address && (
-                  <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '2px' }}>
-                    Delivery Address: {quotation.delivery_address}
-                  </div>
-                )}
-                {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
-                  <div style={{ fontSize: '12px', color: '#333' }}>Mobile: {customer.phone}</div>
-                )}
+                <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff', height: 'calc(100% - 22px)' }}>
+                  <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+                  <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
+                  {customer?.address_2 && (
+                    <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+                  )}
+                  {quotation.delivery_address && quotation.delivery_address !== customer?.address && quotation.delivery_address !== customer?.address_2 && (
+                    <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '2px' }}>
+                      Delivery Address: {quotation.delivery_address}
+                    </div>
+                  )}
+                  {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                    <div style={{ fontSize: '12px', color: '#333' }}>Mobile: {customer.phone}</div>
+                  )}
+                </div>
               </div>
 
               {/* Order Reference & Marketing Person Box (Right) */}
