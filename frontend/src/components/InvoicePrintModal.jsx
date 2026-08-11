@@ -527,7 +527,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
             {/* Signatures (Matching Reference Layout) */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', margin: '24px 0 16px 0', fontSize: '12px' }}>
               <div>
-                <strong style={{ display: 'block', marginBottom: '8px', color: '#111' }}>Please Confirm Acceptance of this Quote</strong>
+                <strong style={{ display: 'block', marginBottom: '8px', color: '#111' }}>Please Confirm Acceptance of this Invoice</strong>
                 <div style={{ height: '45px', border: '1px solid #e2e8f0', background: '#fafafa', borderRadius: '4px' }}></div>
               </div>
               <div style={{ textAlign: 'center' }}>

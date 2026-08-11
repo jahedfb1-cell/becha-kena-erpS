@@ -406,23 +406,44 @@ const QuotationPrintPage = () => {
           </div>
         )}
 
-        {/* Quotation To Box */}
-        <div style={{ width: '300px', marginBottom: '16px' }}>
-          <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Quotation To:</div>
-          <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff' }}>
-            <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-            <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
-            {customer?.address_2 && (
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
-            )}
-            {quotation?.delivery_address && quotation.delivery_address !== customer?.address && quotation.delivery_address !== customer?.address_2 && (
-              <div style={{ fontSize: '12px', color: '#333' }}>Delivery Address: {quotation.delivery_address}</div>
-            )}
-            {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
-            )}
+        {/* Quotation To & Delivery Address Section */}
+        {quotation?.delivery_address ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginBottom: '16px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Quotation To:</div>
+              <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff', height: 'calc(100% - 22px)' }}>
+                <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+                <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
+                {customer?.address_2 && (
+                  <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+                )}
+                {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                  <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
+                )}
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Delivery Address:</div>
+              <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff', height: 'calc(100% - 22px)' }}>
+                <div style={{ fontSize: '12px', color: '#333', whiteSpace: 'pre-line' }}>{quotation.delivery_address}</div>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div style={{ width: '300px', marginBottom: '16px' }}>
+            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Quotation To:</div>
+            <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff' }}>
+              <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
+              {customer?.address_2 && (
+                <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+              )}
+              {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Item Table - on pad paper the wrapper flex-grows to fill the
             leftover page height; a blank filler row (added further down,

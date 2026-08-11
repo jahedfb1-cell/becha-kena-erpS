@@ -170,7 +170,8 @@ const Orders = () => {
 
   useEffect(() => {
     if (sameAsCustomerAddress && selectedCustomerObj) {
-      setDeliveryAddress(selectedCustomerObj.address || '');
+      const combinedAddr = [selectedCustomerObj.address, selectedCustomerObj.address_2].filter(Boolean).join(', ');
+      setDeliveryAddress(combinedAddr || selectedCustomerObj.address || '');
     }
   }, [sameAsCustomerAddress, selectedCustomerObj]);
 
