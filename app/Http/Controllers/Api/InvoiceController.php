@@ -29,7 +29,7 @@ class InvoiceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $query = Invoice::with(['customer:id,name,phone', 'salesman:id,name,email', 'quotation:id,quotation_number']);
+        $query = Invoice::with(['customer', 'salesman:id,name,email', 'quotation.items.product', 'quotation.items.variant']);
 
         if ($request->boolean('archived')) {
             $query->archived();
@@ -86,9 +86,10 @@ class InvoiceController extends Controller
         }
 
         $user = $request->user();
+        $poNumber = $request->input('po_number');
 
-        return DB::transaction(function () use ($quotation, $user) {
-            $invoice = $this->invoiceService->generate($quotation, $user->id);
+        return DB::transaction(function () use ($quotation, $user, $poNumber) {
+            $invoice = $this->invoiceService->generate($quotation, $user->id, $poNumber);
 
             $quotation->update(['status' => 'invoiced']);
 

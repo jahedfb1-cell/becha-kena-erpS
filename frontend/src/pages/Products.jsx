@@ -189,9 +189,19 @@ const Products = () => {
               style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
             >
               <option value="">All Suppliers</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+              {suppliers.map((s) => {
+                let comp = s.company_name || '';
+                let human = s.name || '';
+                const isHumanComp = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(human);
+                const isCompPerson = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(comp);
+
+                if ((!comp && isHumanComp) || (isHumanComp && isCompPerson)) {
+                  comp = human;
+                }
+                return (
+                  <option key={s.id} value={s.id}>{comp || human || 'Supplier'}</option>
+                );
+              })}
             </select>
           </div>
 

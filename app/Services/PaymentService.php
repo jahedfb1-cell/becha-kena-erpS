@@ -84,6 +84,36 @@ class PaymentService
     }
 
     /**
+     * Transfer a payment from one invoice to another (Void + Re-apply in one transaction).
+     * Returns the new payment created on the target invoice.
+     */
+    public function transferPayment(Payment $oldPayment, Invoice $newInvoice, int $userId, string $reason = ''): Payment
+    {
+        // 1. Void the old payment (reverses invoice + ledger + book entry)
+        $this->voidPayment($oldPayment, $userId);
+
+        // 2. Build data for new payment from the voided one
+        $data = [
+            'invoice_id'      => $newInvoice->id,
+            'amount'          => (float) $oldPayment->amount,
+            'payment_method'  => $oldPayment->payment_method,
+            'bank_name'       => $oldPayment->bank_name,
+            'mobile_provider' => $oldPayment->mobile_provider,
+            'transaction_id'  => $oldPayment->transaction_id,
+            'cheque_number'   => $oldPayment->cheque_number,
+            'payment_date'    => $oldPayment->payment_date,
+            'notes'           => $reason
+                ? "Transferred from {$oldPayment->payment_number}. Reason: {$reason}"
+                : "Transferred from {$oldPayment->payment_number}",
+        ];
+
+        // 3. Process new payment on target invoice
+        $newPayment = $this->processPayment($data, $newInvoice, $userId);
+
+        return $newPayment;
+    }
+
+    /**
      * Void an existing payment and reverse entries
      */
     public function voidPayment(Payment $payment, int $userId): void

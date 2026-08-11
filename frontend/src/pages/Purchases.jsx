@@ -75,30 +75,85 @@ const Purchases = () => {
     fetchPurchases();
   };
 
-  // Local table search filtering
+  // Group purchase entries order-wise (1 row per Order / Invoice)
+  const groupedPurchases = useMemo(() => {
+    const map = new Map();
+
+    purchases.forEach((item) => {
+      // Group key: quotation_id if available, otherwise purchase_number or id
+      const groupKey = item.quotation_id
+        ? `q_${item.quotation_id}`
+        : (item.purchase_number ? `p_${item.purchase_number}` : `i_${item.id}`);
+
+      if (!map.has(groupKey)) {
+        let comp = item.supplier?.company_name || '';
+        let human = item.supplier?.name || '';
+        const isHumanComp = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(human);
+        const isCompPerson = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(comp);
+
+        if ((!comp && isHumanComp) || (isHumanComp && isCompPerson)) {
+          comp = human;
+        }
+        const supplierCompName = comp || human || 'N/A';
+
+        const customerCompName = item.quotation?.customer?.company_name || item.quotation?.customer?.name || 'N/A';
+        const customerAddress = item.quotation?.customer?.address || item.quotation?.delivery_address || 'Dhaka, Bangladesh';
+        const customerPhone = item.quotation?.customer?.phone || '';
+        const orderNo = item.quotation?.quotation_number || item.purchase_number || 'N/A';
+        const purchaseDate = item.purchase_date || item.created_at;
+
+        map.set(groupKey, {
+          groupKey,
+          id: item.id,
+          quotation_id: item.quotation_id,
+          purchase_number: item.purchase_number,
+          orderNo,
+          supplier: item.supplier,
+          supplierCompName,
+          customerCompName,
+          customerAddress,
+          customerPhone,
+          purchaseDate,
+          totalSqft: 0,
+          totalPcs: 0,
+          totalCost: 0,
+          rawEntries: [],
+        });
+      }
+
+      const group = map.get(groupKey);
+      group.rawEntries.push(item);
+      group.totalSqft += parseFloat(item.billed_sqft) || 0;
+      group.totalPcs += parseInt(item.pcs) || 0;
+      group.totalCost += parseFloat(item.total_cost) || 0;
+    });
+
+    return Array.from(map.values());
+  }, [purchases]);
+
+  // Local table search filtering on grouped order rows
   const filteredPurchases = useMemo(() => {
-    return purchases.filter((item) => {
+    return groupedPurchases.filter((group) => {
       if (!tableSearch) return true;
       const q = tableSearch.toLowerCase().trim();
-      const pNo = item.purchase_number ? item.purchase_number.toLowerCase() : '';
-      const oNo = item.quotation?.quotation_number ? item.quotation.quotation_number.toLowerCase() : '';
-      const supName = item.supplier?.name ? item.supplier.name.toLowerCase() : '';
-      const custName = item.quotation?.customer?.name ? item.quotation.customer.name.toLowerCase() : '';
-      const prodName = item.product?.name ? item.product.name.toLowerCase() : '';
-      const prodCode = item.product?.product_code ? item.product.product_code.toLowerCase() : '';
-      const varName = item.variant?.variant_name ? item.variant.variant_name.toLowerCase() : '';
+
+      const oNo = group.orderNo.toLowerCase();
+      const pNo = group.purchase_number ? group.purchase_number.toLowerCase() : '';
+      const supName = group.supplierCompName.toLowerCase();
+      const custName = group.customerCompName.toLowerCase();
+      const addr = group.customerAddress.toLowerCase();
+      const prods = group.rawEntries.map(e => `${e.product?.name} ${e.variant?.variant_name}`).join(' ').toLowerCase();
 
       return (
-        pNo.includes(q) ||
         oNo.includes(q) ||
+        pNo.includes(q) ||
         supName.includes(q) ||
         custName.includes(q) ||
-        prodName.includes(q) ||
-        prodCode.includes(q) ||
-        varName.includes(q)
+        addr.includes(q) ||
+        prods.includes(q)
       );
     });
-  }, [purchases, tableSearch]);
+  }, [groupedPurchases, tableSearch]);
 
   // Pagination slice
   const paginatedPurchases = useMemo(() => {
@@ -116,7 +171,7 @@ const Purchases = () => {
       ...supplier,
       due_balance: ledger.due_balance || 0,
     });
-    setPayAmount(ledger.due_balance > 0 ? ledger.due_balance : '');
+    setPayAmount('');
     setIsPaymentModalOpen(true);
   };
 
@@ -158,9 +213,7 @@ const Purchases = () => {
       <div className="page-header-row" style={{ marginBottom: '16px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a' }}>Purchase List & Supplier Ledger</h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
-            Manage product purchase entries, supplier priority routing, and payment ledgers
-          </p>
+          <span style={{ fontSize: '13px', color: '#64748b' }}>Dashboard / Purchases</span>
         </div>
       </div>
 
@@ -180,11 +233,21 @@ const Purchases = () => {
             >
               <option value="">All Suppliers</option>
               {suppliersList.map((sup) => {
+                let comp = sup.company_name || '';
+                let human = sup.name || '';
+                const isHumanComp = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(human);
+                const isCompPerson = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(comp);
+
+                if ((!comp && isHumanComp) || (isHumanComp && isCompPerson)) {
+                  comp = human;
+                }
+                const compName = comp || human || 'Supplier';
+
                 const ledger = supplierLedgers[sup.id];
                 const dueText = ledger ? ` (Due: ৳${ledger.due_balance})` : '';
                 return (
                   <option key={sup.id} value={sup.id}>
-                    {sup.name} ({sup.supplier_code}){dueText}
+                    {compName}{dueText}
                   </option>
                 );
               })}
@@ -193,25 +256,25 @@ const Purchases = () => {
 
           <div className="form-group" style={{ margin: 0 }}>
             <label style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>
-              Color code / Product search *
+              Color Code / Product Search
             </label>
             <input
               type="text"
               className="modern-form-control"
-              placeholder="e.g. BL-001, Silver Grey, QT-2026-0004..."
+              placeholder="e.g. BL-001 or Variant name"
               value={colorCodeSearch}
               onChange={(e) => setColorCodeSearch(e.target.value)}
               style={{ padding: '9px 12px', fontSize: '13px' }}
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button
               type="submit"
-              className="primary-btn"
-              style={{ padding: '9px 20px', backgroundColor: '#0284c7', borderColor: '#0284c7', fontWeight: 'bold' }}
+              className="btn-modal-submit"
+              style={{ padding: '9px 16px', fontSize: '13px' }}
             >
-              🔍 Search
+              Search
             </button>
             <button
               type="button"
@@ -273,10 +336,10 @@ const Purchases = () => {
                 <th>Customer</th>
                 <th>Address</th>
                 <th>PRODUCTS</th>
-                <th style={{ textAlign: 'center' }}>QTY</th>
-                <th style={{ textAlign: 'center' }}>O-NO</th>
+                <th style={{ textAlign: 'center' }}>total QTY</th>
+                <th style={{ textAlign: 'center' }}>Order-NO/ invoice no</th>
                 <th>DATE</th>
-                <th style={{ textAlign: 'right' }}>TOTAL</th>
+                <th style={{ textAlign: 'right' }}>TOTAL TK (total invoice value)</th>
                 <th style={{ textAlign: 'right' }}>PAID</th>
                 <th style={{ textAlign: 'right' }}>DUE</th>
                 <th style={{ textAlign: 'center', width: '100px' }}>ACTION</th>
@@ -290,63 +353,82 @@ const Purchases = () => {
                   </td>
                 </tr>
               ) : (
-                paginatedPurchases.map((item, index) => {
+                paginatedPurchases.map((group, index) => {
                   const sn = (currentPage - 1) * entriesPerPage + index + 1;
-                  const supplier = item.supplier || {};
+                  const supplier = group.supplier || {};
                   const ledger = supplierLedgers[supplier.id] || {};
-                  const customer = item.quotation?.customer || {};
-                  const orderNo = item.quotation?.quotation_number || item.purchase_number;
 
                   return (
-                    <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr key={group.groupKey} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#64748b' }}>{sn}</td>
                       <td>
-                        <strong style={{ color: '#0f172a' }}>{supplier.name || 'N/A'}</strong>
-                        {supplier.supplier_code && (
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>{supplier.supplier_code}</div>
-                        )}
+                        <strong style={{ color: '#0f172a' }}>{group.supplierCompName}</strong>
                       </td>
                       <td>
-                        <strong>{customer.company_name || customer.name || 'N/A'}</strong>
-                        {customer.phone && <div style={{ fontSize: '11px', color: '#64748b' }}>📞 {customer.phone}</div>}
+                        <strong style={{ color: '#0f172a' }}>{group.customerCompName}</strong>
+                        {group.customerPhone && <div style={{ fontSize: '11px', color: '#64748b' }}>📞 {group.customerPhone}</div>}
                       </td>
                       <td style={{ fontSize: '12px', maxWidth: '160px', color: '#475569' }}>
-                        {customer.address || 'Dhaka, Bangladesh'}
+                        {group.customerAddress}
                       </td>
                       <td>
-                        <strong style={{ color: '#2563eb' }}>{item.product?.name || item.product?.product_code}</strong>
-                        {item.variant?.variant_name && (
-                          <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>
-                            Color/Variant: <strong>{item.variant.variant_name}</strong>
+                        {(() => {
+                          const uniqueProducts = Array.from(
+                            new Map(
+                              group.rawEntries.map((item) => {
+                                const pCode = item.product?.product_code || item.product?.name || 'Product';
+                                const vName = item.variant?.variant_name ? ` (${item.variant.variant_name})` : '';
+                                const fullLabel = `${pCode}${vName}`;
+                                return [fullLabel, { pCode, vName }];
+                              })
+                            ).values()
+                          );
+
+                          return uniqueProducts.map((obj, i) => (
+                            <div key={i} style={{ marginBottom: i < uniqueProducts.length - 1 ? '3px' : 0 }}>
+                              <strong style={{ color: '#2563eb' }}>{obj.pCode}</strong>
+                              {obj.vName && <span style={{ fontSize: '11px', color: '#64748b' }}>{obj.vName}</span>}
+                            </div>
+                          ));
+                        })()}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: '600' }}>
+                        <strong style={{ color: '#0f172a' }}>{group.totalSqft.toFixed(2)} sq.ft</strong>
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{group.totalPcs} Pcs/Nos</div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {group.quotation_id ? (
+                          <a
+                            href={`/quotations/print/${group.quotation_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontWeight: 'bold', color: '#2563eb', textDecoration: 'none', fontSize: '13px' }}
+                          >
+                            {group.orderNo} ↗
+                          </a>
+                        ) : (
+                          <span style={{ fontWeight: 'bold', color: '#2563eb', fontSize: '13px' }}>
+                            {group.orderNo}
                           </span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center', fontWeight: '600' }}>
-                        {item.billed_sqft} sqft
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>({item.pcs} pcs)</div>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span style={{ fontWeight: 'bold', color: '#2563eb', fontSize: '12px' }}>
-                          {orderNo}
-                        </span>
-                      </td>
                       <td style={{ fontSize: '12px', color: '#334155' }}>
-                        {formatDate(item.purchase_date || item.created_at)}
+                        {formatDate(group.purchaseDate)}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>
-                        {formatCurrency(item.total_cost)}
+                        {formatCurrency(group.totalCost)}
                       </td>
                       <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: '600' }}>
                         {formatCurrency(ledger.total_paid || 0)}
                       </td>
-                      <td style={{ textAlign: 'right', color: '#dc2626', fontWeight: 'bold' }}>
-                        {formatCurrency(ledger.due_balance || item.total_cost)}
+                      <td style={{ textAlign: 'right', color: (ledger.due_balance > 0 || (group.totalCost - (ledger.total_paid || 0)) > 0) ? '#dc2626' : 'inherit', fontWeight: 'bold' }}>
+                        {formatCurrency(ledger.due_balance !== undefined ? ledger.due_balance : Math.max(0, group.totalCost - (ledger.total_paid || 0)))}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                           <button
                             type="button"
-                            onClick={() => { setSelectedPurchase(item); setIsDetailModalOpen(true); }}
+                            onClick={() => { setSelectedPurchase(group); setIsDetailModalOpen(true); }}
                             style={{
                               backgroundColor: '#0ea5e9',
                               color: '#fff',
@@ -383,6 +465,22 @@ const Purchases = () => {
                 })
               )}
             </tbody>
+            {filteredPurchases.length > 0 && (
+              <tfoot>
+                <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 800 }}>
+                  <td colSpan="5" style={{ textAlign: 'right', padding: '12px' }}>TOTALS:</td>
+                  <td style={{ textAlign: 'center', padding: '12px', color: '#007bff' }}>
+                    <div>{filteredPurchases.reduce((sum, p) => sum + p.totalSqft, 0).toFixed(2)} sq.ft</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>({filteredPurchases.reduce((sum, p) => sum + p.totalPcs, 0)} Pcs/Nos)</div>
+                  </td>
+                  <td colSpan="2"></td>
+                  <td style={{ textAlign: 'right', padding: '12px', color: '#0f172a' }}>
+                    {formatCurrency(filteredPurchases.reduce((sum, p) => sum + p.totalCost, 0))}
+                  </td>
+                  <td colSpan="3"></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       )}
@@ -416,53 +514,76 @@ const Purchases = () => {
       {/* Detail Modal */}
       {isDetailModalOpen && selectedPurchase && (
         <div className="custom-modal-overlay" onClick={(e) => e.target === e.currentTarget && setIsDetailModalOpen(false)}>
-          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '580px' }}>
+          <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '680px' }}>
             <div className="custom-modal-header">
               <h2 className="custom-modal-title">
-                📦 Purchase Entry #{selectedPurchase.purchase_number}
+                📦 Purchase Order #{selectedPurchase.orderNo}
               </h2>
               <button type="button" className="custom-modal-close" onClick={() => setIsDetailModalOpen(false)}>&times;</button>
             </div>
 
             <div style={{ padding: '20px' }}>
               <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Supplier</span>
-                    <h4 style={{ margin: '2px 0 0', color: '#0f172a' }}>{selectedPurchase.supplier?.name}</h4>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>Code: {selectedPurchase.supplier?.supplier_code}</p>
+                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Supplier Company</span>
+                    <h4 style={{ margin: '2px 0 0', color: '#0f172a' }}>{selectedPurchase.supplierCompName}</h4>
                   </div>
                   <div>
-                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Order Ref</span>
-                    <h4 style={{ margin: '2px 0 0', color: '#2563eb' }}>{selectedPurchase.quotation?.quotation_number}</h4>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>Customer: {selectedPurchase.quotation?.customer?.name}</p>
+                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Customer & Address</span>
+                    <h4 style={{ margin: '2px 0 0', color: '#2563eb' }}>{selectedPurchase.customerCompName}</h4>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>📍 {selectedPurchase.customerAddress}</p>
                   </div>
-                </div>
-
-                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Product Specifications</span>
-                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#0f172a', fontWeight: '600' }}>
-                    {selectedPurchase.product?.product_code} - {selectedPurchase.product?.name}
-                    {selectedPurchase.variant?.variant_name && <span> ({selectedPurchase.variant.variant_name})</span>}
-                  </p>
-                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#334155' }}>
-                    Dimensions: <strong>{selectedPurchase.width} &times; {selectedPurchase.height} in</strong> ({selectedPurchase.pcs} Pcs)<br />
-                    Billed Quantity: <strong>{selectedPurchase.billed_sqft} sqft</strong>
-                  </p>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', backgroundColor: 'rgba(37,99,235,0.06)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(37,99,235,0.2)' }}>
+              {/* Itemized Table */}
+              <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                <table className="data-table" style={{ width: '100%', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9' }}>
+                      <th>#</th>
+                      <th>Product</th>
+                      <th>Variant</th>
+                      <th style={{ textAlign: 'center' }}>Pcs</th>
+                      <th style={{ textAlign: 'center' }}>Sq.Ft</th>
+                      <th style={{ textAlign: 'right' }}>Cost Price</th>
+                      <th style={{ textAlign: 'right' }}>Total Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedPurchase.rawEntries.map((item, idx) => (
+                      <tr key={item.id}>
+                        <td style={{ fontWeight: 'bold', color: '#64748b' }}>{idx + 1}</td>
+                        <td><strong>{item.product?.product_code || item.product?.name}</strong></td>
+                        <td>{item.variant?.variant_name || 'Default'}</td>
+                        <td style={{ textAlign: 'center' }}>{item.pcs}</td>
+                        <td style={{ textAlign: 'center' }}>{item.billed_sqft} sqft</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(item.cost_price)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{formatCurrency(item.total_cost)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', backgroundColor: 'rgba(37,99,235,0.06)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(37,99,235,0.2)' }}>
                 <div>
-                  <span style={{ fontSize: '12px', color: '#475569' }}>Cost Price (per sqft):</span>
+                  <span style={{ fontSize: '12px', color: '#475569' }}>Total Billed Sq.Ft:</span>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>
-                    {formatCurrency(selectedPurchase.cost_price)}
+                    {selectedPurchase.totalSqft.toFixed(2)} sq.ft
                   </div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '12px', color: '#475569' }}>Total Purchase Cost:</span>
-                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#2563eb' }}>
-                    {formatCurrency(selectedPurchase.total_cost)}
+                  <span style={{ fontSize: '12px', color: '#475569' }}>Total Pcs / Nos:</span>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#0f172a' }}>
+                    {selectedPurchase.totalPcs} Pcs
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: '12px', color: '#475569' }}>Total Invoice Value:</span>
+                  <div style={{ fontSize: '18px', fontWeight: '800', color: '#2563eb' }}>
+                    {formatCurrency(selectedPurchase.totalCost)}
                   </div>
                 </div>
               </div>
@@ -483,7 +604,7 @@ const Purchases = () => {
           <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '520px' }}>
             <div className="custom-modal-header">
               <h2 className="custom-modal-title">
-                💳 Record Supplier Payment ({paymentSupplier.name})
+                💳 Record Supplier Payment ({paymentSupplier.company_name || paymentSupplier.name})
               </h2>
               <button type="button" className="custom-modal-close" onClick={() => setIsPaymentModalOpen(false)}>&times;</button>
             </div>

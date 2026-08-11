@@ -15,8 +15,21 @@ const SupplierModal = ({ isOpen, onClose, onSupplierSaved, initialData = null, i
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
-        setName(initialData.name || '');
-        setCompanyName(initialData.company_name || '');
+        let comp = initialData.company_name || '';
+        let human = initialData.name || '';
+
+        // Auto-correct if old database records have company name stored in 'name' and contact name in 'company_name'
+        const isCompanyInName = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd/i.test(human);
+        const isHumanInComp = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd/i.test(comp);
+
+        if (isCompanyInName && isHumanInComp) {
+          const temp = comp;
+          comp = human;
+          human = temp;
+        }
+
+        setCompanyName(comp);
+        setName(human);
         setPhone(initialData.phone || '');
         setEmail(initialData.email || '');
         setAddress(initialData.address || '');
@@ -41,7 +54,7 @@ const SupplierModal = ({ isOpen, onClose, onSupplierSaved, initialData = null, i
     setError('');
 
     if (!name.trim()) {
-      setError('Supplier Name is required.');
+      setError('Supplier H Name is required.');
       return;
     }
 
@@ -124,30 +137,30 @@ const SupplierModal = ({ isOpen, onClose, onSupplierSaved, initialData = null, i
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             
-            {/* Supplier Name * */}
+            {/* Supplier Company name (1st Line) */}
             <div className="custom-form-group">
-              <label className="custom-form-label">Supplier Name {isViewOnly ? '' : '*'}</label>
+              <label className="custom-form-label">Supplier Company name</label>
               <input
                 type="text"
                 className="custom-form-input"
-                placeholder="Supplier Name *"
+                placeholder="Supplier Company name"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                disabled={loading || isViewOnly}
+              />
+            </div>
+
+            {/* Supplier H Name * (2nd Line) */}
+            <div className="custom-form-group">
+              <label className="custom-form-label">Supplier H Name {isViewOnly ? '' : '*'}</label>
+              <input
+                type="text"
+                className="custom-form-input"
+                placeholder="Supplier H Name *"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={loading || isViewOnly}
                 required={!isViewOnly}
-              />
-            </div>
-
-            {/* Supplier Company */}
-            <div className="custom-form-group">
-              <label className="custom-form-label">Supplier Company</label>
-              <input
-                type="text"
-                className="custom-form-input"
-                placeholder="Supplier Company"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                disabled={loading || isViewOnly}
               />
             </div>
 

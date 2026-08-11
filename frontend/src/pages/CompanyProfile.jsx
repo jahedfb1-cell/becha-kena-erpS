@@ -20,9 +20,11 @@ const CompanyProfile = () => {
 
   const [companyLogoFile, setCompanyLogoFile] = useState(null);
   const [invoiceLogoFile, setInvoiceLogoFile] = useState(null);
+  const [receiptLogoFile, setReceiptLogoFile] = useState(null);
   const [faviconFile, setFaviconFile] = useState(null);
   const [companyLogoPreview, setCompanyLogoPreview] = useState('/logo-demo.svg');
   const [invoiceLogoPreview, setInvoiceLogoPreview] = useState('/logo-demo.svg');
+  const [receiptLogoPreview, setReceiptLogoPreview] = useState('/logo-demo.svg');
   const [faviconPreview, setFaviconPreview] = useState('/logo-demo.svg');
 
   const [loading, setLoading] = useState(true);
@@ -31,6 +33,7 @@ const CompanyProfile = () => {
 
   const companyLogoRef = useRef(null);
   const invoiceLogoRef = useRef(null);
+  const receiptLogoRef = useRef(null);
   const faviconRef = useRef(null);
 
   // Load current profile on mount
@@ -51,11 +54,13 @@ const CompanyProfile = () => {
         });
         setCompanyLogoPreview(d.company_logo_url || '/logo-demo.svg');
         setInvoiceLogoPreview(d.invoice_logo_url || '/logo-demo.svg');
+        setReceiptLogoPreview(d.receipt_logo_url || '/logo-demo.svg');
         setFaviconPreview(d.favicon_url || '/logo-demo.svg');
       })
       .catch(() => {
         setCompanyLogoPreview('/logo-demo.svg');
         setInvoiceLogoPreview('/logo-demo.svg');
+        setReceiptLogoPreview('/logo-demo.svg');
         setFaviconPreview('/logo-demo.svg');
       })
       .finally(() => setLoading(false));
@@ -75,6 +80,9 @@ const CompanyProfile = () => {
     } else if (type === 'favicon') {
       setFaviconFile(file);
       setFaviconPreview(url);
+    } else if (type === 'receipt') {
+      setReceiptLogoFile(file);
+      setReceiptLogoPreview(url);
     } else {
       setInvoiceLogoFile(file);
       setInvoiceLogoPreview(url);
@@ -94,6 +102,7 @@ const CompanyProfile = () => {
       Object.entries(form).forEach(([k, v]) => fd.append(k, v ?? ''));
       if (companyLogoFile) fd.append('company_logo', companyLogoFile);
       if (invoiceLogoFile) fd.append('invoice_logo', invoiceLogoFile);
+      if (receiptLogoFile) fd.append('receipt_logo', receiptLogoFile);
       if (faviconFile) fd.append('favicon', faviconFile);
 
       const res = await axios.post('/company-profile', fd, {
@@ -475,6 +484,7 @@ const CompanyProfile = () => {
                     src={companyLogoPreview}
                     alt="Company Logo Preview"
                     style={{ maxHeight: '110px', maxWidth: '90%', objectFit: 'contain' }}
+                    onError={(e) => { e.target.src = '/logo-demo.svg'; }}
                   />
                 ) : (
                   <div style={{ textAlign: 'center', color: '#94a3b8' }}>
@@ -526,6 +536,7 @@ const CompanyProfile = () => {
                     src={invoiceLogoPreview}
                     alt="Invoice Logo Preview"
                     style={{ maxHeight: '110px', maxWidth: '90%', objectFit: 'contain' }}
+                    onError={(e) => { e.target.src = '/logo-demo.svg'; }}
                   />
                 ) : (
                   <div style={{ textAlign: 'center', color: '#94a3b8' }}>
@@ -546,6 +557,58 @@ const CompanyProfile = () => {
               {invoiceLogoFile && (
                 <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   ✓ Selected: {invoiceLogoFile.name}
+                </div>
+              )}
+            </div>
+
+            {/* Money Receipt Logo Box */}
+            <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-heading)', margin: 0 }}>
+                  Money Receipt Logo
+                </label>
+                <span style={{ fontSize: '11px', background: '#ecfdf5', color: '#047857', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                  Money Receipt Print
+                </span>
+              </div>
+
+              <div
+                onClick={() => receiptLogoRef.current?.click()}
+                style={{
+                  height: '140px', border: '2px dashed #cbd5e1', borderRadius: '8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', background: '#ffffff', position: 'relative',
+                  overflow: 'hidden', transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+              >
+                {receiptLogoPreview ? (
+                  <img
+                    src={receiptLogoPreview}
+                    alt="Receipt Logo Preview"
+                    style={{ maxHeight: '110px', maxWidth: '90%', objectFit: 'contain' }}
+                    onError={(e) => { e.target.src = '/logo-demo.svg'; }}
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '28px', marginBottom: '4px' }}>💳</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>Click to upload Receipt Logo</div>
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="file"
+                ref={receiptLogoRef}
+                accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                style={{ display: 'none' }}
+                onChange={e => handleFileChange(e, 'receipt')}
+              />
+
+              {receiptLogoFile && (
+                <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  ✓ Selected: {receiptLogoFile.name}
                 </div>
               )}
             </div>
@@ -577,6 +640,7 @@ const CompanyProfile = () => {
                     src={faviconPreview}
                     alt="Favicon Preview"
                     style={{ maxHeight: '80px', maxWidth: '80px', objectFit: 'contain' }}
+                    onError={(e) => { e.target.src = '/logo-demo.svg'; }}
                   />
                 ) : (
                   <div style={{ textAlign: 'center', color: '#94a3b8' }}>

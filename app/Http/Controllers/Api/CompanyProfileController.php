@@ -54,12 +54,14 @@ class CompanyProfileController extends Controller
                 'terms_conditions' => "You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.\nPlease make your payment by cash or cheque in favour of \"Dhaka Blinds\" we hope you'll find ours rates reasonable and place an order with us.",
                 'company_logo'     => null,
                 'invoice_logo'     => null,
+                'receipt_logo'     => null,
                 'favicon'          => null,
             ];
         }
 
         $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
+        $data['receipt_logo_url'] = $this->getLogoUrl($data['receipt_logo'] ?? null);
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
 
         return $this->successResponse($data, 'Company profile loaded.');
@@ -106,6 +108,7 @@ class CompanyProfileController extends Controller
             // <script>) and would be served back on this origin, enabling stored XSS.
             'company_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'invoice_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
+            'receipt_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'favicon'         => 'nullable|file|mimes:jpg,jpeg,png,ico|max:2048',
         ]);
 
@@ -127,6 +130,7 @@ class CompanyProfileController extends Controller
             'terms_conditions' => $request->terms_conditions,
             'company_logo'     => $existing['company_logo'] ?? null,
             'invoice_logo'     => $existing['invoice_logo'] ?? null,
+            'receipt_logo'     => $existing['receipt_logo'] ?? null,
             'favicon'          => $existing['favicon'] ?? null,
         ];
 
@@ -159,6 +163,17 @@ class CompanyProfileController extends Controller
             $data['invoice_logo'] = 'logos/' . $filename;
         }
 
+        // Handle receipt_logo upload
+        if ($request->hasFile('receipt_logo')) {
+            $file = $request->file('receipt_logo');
+            $filename = 'receipt_logo_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($uploadDir, $filename);
+
+            @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
+
+            $data['receipt_logo'] = 'logos/' . $filename;
+        }
+
         // Handle favicon upload
         if ($request->hasFile('favicon')) {
             $file = $request->file('favicon');
@@ -175,8 +190,10 @@ class CompanyProfileController extends Controller
         // Attach public URLs
         $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
+        $data['receipt_logo_url'] = $this->getLogoUrl($data['receipt_logo'] ?? null);
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
 
         return $this->successResponse($data, 'Company profile updated successfully.');
     }
+
 }

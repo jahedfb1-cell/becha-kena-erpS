@@ -177,8 +177,6 @@ class QuotationController extends Controller
             if ($status === 'approved') {
                 $this->quotationService->createPurchaseEntries($quotation, $user->id);
                 $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'approved');
-            } else {
-                $this->notificationService->notifyQuotationCreated($quotation);
             }
 
             AuditLog::record(
@@ -371,6 +369,9 @@ class QuotationController extends Controller
                 $quotation->toArray(),
                 "Converted quotation {$quotation->quotation_number} to order (pending approval)"
             );
+
+            // Trigger Notification Event: Quotation Converted to Order -> Notify Admins & Managers
+            $this->notificationService->notifyQuotationConvertedToOrder($quotation);
 
             return $this->successResponse(
                 $quotation->load(['items', 'customer']),

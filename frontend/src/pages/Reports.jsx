@@ -1,14 +1,48 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useParams } from 'react-router-dom';
 import api from '../api/axios';
 import { formatCurrency, formatDate } from '../utils/format';
 
 const Reports = () => {
+  const [searchParams] = useSearchParams();
+  const { reportKey } = useParams();
+
+  // Extract active report type from URL parameter or query parameter if available
+  const urlReport = reportKey || searchParams.get('type') || searchParams.get('report');
+
   // Overview Summary Metrics for all 22 cards
   const [overview, setOverview] = useState(null);
   const [loadingOverview, setLoadingOverview] = useState(true);
 
   // Active Selected Report Card Key
-  const [activeReport, setActiveReport] = useState('sales-report');
+  const [activeReport, setActiveReport] = useState(urlReport || 'sales-report');
+
+  // Control visibility of Overview Reports Hub card grid (Hidden when specific report is opened in new page/tab)
+  const [showOverviewHub, setShowOverviewHub] = useState(!urlReport);
+
+  // Sync active report and hub visibility if URL param changes
+  useEffect(() => {
+    if (urlReport) {
+      if (urlReport !== activeReport) {
+        setActiveReport(urlReport);
+      }
+      setShowOverviewHub(false);
+    } else {
+      setShowOverviewHub(true);
+    }
+  }, [urlReport]);
+
+  // Scroll to report detail section when opening specific report via URL
+  useEffect(() => {
+    if (urlReport) {
+      setTimeout(() => {
+        const detailElement = document.getElementById('report-detail-section');
+        if (detailElement) {
+          detailElement.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 300);
+    }
+  }, [urlReport]);
 
   // Filter States
   const [fromDate, setFromDate] = useState('');
@@ -98,6 +132,8 @@ const Reports = () => {
           endpoint = '/reports/profit-loss';
           break;
         case 'customer-report':
+          endpoint = '/reports/customer-report';
+          break;
         case 'customer-ledger':
           endpoint = '/reports/customer-ledger';
           break;
@@ -203,7 +239,70 @@ const Reports = () => {
       else if (Array.isArray(reportData.payments)) listToExport = reportData.payments;
     }
 
-    if (listToExport.length > 0) {
+    if (activeReport === 'purchase-report' && reportData?.purchases && Array.isArray(reportData.purchases)) {
+      csvRows.push(['#PN.', 'Order No.', 'Date', 'Supplier Company Name', 'Customer Company Name & Address', 'Product Code', 'Purchase Price', 'Paid', 'Due']);
+      
+      const map = new Map();
+      reportData.purchases.forEach((p) => {
+        const key = p.quotation_id ? `q_${p.quotation_id}` : (p.purchase_number ? `p_${p.purchase_number}` : `i_${p.id}`);
+        if (!map.has(key)) {
+          map.set(key, { ...p, raw_entries: p.raw_entries || [p] });
+        } else {
+          const existing = map.get(key);
+          existing.total_cost = (parseFloat(existing.total_cost) || 0) + (parseFloat(p.total_cost) || 0);
+          if (p.raw_entries) {
+            existing.raw_entries = [...existing.raw_entries, ...p.raw_entries];
+          } else {
+            existing.raw_entries.push(p);
+          }
+        }
+      });
+
+      Array.from(map.values()).forEach((p, idx) => {
+        const paidVal = p.paid_amount || 0;
+        const dueVal = p.due_amount !== undefined && p.due_amount !== null ? p.due_amount : Math.max(0, (p.total_cost || 0) - paidVal);
+        const custCompName = p.quotation?.customer?.company_name || p.quotation?.customer?.name || 'N/A';
+        const custAddress = p.quotation?.customer?.address || p.quotation?.delivery_address || 'N/A';
+        
+        const prodCodes = Array.from(
+          new Set(
+            (p.raw_entries || [p]).map(item => {
+              const pCode = item.product?.product_code || item.product?.name || '';
+              const vName = item.variant?.variant_name ? ` (${item.variant.variant_name})` : '';
+              return `${pCode}${vName}`;
+            }).filter(Boolean)
+          )
+        ).join(', ');
+
+        csvRows.push([
+          idx + 1,
+          p.quotation?.quotation_number || p.purchase_number || 'N/A',
+          p.purchase_date || p.created_at || '',
+          p.supplier?.company_name || p.supplier?.name || 'N/A',
+          `${custCompName} (${custAddress})`,
+          prodCodes,
+          p.total_cost || 0,
+          paidVal,
+          dueVal
+        ]);
+      });
+    } else if (activeReport === 'customer-report' && Array.isArray(reportData)) {
+      csvRows.push(['#SN.', 'ID', 'Company', 'Name', 'Mobile', 'Opening balance', 'Sales', 'Paid', 'Payment', 'Due']);
+      reportData.forEach((c, idx) => {
+        csvRows.push([
+          idx + 1,
+          c.customer_code || '',
+          c.company_name || '',
+          c.name || '',
+          c.mobile || '',
+          c.opening_balance || 0,
+          c.total_sales || 0,
+          c.total_paid || 0,
+          c.total_payment || 0,
+          c.due_balance || 0,
+        ]);
+      });
+    } else if (listToExport.length > 0) {
       // Export tabular array
       const headers = Object.keys(listToExport[0]);
       csvRows.push(headers);
@@ -507,101 +606,119 @@ const Reports = () => {
 
       {/* 1. Header / Breadcrumb */}
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#333', margin: 0 }}>Report</h1>
-        <div style={{ fontSize: '14px', color: '#6c757d' }}>
-          <span style={{ color: '#007bff', cursor: 'pointer' }}>Dashboard</span> / <span style={{ color: '#6c757d' }}>Report</span>
+        <div>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#333', margin: 0 }}>
+            {urlReport ? (cardsConfig.find(c => c.key === activeReport)?.title || 'Report') : 'Report'}
+          </h1>
+          {urlReport && <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '2px' }}>Detailed Statement View</div>}
+        </div>
+        <div style={{ fontSize: '14px', color: '#6c757d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <a href="/dashboard" style={{ color: '#007bff', textDecoration: 'none' }}>Dashboard</a> / <a href="/reports" style={{ color: '#007bff', textDecoration: 'none' }}>Report</a>
+          {urlReport && <span> / <span style={{ color: '#6c757d', fontWeight: '600' }}>{cardsConfig.find(c => c.key === activeReport)?.title}</span></span>}
         </div>
       </div>
 
-      {/* 2. Main Card Container */}
-      <div className="no-print" style={{ background: '#fff', borderRadius: '4px', boxShadow: '0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2)', padding: '20px', marginBottom: '24px' }}>
-        
-        {/* Inner Header Title */}
-        <div style={{ fontSize: '18px', fontWeight: '600', color: '#333', marginBottom: '20px', borderBottom: '1px solid #dee2e6', paddingBottom: '10px' }}>
-          Overview Reports Hub
+      {/* 2. Main Card Container (Hidden when specific report is opened in new page/tab) */}
+      {showOverviewHub && (
+        <div className="no-print animate-fade-in" style={{ background: '#fff', borderRadius: '4px', boxShadow: '0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2)', padding: '20px', marginBottom: '24px' }}>
+          
+          {/* Inner Header Title */}
+          <div style={{ fontSize: '18px', fontWeight: '600', color: '#333', marginBottom: '20px', borderBottom: '1px solid #dee2e6', paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Overview Reports Hub</span>
+            <span style={{ fontSize: '12px', color: '#6c757d', fontWeight: 'normal' }}>Click any card to open report in a new tab</span>
+          </div>
+
+          {/* Global Date Filter Bar */}
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px', alignItems: 'flex-end', background: '#e9ecef', padding: '12px 16px', borderRadius: '6px' }}>
+            <div style={{ flex: 1, minWidth: '150px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>From Date</label>
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', fontSize: '13px', borderRadius: '4px', border: '1px solid #ced4da' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: '150px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>To Date</label>
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', fontSize: '13px', borderRadius: '4px', border: '1px solid #ced4da' }} />
+            </div>
+            <button onClick={fetchOverview} style={{ background: '#007bff', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', fontWeight: '600', cursor: 'pointer' }}>
+              🔍 Filter Overview
+            </button>
+            <button onClick={handleResetFilters} style={{ background: '#6c757d', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', fontWeight: '600', cursor: 'pointer' }}>
+              🔄 Reset
+            </button>
+          </div>
+
+          {/* 3. 22 Color-Coded Card Grid (4 Columns) */}
+          {loadingOverview ? (
+            <div style={{ textAlign: 'center', padding: '40px', display: 'flex', justifyContent: 'center' }}>
+              <div className="spinner"></div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+              {cardsConfig.map((c) => {
+                const isSelected = activeReport === c.key;
+                const textColor = c.color || '#ffffff';
+
+                return (
+                  <a
+                    key={c.key}
+                    href={`/reports?type=${c.key}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => handleCardClick(c.key)}
+                    style={{
+                      textDecoration: 'none',
+                      background: c.bg,
+                      color: textColor,
+                      borderRadius: '8px',
+                      padding: '16px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '16px',
+                      cursor: 'pointer',
+                      boxShadow: isSelected ? '0 0 0 4px #000, 0 8px 16px rgba(0,0,0,0.3)' : '0 4px 6px rgba(0,0,0,0.1)',
+                      transform: isSelected ? 'scale(1.02)' : 'none',
+                      transition: 'all 0.2s ease-in-out',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Left Icon Container */}
+                    <div style={{ width: '48px', height: '48px', minWidth: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.9 }}>
+                      {React.cloneElement(c.icon, { width: 36, height: 36, stroke: textColor })}
+                    </div>
+
+                    {/* Right Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: '600', opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.title}
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: '800', marginTop: '4px', letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {c.val}
+                      </div>
+                    </div>
+
+                    {/* Active Indicator & New Tab badge */}
+                    <div style={{ position: 'absolute', top: 6, right: 8, display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {isSelected && (
+                        <span style={{ fontSize: '10px', background: 'rgba(255,255,255,0.3)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                          ACTIVE
+                        </span>
+                      )}
+                      <span title="Open in New Tab" style={{ fontSize: '11px', background: 'rgba(0,0,0,0.25)', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                        ↗
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
-
-        {/* Global Date Filter Bar */}
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px', alignItems: 'flex-end', background: '#e9ecef', padding: '12px 16px', borderRadius: '6px' }}>
-          <div style={{ flex: 1, minWidth: '150px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>From Date</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', fontSize: '13px', borderRadius: '4px', border: '1px solid #ced4da' }} />
-          </div>
-          <div style={{ flex: 1, minWidth: '150px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#495057' }}>To Date</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: '100%', padding: '6px 10px', fontSize: '13px', borderRadius: '4px', border: '1px solid #ced4da' }} />
-          </div>
-          <button onClick={fetchOverview} style={{ background: '#007bff', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', fontWeight: '600', cursor: 'pointer' }}>
-            🔍 Filter Overview
-          </button>
-          <button onClick={handleResetFilters} style={{ background: '#6c757d', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', fontWeight: '600', cursor: 'pointer' }}>
-            🔄 Reset
-          </button>
-        </div>
-
-        {/* 3. 22 Color-Coded Card Grid (4 Columns) */}
-        {loadingOverview ? (
-          <div style={{ textAlign: 'center', padding: '40px', display: 'flex', justifyContent: 'center' }}>
-            <div className="spinner"></div>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
-            {cardsConfig.map((c) => {
-              const isSelected = activeReport === c.key;
-              const textColor = c.color || '#ffffff';
-
-              return (
-                <div
-                  key={c.key}
-                  onClick={() => handleCardClick(c.key)}
-                  style={{
-                    background: c.bg,
-                    color: textColor,
-                    borderRadius: '8px',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '16px',
-                    cursor: 'pointer',
-                    boxShadow: isSelected ? '0 0 0 4px #000, 0 8px 16px rgba(0,0,0,0.3)' : '0 4px 6px rgba(0,0,0,0.1)',
-                    transform: isSelected ? 'scale(1.02)' : 'none',
-                    transition: 'all 0.2s ease-in-out',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}
-                >
-                  {/* Left Icon Container */}
-                  <div style={{ width: '48px', height: '48px', minWidth: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.9 }}>
-                    {React.cloneElement(c.icon, { width: 36, height: 36, stroke: textColor })}
-                  </div>
-
-                  {/* Right Content */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '14px', fontWeight: '600', opacity: 0.95, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.title}
-                    </div>
-                    <div style={{ fontSize: '18px', fontWeight: '800', marginTop: '4px', letterSpacing: '-0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.val}
-                    </div>
-                  </div>
-
-                  {/* Active Indicator Ring */}
-                  {isSelected && (
-                    <div style={{ position: 'absolute', top: 6, right: 8, fontSize: '10px', background: 'rgba(255,255,255,0.3)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
-                      ACTIVE
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* 4. Detailed Data Table View for Selected Report Card */}
       <div id="report-detail-section" style={{ background: '#fff', borderRadius: '4px', boxShadow: '0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2)', padding: '20px' }}>
         
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #007bff', paddingBottom: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #007bff', paddingBottom: '10px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>
               📄 {cardsConfig.find(c => c.key === activeReport)?.title || 'Report Statement'}
@@ -609,7 +726,21 @@ const Reports = () => {
             <span style={{ fontSize: '12px', color: '#6c757d' }}>Live filtered table records</span>
           </div>
 
-          <div className="no-print" style={{ display: 'flex', gap: '8px' }}>
+          <div className="no-print" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setShowOverviewHub(!showOverviewHub)}
+              style={{ background: '#6c757d', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              {showOverviewHub ? '🙈 Hide Overview Hub' : '📊 Show Overview Hub'}
+            </button>
+            <a
+              href={`/reports?type=${activeReport}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ background: '#6f42c1', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+            >
+              ↗️ Open in New Tab
+            </a>
             <button onClick={handleExportCSV} disabled={!reportData} style={{ background: '#28a745', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
               📥 Export CSV
             </button>
@@ -619,8 +750,17 @@ const Reports = () => {
           </div>
         </div>
 
-        {/* Table Specific Filter Bar (Customer / Supplier / Salesperson) */}
-        <div className="no-print" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+        {/* Table Specific Filter Bar (Date Filters + Customer / Supplier / Salesperson) */}
+        <div className="no-print" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', alignItems: 'flex-end' }}>
+          <div style={{ flex: 1, minWidth: '140px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>From Date</label>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+          </div>
+          <div style={{ flex: 1, minWidth: '140px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>To Date</label>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+          </div>
+
           {showCustomerFilter && (
             <div style={{ flex: 1, minWidth: '180px' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Select Customer</label>
@@ -638,9 +778,23 @@ const Reports = () => {
               <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Select Supplier</label>
               <select value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
                 <option value="">All Suppliers</option>
-                {suppliers.map(s => (
-                  <option key={s.id} value={s.id}>{s.company_name || s.name}</option>
-                ))}
+                {suppliers.map(s => {
+                  let comp = s.company_name || '';
+                  let human = s.name || '';
+                  const isHumanComp = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(human);
+                  const isCompPerson = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(comp);
+
+                  if ((!comp && isHumanComp) || (isHumanComp && isCompPerson)) {
+                    comp = human;
+                  }
+                  const compName = comp || human || 'Supplier';
+
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {compName}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
@@ -656,6 +810,10 @@ const Reports = () => {
               </select>
             </div>
           )}
+
+          <button onClick={handleResetFilters} style={{ background: '#94a3b8', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+            🔄 Reset
+          </button>
         </div>
 
         {error && <div className="alert alert-danger">{error}</div>}
@@ -706,7 +864,7 @@ const Reports = () => {
                   <tbody>
                     {reportData.invoices.map(inv => (
                       <tr key={inv.id}>
-                        <td><strong>{inv.invoice_number}</strong></td>
+                        <td><a href={`/invoices/print/${inv.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', fontWeight: '700', textDecoration: 'none' }}>{inv.invoice_number} ↗</a></td>
                         <td>{inv.customer?.name || 'N/A'}</td>
                         <td>{inv.salesman?.name || 'N/A'}</td>
                         <td>{formatDate(inv.invoice_date)}</td>
@@ -733,45 +891,138 @@ const Reports = () => {
                       <div style={{ fontSize: '18px', fontWeight: 800, color: '#007bff', marginTop: '2px' }}>{reportData.summary.total_purchases}</div>
                     </div>
                     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 16px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL PCS</div>
-                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#17a2b8', marginTop: '2px' }}>{reportData.summary.total_pcs}</div>
-                    </div>
-                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 16px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL SQ.FT</div>
-                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#6f42c1', marginTop: '2px' }}>{reportData.summary.total_sqft}</div>
-                    </div>
-                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 16px', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL COST</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL PURCHASE PRICE</div>
                       <div style={{ fontSize: '18px', fontWeight: 800, color: '#28a745', marginTop: '2px' }}>{formatCurrency(reportData.summary.total_cost)}</div>
+                    </div>
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 16px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL PAID</div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#17a2b8', marginTop: '2px' }}>{formatCurrency(reportData.summary.total_paid || 0)}</div>
+                    </div>
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 16px', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>OUTSTANDING DUE</div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: '#dc3545', marginTop: '2px' }}>{formatCurrency(reportData.summary.total_due || 0)}</div>
                     </div>
                   </div>
                 )}
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Purchase #</th>
-                      <th>Supplier</th>
-                      <th>Product</th>
-                      <th>Variant</th>
-                      <th>Pcs</th>
-                      <th>Billed Sq.Ft</th>
-                      <th>Total Cost</th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>#PN.</th>
+                      <th>Order No.</th>
                       <th>Date</th>
+                      <th>Supplier Company Name</th>
+                      <th>Customer Company Name</th>
+                      <th>Product Code</th>
+                      <th style={{ textAlign: 'right' }}>Purchase Price</th>
+                      <th style={{ textAlign: 'right' }}>Paid</th>
+                      <th style={{ textAlign: 'right' }}>Due</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.purchases.map(p => (
-                      <tr key={p.id}>
-                        <td><strong>{p.purchase_number}</strong></td>
-                        <td>{p.supplier?.company_name || p.supplier?.name}</td>
-                        <td>{p.product?.name}</td>
-                        <td>{p.variant?.variant_name || 'Default'}</td>
-                        <td>{p.pcs}</td>
-                        <td>{p.billed_sqft}</td>
-                        <td><strong>{formatCurrency(p.total_cost)}</strong></td>
-                        <td>{formatDate(p.purchase_date)}</td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      const map = new Map();
+                      (reportData.purchases || []).forEach((p) => {
+                        const key = p.quotation_id ? `q_${p.quotation_id}` : (p.purchase_number ? `p_${p.purchase_number}` : `i_${p.id}`);
+                        if (!map.has(key)) {
+                          map.set(key, { ...p, raw_entries: p.raw_entries || [p] });
+                        } else {
+                          const existing = map.get(key);
+                          existing.total_cost = (parseFloat(existing.total_cost) || 0) + (parseFloat(p.total_cost) || 0);
+                          if (p.raw_entries) {
+                            existing.raw_entries = [...existing.raw_entries, ...p.raw_entries];
+                          } else {
+                            existing.raw_entries.push(p);
+                          }
+                        }
+                      });
+                      const uniquePurchases = Array.from(map.values());
+
+                      if (uniquePurchases.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan="9" style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontStyle: 'italic' }}>
+                              No purchase records found matching selected date or supplier criteria.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return uniquePurchases.map((p, idx) => {
+                        const paidVal = p.paid_amount || 0;
+                        const dueVal = p.due_amount !== undefined && p.due_amount !== null ? p.due_amount : Math.max(0, (p.total_cost || 0) - paidVal);
+                        const orderNo = p.quotation?.quotation_number;
+
+                        let supplierCompName = p.supplier?.company_name || '';
+                        let supplierPersonName = p.supplier?.name || '';
+
+                        const isNameCompany = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(supplierPersonName);
+                        const isCompPerson = /^[a-zA-Z\s]+$/.test(supplierCompName) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(supplierCompName);
+
+                        if ((!supplierCompName && isNameCompany) || (isNameCompany && isCompPerson)) {
+                          supplierCompName = supplierPersonName;
+                        }
+                        if (!supplierCompName) {
+                          supplierCompName = supplierPersonName || 'N/A';
+                        }
+
+                        const customerCompName = p.quotation?.customer?.company_name || p.quotation?.customer?.name || 'N/A';
+                        const cust = p.quotation?.customer;
+                        const mainAddr = cust?.address || p.quotation?.delivery_address || '';
+                        const altAddr = (p.quotation?.delivery_address && p.quotation?.delivery_address !== mainAddr) ? p.quotation.delivery_address : '';
+                        const fullCustomerAddr = [mainAddr, altAddr].filter(Boolean).join('\n') || 'Dhaka, Bangladesh';
+
+                        return (
+                          <tr key={p.id}>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#64748b' }}>{idx + 1}</td>
+                            <td>
+                              {p.quotation?.id ? (
+                                <a href={`/quotations/print/${p.quotation.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', fontWeight: 700, textDecoration: 'none' }}>
+                                  {orderNo} ↗
+                                </a>
+                              ) : (
+                                <span>{orderNo || p.purchase_number || 'N/A'}</span>
+                              )}
+                            </td>
+                            <td>{formatDate(p.purchase_date || p.created_at)}</td>
+                            <td>
+                              <strong style={{ color: '#0f172a' }}>{supplierCompName}</strong>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 700, color: '#0f172a', marginBottom: '2px' }}>{customerCompName}</div>
+                              <div style={{ fontSize: '11px', color: '#475569', lineHeight: '1.4', whiteSpace: 'pre-line' }}>
+                                📍 {fullCustomerAddr}
+                              </div>
+                            </td>
+                            <td>
+                              {(() => {
+                                const uniqueProducts = Array.from(
+                                  new Map(
+                                    (p.raw_entries || [p]).map((item) => {
+                                      const pCode = item.product?.product_code || item.product?.name || 'Product';
+                                      const vName = item.variant?.variant_name ? ` (${item.variant.variant_name})` : '';
+                                      const fullLabel = `${pCode}${vName}`;
+                                      return [fullLabel, { pCode, vName }];
+                                    })
+                                  ).values()
+                                );
+
+                                return uniqueProducts.map((obj, i) => (
+                                  <div key={i} style={{ marginBottom: i < uniqueProducts.length - 1 ? '3px' : 0 }}>
+                                    <strong style={{ color: '#2563eb' }}>{obj.pCode}</strong>
+                                    {obj.vName && <span style={{ fontSize: '11px', color: '#64748b' }}>{obj.vName}</span>}
+                                  </div>
+                                ));
+                              })()}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: '#007bff' }}>{formatCurrency(p.total_cost)}</td>
+                            <td style={{ textAlign: 'right', color: '#28a745', fontWeight: 700 }}>{formatCurrency(paidVal)}</td>
+                            <td style={{ textAlign: 'right', color: dueVal > 0 ? '#dc3545' : 'inherit', fontWeight: dueVal > 0 ? 700 : 'normal' }}>
+                              {formatCurrency(dueVal)}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -823,7 +1074,7 @@ const Reports = () => {
                     <tbody>
                       {reportData.invoice_breakdown.map((inv, idx) => (
                         <tr key={inv.invoice_id || idx}>
-                          <td><strong>{inv.invoice_number}</strong></td>
+                          <td><a href={`/invoices/print/${inv.invoice_id || inv.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', fontWeight: '700', textDecoration: 'none' }}>{inv.invoice_number} ↗</a></td>
                           <td>{formatDate(inv.invoice_date)}</td>
                           <td>{inv.customer_name}</td>
                           <td style={{ textAlign: 'right', fontWeight: 700, color: '#007bff' }}>{formatCurrency(inv.selling_price)}</td>
@@ -926,7 +1177,7 @@ const Reports = () => {
                   <tbody>
                     {(reportData.quotations || []).map((q) => (
                       <tr key={q.id}>
-                        <td><strong>{q.quotation_number}</strong></td>
+                        <td><a href={`/quotations/print/${q.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', fontWeight: '700', textDecoration: 'none' }}>{q.quotation_number} ↗</a></td>
                         <td>{q.customer?.name || 'N/A'}</td>
                         <td>{q.salesman?.name || 'N/A'}</td>
                         <td>{formatDate(q.created_at)}</td>
@@ -1021,7 +1272,7 @@ const Reports = () => {
                   <tbody>
                     {(reportData.payments || []).map((p) => (
                       <tr key={p.id}>
-                        <td><strong>{p.invoice?.invoice_number || `#${p.invoice_id}`}</strong></td>
+                        <td>{p.invoice_id || p.invoice?.id ? <a href={`/invoices/print/${p.invoice_id || p.invoice?.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', fontWeight: '700', textDecoration: 'none' }}>{p.invoice?.invoice_number || `#${p.invoice_id}`} ↗</a> : (p.invoice?.invoice_number || 'N/A')}</td>
                         <td>{p.customer?.name || 'N/A'}</td>
                         <td>{formatDate(p.payment_date)}</td>
                         <td><span className="badge badge-info" style={{ textTransform: 'uppercase' }}>{p.payment_method}</span></td>
@@ -1222,7 +1473,7 @@ const Reports = () => {
                       <tbody>
                         {duesList.map((inv, idx) => (
                           <tr key={inv.id || inv.customer_id || idx}>
-                            <td><strong>{inv.invoice_number || inv.customer_code || `#${inv.id || idx}`}</strong></td>
+                            <td>{inv.id ? <a href={`/invoices/print/${inv.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff', fontWeight: '700', textDecoration: 'none' }}>{inv.invoice_number || `#${inv.id}`} ↗</a> : (inv.invoice_number || inv.customer_code || 'N/A')}</td>
                             <td>{inv.customer?.name || inv.customer_name || 'N/A'}</td>
                             <td>{formatDate(inv.invoice_date || inv.created_at)}</td>
                             <td>{formatCurrency(inv.grand_total || inv.total_grand || 0)}</td>
@@ -1273,8 +1524,54 @@ const Reports = () => {
               </div>
             )}
 
-            {/* 15. Customer Ledger Statement */}
-            {['customer-report', 'customer-ledger'].includes(activeReport) && Array.isArray(reportData) && (
+            {/* 15. Customer Summary Report */}
+            {activeReport === 'customer-report' && Array.isArray(reportData) && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '50px', textAlign: 'center' }}>#SN.</th>
+                    <th>ID</th>
+                    <th>Company</th>
+                    <th>Name</th>
+                    <th>Mobile</th>
+                    <th style={{ textAlign: 'right' }}>Opening balance</th>
+                    <th style={{ textAlign: 'right' }}>Sales</th>
+                    <th style={{ textAlign: 'right' }}>Paid</th>
+                    <th style={{ textAlign: 'right' }}>Payment</th>
+                    <th style={{ textAlign: 'right' }}>Due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportData.length === 0 ? (
+                    <tr>
+                      <td colSpan="10" style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontStyle: 'italic' }}>
+                        No customer report records found matching selected criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.map((c, idx) => (
+                      <tr key={c.id || idx}>
+                        <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#64748b' }}>{idx + 1}</td>
+                        <td><strong style={{ color: '#2563eb' }}>{c.customer_code}</strong></td>
+                        <td><strong style={{ color: '#0f172a' }}>{c.company_name}</strong></td>
+                        <td>{c.name}</td>
+                        <td>{c.mobile}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(c.opening_balance || 0)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#2563eb' }}>{formatCurrency(c.total_sales || 0)}</td>
+                        <td style={{ textAlign: 'right', color: '#16a34a', fontWeight: 700 }}>{formatCurrency(c.total_paid || 0)}</td>
+                        <td style={{ textAlign: 'right', color: '#0ea5e9', fontWeight: 700 }}>{formatCurrency(c.total_payment || 0)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: (c.due_balance > 0) ? '#dc2626' : '#16a34a' }}>
+                          {formatCurrency(c.due_balance || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {/* 15.5 Customer Ledger Statement */}
+            {activeReport === 'customer-ledger' && Array.isArray(reportData) && (
               <table className="data-table">
                 <thead>
                   <tr>
@@ -1308,27 +1605,48 @@ const Reports = () => {
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '50px', textAlign: 'center' }}>#SN.</th>
                     <th>Date</th>
-                    <th>Supplier Name</th>
-                    <th>Transaction Type</th>
-                    <th>Debit (Paid)</th>
-                    <th>Credit (Purchased)</th>
-                    <th>Balance</th>
-                    <th>Notes</th>
+                    <th>Supplier Company Name</th>
+                    <th>Payment / Trans. Type</th>
+                    <th style={{ textAlign: 'right' }}>Paid (Debit)</th>
+                    <th style={{ textAlign: 'right' }}>Purchased (Credit)</th>
+                    <th style={{ textAlign: 'right' }}>Balance</th>
+                    <th>Note / Description</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.map((l, idx) => (
-                    <tr key={l.id || idx}>
-                      <td>{formatDate(l.entry_date || l.created_at)}</td>
-                      <td>{l.supplier?.company_name || l.supplier?.name || 'N/A'}</td>
-                      <td><span className="badge badge-outline" style={{ textTransform: 'uppercase' }}>{l.transaction_type}</span></td>
-                      <td style={{ color: 'var(--success)' }}>{formatCurrency(l.debit || 0)}</td>
-                      <td style={{ color: 'var(--danger)' }}>{formatCurrency(l.credit || 0)}</td>
-                      <td style={{ fontWeight: 700 }}>{formatCurrency(l.balance || 0)}</td>
-                      <td>{l.description || l.notes || '-'}</td>
+                  {reportData.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontStyle: 'italic' }}>
+                        No supplier ledger transactions found.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    reportData.map((l, idx) => {
+                      const supCompName = l.supplier?.company_name || l.supplier?.name || 'N/A';
+                      const txDate = l.transaction_date || l.entry_date || l.purchase_date || l.created_at;
+
+                      return (
+                        <tr key={l.id || idx}>
+                          <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#64748b' }}>{idx + 1}</td>
+                          <td><strong>{formatDate(txDate)}</strong></td>
+                          <td><strong style={{ color: '#0f172a' }}>{supCompName}</strong></td>
+                          <td>
+                            <span className="badge badge-outline" style={{ textTransform: 'uppercase', fontWeight: 700, color: (l.debit > 0 || l.transaction_type === 'payment') ? '#16a34a' : '#2563eb' }}>
+                              {l.transaction_type || 'Transaction'}
+                            </span>
+                          </td>
+                          <td style={{ color: '#16a34a', fontWeight: 700, textAlign: 'right' }}>{formatCurrency(l.debit || 0)}</td>
+                          <td style={{ color: '#dc2626', fontWeight: 700, textAlign: 'right' }}>{formatCurrency(l.credit || 0)}</td>
+                          <td style={{ fontWeight: 800, textAlign: 'right', color: (l.balance > 0) ? '#dc2626' : '#0f172a' }}>
+                            {formatCurrency(l.balance || 0)}
+                          </td>
+                          <td style={{ fontSize: '12px', color: '#334155' }}>{l.description || l.notes || '-'}</td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             )}

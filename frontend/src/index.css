@@ -636,6 +636,109 @@ body {
   border-bottom: none;
 }
 
+/* Invoices page: desktop table vs. mobile card list toggle.
+   Desktop keeps the full table (all rows, all columns, action buttons
+   last) unchanged; under 640px it switches to a stacked card list with
+   a compact actions menu next to the company name instead of a
+   horizontally-scrolling table. */
+.invoices-mobile-list {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .invoices-desktop-table {
+    display: none;
+  }
+
+  .invoices-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .invoice-mobile-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+
+  .invoice-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .invoice-mobile-actions-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .invoice-mobile-kebab-btn {
+    background-color: var(--bg-base);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-heading);
+  }
+
+  .invoice-mobile-actions-dropdown {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    min-width: 180px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    gap: 2px;
+  }
+
+  .invoice-mobile-actions-dropdown .text-btn {
+    text-align: left;
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: nowrap;
+    min-height: 0;
+  }
+
+  .invoice-mobile-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .invoice-mobile-card-row > span:first-child {
+    color: var(--text-main, #64748b);
+    flex-shrink: 0;
+  }
+
+  .invoice-mobile-card-row > span:last-child,
+  .invoice-mobile-card-row > button:last-child {
+    font-weight: 600;
+    color: var(--text-heading);
+    text-align: right;
+  }
+}
+
 .recent-activity-section {
   background-color: var(--bg-card);
   border: 1px solid var(--border);
@@ -2634,6 +2737,12 @@ select.custom-form-input {
 
   .list-filter-row > * {
     width: 100% !important;
+    /* Filter rows set flex-basis in px (e.g. "2 1 220px") assuming a row
+       axis on desktop. Once flex-direction switches to column above, that
+       same basis is read as a minimum HEIGHT instead of width, stretching
+       each field into a tall empty box. Reset the basis so items size to
+       their natural content height on mobile. */
+    flex: 1 1 auto !important;
   }
 
   .entries-search-row {

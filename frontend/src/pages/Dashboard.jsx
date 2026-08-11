@@ -664,8 +664,8 @@ const Dashboard = () => {
             <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: theme.textMain }}>
               ⚠️ Outstanding Receivables
             </h2>
-            <Link to="/reports" style={{ fontSize: '12px', fontWeight: 800, color: theme.accentColor, textDecoration: 'none' }}>
-              View Due Report →
+            <Link to="/reports?type=sales-due-report" target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', fontWeight: 800, color: theme.accentColor, textDecoration: 'none' }}>
+              View Due Report ↗
             </Link>
           </div>
           

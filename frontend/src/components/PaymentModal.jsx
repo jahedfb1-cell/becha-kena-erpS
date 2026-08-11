@@ -22,8 +22,8 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
 
   useEffect(() => {
     if (isOpen && invoice) {
-      // Default amount to due amount
-      setAmount(invoice.due_amount || '');
+      // Leave amount blank — user must manually enter the received amount
+      setAmount('');
       setDiscountAmount('');
       setPaymentMethod('cash');
       setPaymentDate(new Date().toISOString().substring(0, 10));
@@ -82,8 +82,13 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
       }
 
       const response = await api.post('/payments', payload);
+      const savedPayment = response.data.data;
       if (onPaymentRecorded) {
-        onPaymentRecorded(response.data.data);
+        onPaymentRecorded(savedPayment);
+      }
+      // Auto-open money receipt in new tab
+      if (savedPayment?.id) {
+        window.open(`/payments/${savedPayment.id}/receipt`, '_blank');
       }
       handleClose();
     } catch (err) {

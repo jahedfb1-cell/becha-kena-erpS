@@ -80,6 +80,22 @@ class PaymentController extends Controller
         return $this->paginatedResponse($payments, 'Payments retrieved successfully.');
     }
 
+    public function receipt(int $id): JsonResponse
+    {
+        $payment = Payment::with([
+            'customer',
+            'invoice.customer',
+            'invoice.quotation.items.product',
+            'invoice.quotation.items.variant',
+        ])->find($id);
+
+        if (!$payment) {
+            return $this->notFoundResponse('Payment not found.');
+        }
+
+        return $this->successResponse($payment, 'Payment receipt data retrieved.');
+    }
+
     public function store(Request $request): JsonResponse
     {
         $request->validate([
@@ -165,6 +181,76 @@ class PaymentController extends Controller
             return $this->successResponse(
                 $payment->fresh(),
                 "Payment {$payment->payment_number} voided successfully."
+            );
+        });
+    }
+    public function transferPayment(int $id, Request $request): JsonResponse
+    {
+        $request->validate([
+            'new_invoice_id' => 'required|exists:invoices,id',
+            'reason'         => 'nullable|string|max:500',
+        ]);
+
+        $payment = Payment::active()->with(['invoice', 'customer'])->find($id);
+
+        if (!$payment) {
+            return $this->notFoundResponse('Payment not found.');
+        }
+
+        $newInvoice = Invoice::find($request->new_invoice_id);
+
+        if (!$newInvoice) {
+            return $this->notFoundResponse('Target invoice not found.');
+        }
+
+        if ($newInvoice->id === $payment->invoice_id) {
+            return $this->errorResponse('Target invoice is the same as the current invoice.', 422);
+        }
+
+        if ($newInvoice->payment_status === 'paid') {
+            return $this->errorResponse('Target invoice is already fully paid.', 422);
+        }
+
+        // Check: payment amount must not exceed target invoice due amount
+        $transferAmount = (float) $payment->amount;
+        if ($transferAmount > (float) $newInvoice->due_amount) {
+            return $this->errorResponse(
+                "Transfer amount ({$transferAmount}) exceeds the target invoice due amount ({$newInvoice->due_amount}).",
+                422
+            );
+        }
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($payment, $newInvoice, $user, $request) {
+            $oldInvoiceNumber  = $payment->invoice?->invoice_number ?? 'N/A';
+            $oldPaymentNumber  = $payment->payment_number;
+            $oldSnapshot       = $payment->toArray();
+
+            $newPayment = $this->paymentService->transferPayment(
+                $payment,
+                $newInvoice,
+                $user->id,
+                $request->reason ?? ''
+            );
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'transfer',
+                Payment::class,
+                $newPayment->id,
+                $oldSnapshot,
+                $newPayment->toArray(),
+                "Transferred payment {$oldPaymentNumber} from invoice {$oldInvoiceNumber} to invoice {$newInvoice->invoice_number}. New payment: {$newPayment->payment_number}"
+            );
+
+            // Notify about the transfer
+            $this->notificationService->notifyPaymentReceived($newPayment);
+
+            return $this->successResponse(
+                $newPayment->load(['customer', 'invoice']),
+                "Payment transferred successfully. New payment: {$newPayment->payment_number}"
             );
         });
     }

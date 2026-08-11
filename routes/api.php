@@ -84,7 +84,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('payments')->group(function () {
         Route::get('/', [PaymentController::class, 'index']);
         Route::post('/', [PaymentController::class, 'store']);
+        Route::get('/{id}/receipt', [PaymentController::class, 'receipt']);
         Route::post('/{id}/void', [PaymentController::class, 'voidPayment']);
+        Route::post('/{id}/transfer', [PaymentController::class, 'transferPayment']);
     });
 
     // Audit Logs
@@ -237,10 +239,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [ProductCategoryController::class, 'destroy']);
     });
 
-    // Company Profile
+    // Company Profile & Pipeline Mode Settings
     Route::get('/company-profile', [CompanyProfileController::class, 'show']);
     Route::post('/company-profile', [CompanyProfileController::class, 'update']);
     Route::get('/company-profile/logo/{filename}', [CompanyProfileController::class, 'getLogoFile']);
+    Route::get('/settings/pipeline-mode', [SettingController::class, 'getPipelineMode']);
+    Route::post('/settings/pipeline-mode', [SettingController::class, 'updatePipelineMode']);
 
     // Master Reports API Endpoints (Section 13.13)
     Route::prefix('reports')->group(function () {
@@ -270,6 +274,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/expenses-vouchers', [ReportController::class, 'expensesVouchers']);
 
         // Master Data & Stock
+        Route::get('/customer-report', [ReportController::class, 'customerReport']);
         Route::get('/customer-ledger', [ReportController::class, 'customerLedger']);
         Route::get('/stock-summary', [ReportController::class, 'stockSummary']);
 

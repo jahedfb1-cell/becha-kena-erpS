@@ -27,6 +27,7 @@ import Settings from './pages/Settings';
 import QuotationPrintPage from './pages/QuotationPrintPage';
 import InvoicePrintPage from './pages/InvoicePrintPage';
 import ChallanPrintPage from './pages/ChallanPrintPage';
+import MoneyReceiptPage from './pages/MoneyReceiptPage';
 
 function App() {
   return (
@@ -54,6 +55,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ChallanPrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payments/:id/receipt"
+          element={
+            <ProtectedRoute>
+              <MoneyReceiptPage />
             </ProtectedRoute>
           }
         />
@@ -94,6 +103,14 @@ function App() {
           {/* Admin and Manager only route */}
           <Route
             path="reports"
+            element={
+              <ProtectedRoute requiredRole="admin" requiredPermission="view-reports">
+                <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="reports/:reportKey"
             element={
               <ProtectedRoute requiredRole="admin" requiredPermission="view-reports">
                 <Reports />

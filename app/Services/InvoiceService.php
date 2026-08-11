@@ -32,12 +32,13 @@ class InvoiceService
     /**
      * Generate Invoice from Approved Quotation
      */
-    public function generate(Quotation $quotation, int $userId): Invoice
+    public function generate(Quotation $quotation, int $userId, ?string $poNumber = null): Invoice
     {
         $invoiceNumber = $this->generateInvoiceNumber();
 
         $invoice = Invoice::create([
             'invoice_number'  => $invoiceNumber,
+            'po_number'       => $poNumber ?? $quotation->po_number ?? null,
             'quotation_id'    => $quotation->id,
             'customer_id'     => $quotation->customer_id,
             'salesman_id'     => $quotation->salesman_id,

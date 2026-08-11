@@ -639,11 +639,23 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                           onBlur={() => setFocusedField(null)}
                           disabled={loading || isViewOnly}
                         >
-                          {suppliers.map(s => (
-                            <option key={s.id} value={s.id}>
-                              {s.name} ({s.supplier_code})
-                            </option>
-                          ))}
+                          {suppliers.map(s => {
+                            let comp = s.company_name || '';
+                            let human = s.name || '';
+                            const isHumanComp = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(human);
+                            const isCompPerson = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(comp);
+
+                            if ((!comp && isHumanComp) || (isHumanComp && isCompPerson)) {
+                              comp = human;
+                            }
+                            const compName = comp || human || 'Supplier';
+
+                            return (
+                              <option key={s.id} value={s.id}>
+                                {compName}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 

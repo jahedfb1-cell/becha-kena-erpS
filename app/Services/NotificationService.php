@@ -51,9 +51,9 @@ class NotificationService
     }
 
     /**
-     * Event 1: Quotation Created -> Notify all Admins & Managers
+     * Event 1: Quotation Converted to Order -> Notify all Admins & Managers
      */
-    public function notifyQuotationCreated(Quotation $quotation): void
+    public function notifyQuotationConvertedToOrder(Quotation $quotation): void
     {
         $approvers = User::whereIn('role', ['admin', 'manager'])->get();
         $quoteNo = $quotation->quotation_number ?? "#{$quotation->id}";
@@ -61,9 +61,9 @@ class NotificationService
         foreach ($approvers as $approver) {
             $this->createNotification(
                 $approver->id,
-                "New Quotation Created",
-                "Quotation {$quoteNo} has been created.",
-                "quotation",
+                "Quotation Converted to Order",
+                "Quotation {$quoteNo} has been converted to Order and is pending approval.",
+                "order",
                 "Quotation",
                 $quotation->id
             );
@@ -209,6 +209,27 @@ class NotificationService
                 "payment",
                 "Payment",
                 $payment->id
+            );
+        }
+    }
+
+    /**
+     * Event 7: Supplier Payment Recorded -> Notify Admins & Managers
+     */
+    public function notifySupplierPaymentRecorded($supplier, float $amount, $ledgerEntry): void
+    {
+        $adminsAndManagers = User::whereIn('role', ['admin', 'manager'])->get();
+        $supplierName = $supplier->company_name ?: $supplier->name;
+        $formattedAmount = number_format($amount, 2);
+
+        foreach ($adminsAndManagers as $user) {
+            $this->createNotification(
+                $user->id,
+                "Supplier Payment Recorded",
+                "Payment of ৳{$formattedAmount} recorded for Supplier {$supplierName}.",
+                "payment",
+                "SupplierLedger",
+                $ledgerEntry->id ?? null
             );
         }
     }

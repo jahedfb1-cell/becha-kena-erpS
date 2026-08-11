@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\PurchaseEntry;
 use App\Models\Supplier;
 use App\Models\SupplierLedger;
+use App\Services\NotificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,13 @@ use Illuminate\Support\Facades\DB;
 class PurchaseController extends Controller
 {
     use ApiResponse;
+
+    protected NotificationService $notificationService;
+
+    public function __construct(NotificationService $notificationService)
+    {
+        $this->notificationService = $notificationService;
+    }
 
     /**
      * GET /api/purchases
@@ -202,6 +210,9 @@ class PurchaseController extends Controller
                 $ledgerEntry->toArray(),
                 "Recorded payment of ৳{$amount} to supplier {$supplier->name}"
             );
+
+            // Trigger In-App Notification for Admins & Managers
+            $this->notificationService->notifySupplierPaymentRecorded($supplier, $amount, $ledgerEntry);
 
             return $this->createdResponse([
                 'ledger_entry' => $ledgerEntry,

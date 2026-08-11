@@ -279,4 +279,35 @@ class SettingController extends Controller
         DB::table('departments')->where('id', $id)->delete();
         return $this->successResponse(null, 'Department deleted successfully.');
     }
+
+    // ------------------------------------------------------------------------
+    // ORDER PIPELINE MODE SETTING
+    // ------------------------------------------------------------------------
+    public function getPipelineMode(): JsonResponse
+    {
+        $profileFile = storage_path('app/company_profile.json');
+        $mode = 'role_based';
+        if (file_exists($profileFile)) {
+            $data = json_decode(file_get_contents($profileFile), true);
+            $mode = $data['order_pipeline_mode'] ?? 'role_based';
+        }
+        return response()->json(['status' => 'success', 'data' => ['order_pipeline_mode' => $mode]]);
+    }
+
+    public function updatePipelineMode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'order_pipeline_mode' => 'required|in:standard,role_based',
+        ]);
+        $profileFile = storage_path('app/company_profile.json');
+        $data = file_exists($profileFile) ? json_decode(file_get_contents($profileFile), true) : [];
+        $data['order_pipeline_mode'] = $request->order_pipeline_mode;
+        file_put_contents($profileFile, json_encode($data, JSON_PRETTY_PRINT));
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Order pipeline mode updated to {$request->order_pipeline_mode}.",
+            'data' => ['order_pipeline_mode' => $request->order_pipeline_mode]
+        ]);
+    }
 }

@@ -553,7 +553,13 @@ class ReportController extends Controller
     public function purchase(Request $request): JsonResponse
     {
         try {
-            $query = PurchaseEntry::with(['supplier:id,name,company_name', 'product:id,name', 'variant:id,variant_name', 'quotation:id,quotation_number'])
+            $query = PurchaseEntry::with([
+                'supplier',
+                'product',
+                'variant',
+                'quotation',
+                'quotation.customer'
+            ])
                 ->where('is_archived', false)
                 ->where('is_reversed', false);
 
@@ -569,13 +575,79 @@ class ReportController extends Controller
 
             $purchases = $query->orderBy('purchase_date', 'desc')->get();
 
+            // Calculate supplier ledgers total paid and due map per supplier
+            $supplierIds = $purchases->pluck('supplier_id')->unique()->filter();
+            $supplierLedgersMap = [];
+            if ($supplierIds->isNotEmpty()) {
+                foreach ($supplierIds as $supId) {
+                    $totalCredit = (float) SupplierLedger::where('supplier_id', $supId)->sum('credit');
+                    $totalDebit  = (float) SupplierLedger::where('supplier_id', $supId)->sum('debit');
+                    $supplierLedgersMap[$supId] = [
+                        'total_paid'  => $totalDebit,
+                        'due_balance' => max(0, $totalCredit - $totalDebit),
+                    ];
+                }
+            }
+
+            $purchases = $purchases->map(function ($p) use ($supplierLedgersMap) {
+                if ($p->supplier) {
+                    $cName = $p->supplier->company_name ?? '';
+                    $hName = $p->supplier->name ?? '';
+                    $isCompName = preg_match('/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i', $hName);
+                    $isPersonComp = preg_match('/^[a-zA-Z\s]+$/', $cName) && !preg_match('/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i', $cName);
+
+                    if (($isCompName && $isPersonComp) || (empty($cName) && $isCompName)) {
+                        $p->supplier->company_name = $hName;
+                        $p->supplier->name = $cName;
+                    }
+                }
+
+                $supInfo = $supplierLedgersMap[$p->supplier_id] ?? ['total_paid' => 0, 'due_balance' => 0];
+                $p->paid_amount = (float) ($p->paid_amount ?? $supInfo['total_paid']);
+                $p->due_amount  = (float) ($p->due_amount ?? $supInfo['due_balance']);
+                return $p;
+            });
+
+            // Group purchase entries order-wise so each Order / Quotation shows 1 consolidated row (no duplicates!)
+            $groupedPurchases = collect();
+            $groupedByOrder = $purchases->groupBy(function ($p) {
+                return $p->quotation_id
+                    ? 'q_' . $p->quotation_id
+                    : ($p->purchase_number ? 'p_' . $p->purchase_number : 'i_' . $p->id);
+            });
+
+            foreach ($groupedByOrder as $groupKey => $entries) {
+                $first = $entries->first();
+
+                $sumTotalCost = (float) $entries->sum('total_cost');
+                $sumBilledSqft = (float) $entries->sum('billed_sqft');
+                $sumPcs = (int) $entries->sum('pcs');
+
+                $orderRow = clone $first;
+                $orderRow->total_cost = $sumTotalCost;
+                $orderRow->billed_sqft = $sumBilledSqft;
+                $orderRow->pcs = $sumPcs;
+
+                $groupedPurchases->push($orderRow);
+            }
+
+            $totalCost = (float) $groupedPurchases->sum('total_cost');
+            $totalPaid = (float) $groupedPurchases->pluck('supplier_id')->unique()->sum(function ($supId) use ($supplierLedgersMap) {
+                return $supplierLedgersMap[$supId]['total_paid'] ?? 0;
+            });
+            $totalDue = (float) $groupedPurchases->pluck('supplier_id')->unique()->sum(function ($supId) use ($supplierLedgersMap) {
+                return $supplierLedgersMap[$supId]['due_balance'] ?? 0;
+            });
+
             $summary = [
-                'total_purchases'   => $purchases->count(),
-                'total_entries'     => $purchases->count(),
-                'total_pcs'         => (int) $purchases->sum('pcs'),
-                'total_billed_sqft' => (float) $purchases->sum('billed_sqft'),
-                'total_sqft'        => (float) $purchases->sum('billed_sqft'),
-                'total_cost'        => (float) $purchases->sum('total_cost'),
+                'total_purchases'   => $groupedPurchases->count(),
+                'total_entries'     => $groupedPurchases->count(),
+                'total_pcs'         => (int) $groupedPurchases->sum('pcs'),
+                'total_billed_sqft' => (float) $groupedPurchases->sum('billed_sqft'),
+                'total_sqft'        => (float) $groupedPurchases->sum('billed_sqft'),
+                'total_cost'        => $totalCost,
+                'total_paid'        => $totalPaid,
+                'total_due'         => $totalDue,
             ];
 
             // Group by supplier
@@ -597,7 +669,7 @@ class ReportController extends Controller
                 'data'   => [
                     'summary'            => $summary,
                     'supplier_breakdown' => $supplierBreakdown,
-                    'purchases'          => $purchases,
+                    'purchases'          => $groupedPurchases->values(),
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -653,7 +725,7 @@ class ReportController extends Controller
     {
         $supplierId = $request->input('supplier_id');
 
-        $query = SupplierLedger::with('supplier:id,name,company_name');
+        $query = SupplierLedger::with('supplier');
         if ($supplierId) {
             $query->where('supplier_id', $supplierId);
         }
@@ -668,7 +740,7 @@ class ReportController extends Controller
 
         // Fallback: If supplier_ledgers table is empty, generate dynamic ledger from PurchaseEntries
         if ($ledgers->isEmpty()) {
-            $purQuery = PurchaseEntry::with('supplier:id,name,company_name')->where('is_archived', false)->where('is_reversed', false);
+            $purQuery = PurchaseEntry::with('supplier')->where('is_archived', false)->where('is_reversed', false);
             if ($supplierId) $purQuery->where('supplier_id', $supplierId);
             if ($request->filled('from_date')) $purQuery->whereDate('purchase_date', '>=', $request->from_date);
             if ($request->filled('to_date')) $purQuery->whereDate('purchase_date', '<=', $request->to_date);
@@ -696,6 +768,54 @@ class ReportController extends Controller
         return response()->json([
             'status' => 'success',
             'data'   => $ledgers,
+        ]);
+    }
+
+    /**
+     * Customer Report - Summary with Sales, Paid, Payment & Due balance.
+     */
+    public function customerReport(Request $request): JsonResponse
+    {
+        $query = Customer::query();
+
+        if ($request->filled('customer_id')) {
+            $query->where('id', $request->customer_id);
+        }
+
+        $customers = $query->orderBy('name', 'asc')->get();
+
+        $reportList = $customers->map(function ($c) {
+            $openingBalance = (float) ($c->opening_balance ?? 0);
+
+            // Invoices for this customer
+            $invoices = Invoice::where('customer_id', $c->id)->where('is_archived', false)->get();
+            $totalSales = (float) $invoices->sum('net_amount');
+            $totalPaidOnInvoices = (float) $invoices->sum('paid_amount');
+
+            // Direct Payments received for this customer
+            $totalPayments = (float) Payment::where('customer_id', $c->id)->where('is_archived', false)->sum('amount');
+
+            // Latest Customer Ledger Balance
+            $lastLedger = CustomerLedger::where('customer_id', $c->id)->orderBy('id', 'desc')->first();
+            $dueBalance = $lastLedger ? (float) $lastLedger->balance : max(0, ($openingBalance + $totalSales) - max($totalPaidOnInvoices, $totalPayments));
+
+            return [
+                'id'              => $c->id,
+                'customer_code'   => $c->customer_code ?? ('CUS-' . str_pad($c->id, 4, '0', STR_PAD_LEFT)),
+                'company_name'    => $c->company_name ?? 'N/A',
+                'name'            => $c->name ?? 'N/A',
+                'mobile'          => $c->phone ?? 'N/A',
+                'opening_balance' => $openingBalance,
+                'total_sales'     => $totalSales,
+                'total_paid'      => $totalPaidOnInvoices,
+                'total_payment'   => $totalPayments,
+                'due_balance'     => $dueBalance,
+            ];
+        })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $reportList,
         ]);
     }
 

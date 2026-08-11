@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -7,6 +8,7 @@ import { formatCurrency, formatDate } from '../utils/format';
 const Payments = () => {
   const { user } = useAuth();
   const { can } = usePermission();
+  const navigate = useNavigate();
   
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -293,9 +295,18 @@ const Payments = () => {
                         type="button"
                         className="text-btn"
                         onClick={() => { setSelectedPayment(p); setIsDetailModalOpen(true); }}
-                        style={{ marginRight: '8px' }}
+                        style={{ marginRight: '6px' }}
                       >
                         👁️ Details
+                      </button>
+                      <button
+                        type="button"
+                        className="text-btn"
+                        onClick={() => window.open(`/payments/${p.id}/receipt`, '_blank')}
+                        style={{ color: '#2563eb', fontWeight: 700, marginRight: '6px' }}
+                        title="Print Money Receipt"
+                      >
+                        🧾 Receipt
                       </button>
                       {(can('payments:void') || user?.role === 'admin') && (
                         <button
@@ -377,6 +388,13 @@ const Payments = () => {
             <div className="custom-modal-footer">
               <button type="button" className="btn-modal-cancel" onClick={() => setIsDetailModalOpen(false)}>
                 Close
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(`/payments/${selectedPayment.id}/receipt`, '_blank')}
+                style={{ padding: '10px 20px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}
+              >
+                🧾 Print Money Receipt
               </button>
             </div>
           </div>

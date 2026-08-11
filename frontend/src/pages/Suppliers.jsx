@@ -133,22 +133,26 @@ const Suppliers = () => {
               <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
                 <th style={{ padding: '12px', width: '50px' }}>#SN.</th>
                 <th style={{ padding: '12px' }}>ID</th>
-                <th style={{ padding: '12px' }}>Name</th>
-                <th style={{ padding: '12px' }}>Company</th>
+                <th style={{ padding: '12px' }}>Company Name</th>
+                <th style={{ padding: '12px' }}>Supplier H Name</th>
                 <th style={{ padding: '12px' }}>Mobile</th>
                 <th style={{ padding: '12px' }}>Address</th>
                 <th style={{ padding: '12px', textAlign: 'center' }}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {filteredSuppliers.map((supplier, index) => (
-                <tr key={supplier.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '12px', fontWeight: 600 }}>{index + 1}</td>
-                  <td style={{ padding: '12px', fontWeight: 700, color: '#007bff' }}>
-                    {supplier.supplier_code}
-                  </td>
-                  <td style={{ padding: '12px', fontWeight: 600 }}>{supplier.name}</td>
-                  <td style={{ padding: '12px', color: '#555' }}>{supplier.company_name || '-'}</td>
+              {filteredSuppliers.map((supplier, index) => {
+                const compName = supplier.company_name || supplier.name || '-';
+                const humanName = (supplier.company_name && supplier.name !== supplier.company_name) ? supplier.name : '-';
+
+                return (
+                  <tr key={supplier.id} style={{ borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '12px', fontWeight: 600 }}>{index + 1}</td>
+                    <td style={{ padding: '12px', fontWeight: 700, color: '#007bff' }}>
+                      {supplier.supplier_code}
+                    </td>
+                    <td style={{ padding: '12px', fontWeight: 600 }}>{compName}</td>
+                    <td style={{ padding: '12px', color: '#555' }}>{humanName}</td>
                   <td style={{ padding: '12px', color: '#333' }}>{supplier.phone || '-'}</td>
                   <td style={{ padding: '12px', color: '#666', fontSize: '13px' }}>
                     {supplier.address || '-'}
@@ -205,7 +209,8 @@ const Suppliers = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
