@@ -89,7 +89,7 @@ const Login = () => {
         </form>
 
         <div className="login-footer" style={{ textAlign: 'center', marginTop: '24px' }}>
-          <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>© 2026 Dhaka Blinds IMS / Becha Kena ERP. All rights reserved.</p>
+          <p style={{ color: '#64748b', fontSize: '12px', margin: 0 }}>© 2026 Dhakablinds-Ims. All rights reserved.</p>
         </div>
       </div>
     </div>

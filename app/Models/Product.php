@@ -18,6 +18,7 @@ class Product extends Model
         'unit',
         'product_category_id',
         'default_unit_price',
+        'product_size',
         'details',
         'created_by',
         'is_archived',
@@ -28,6 +29,7 @@ class Product extends Model
 
     protected $casts = [
         'default_unit_price' => 'decimal:2',
+        'product_size'       => 'decimal:2',
         'is_archived'         => 'boolean',
         'archived_at'         => 'datetime',
     ];

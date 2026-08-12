@@ -6,12 +6,15 @@ import React, { useState, useEffect } from 'react';
 import axios from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { normalizeBdPhone } from '../utils/format';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 const MyProfile = () => {
   const { user, setUser } = useAuth();
+  const { canInstall, isInstalled, isSafariOnIOS, install } = usePWAInstall();
 
   // Navigation / Tab State
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'password' | 'security'
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'password' | 'security' | 'install'
+  const [installing, setInstalling] = useState(false);
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState({
@@ -108,6 +111,20 @@ const MyProfile = () => {
       }
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleInstallClick = async () => {
+    setInstalling(true);
+    try {
+      const choice = await install();
+      if (choice.outcome === 'accepted') {
+        showToast('App installed! Look for it on your home screen or desktop.', 'success');
+      } else if (choice.outcome === 'dismissed') {
+        showToast('Install cancelled.', 'error');
+      }
+    } finally {
+      setInstalling(false);
     }
   };
 
@@ -265,6 +282,7 @@ const MyProfile = () => {
           { id: 'profile', label: '👤 Profile Information' },
           { id: 'password', label: '🔑 Security & Password' },
           { id: 'sessions', label: '🛡️ Active Sessions & Audit' },
+          { id: 'install', label: '📲 Install App' },
         ].map(tab => {
           const isActive = activeTab === tab.id;
           return (
@@ -571,6 +589,80 @@ const MyProfile = () => {
               ⚠️ Revoke Other Sessions
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── TAB 4: Install App (PWA) ── */}
+      {activeTab === 'install' && (
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', boxShadow: 'var(--shadow)' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-heading)', margin: '0 0 6px 0' }}>
+            Install {`Dhaka Blinds IMS & ERP`} as an App
+          </h2>
+          <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+            Install this system on your phone's home screen or your desktop for one-tap access, a full-screen app-like view, and offline access to already-loaded pages — no app store, no APK file, no download needed.
+          </p>
+
+          {isInstalled ? (
+            <div style={{
+              background: '#dcfce7', border: '1px solid #86efac', borderRadius: '8px',
+              padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px'
+            }}>
+              <span style={{ fontSize: '22px' }}>✅</span>
+              <div>
+                <div style={{ fontWeight: 700, color: '#15803d', fontSize: '14px' }}>Already installed on this device</div>
+                <div style={{ fontSize: '13px', color: '#166534', marginTop: '2px' }}>You're using the installed app right now, or it's already on your home screen / desktop.</div>
+              </div>
+            </div>
+          ) : canInstall ? (
+            <div style={{
+              background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: '8px',
+              padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              flexWrap: 'wrap', gap: '16px'
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--text-heading)', fontSize: '14px' }}>Ready to install</div>
+                <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>Click below — your browser will ask you to confirm.</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleInstallClick}
+                disabled={installing}
+                style={{
+                  minHeight: '44px', padding: '10px 24px',
+                  background: installing ? '#94a3b8' : 'var(--primary)',
+                  color: '#ffffff', border: 'none', borderRadius: '6px',
+                  fontWeight: 700, fontSize: '14px', cursor: installing ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  boxShadow: '0 2px 4px rgba(37,99,235,0.2)', transition: 'all 0.15s ease'
+                }}
+              >
+                {installing ? 'Installing...' : '⬇️ Install App'}
+              </button>
+            </div>
+          ) : isSafariOnIOS ? (
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: '8px', padding: '20px' }}>
+              <div style={{ fontWeight: 700, color: 'var(--text-heading)', fontSize: '14px', marginBottom: '12px' }}>
+                On iPhone/iPad (Safari), install via Add to Home Screen:
+              </div>
+              <ol style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: 'var(--text-main)', lineHeight: 1.8 }}>
+                <li>Tap the <strong>Share</strong> icon <span aria-hidden="true">⬆️</span> in Safari's toolbar.</li>
+                <li>Scroll down and tap <strong>"Add to Home Screen"</strong>.</li>
+                <li>Tap <strong>"Add"</strong> in the top-right corner.</li>
+              </ol>
+              <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px' }}>
+                This only works in Safari — Chrome/Firefox on iOS can't install home-screen apps due to Apple's restrictions.
+              </div>
+            </div>
+          ) : (
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: '8px', padding: '20px' }}>
+              <div style={{ fontWeight: 700, color: 'var(--text-heading)', fontSize: '14px', marginBottom: '8px' }}>
+                Look for the install icon in your browser's address bar
+              </div>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                On Chrome or Edge (desktop or Android), click the <strong>⊕ install icon</strong> at the right end of the address bar, or open the browser's <strong>⋮ menu → Install App / Add to Home Screen</strong>. This browser hasn't offered the automatic install prompt yet — it may need a moment after your first visit, or this browser may not support one-click installs (e.g. Firefox).
+              </p>
+            </div>
+          )}
         </div>
       )}
 

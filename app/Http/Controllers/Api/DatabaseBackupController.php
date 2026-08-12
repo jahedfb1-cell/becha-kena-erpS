@@ -234,7 +234,7 @@ class DatabaseBackupController extends Controller
     {
         $out = [];
         $out[] = "-- ========================================================";
-        $out[] = "-- BECHA KENA ERP DATABASE BACKUP DUMP";
+        $out[] = "-- DHAKABLINDS-IMS DATABASE BACKUP DUMP";
         $out[] = "-- Generated on: " . date('Y-m-d H:i:s');
         $out[] = "-- Database: " . config('database.connections.' . $connection . '.database', 'becha_kena_erp');
         $out[] = "-- ========================================================\n";

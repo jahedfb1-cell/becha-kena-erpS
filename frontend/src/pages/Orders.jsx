@@ -322,6 +322,8 @@ const Orders = () => {
       product_id: prod.id,
       product_code: prod.product_code || '',
       product_name: prod.name,
+      product_size: prod.product_size || null,
+      category_name: prod.category?.name || '',
       product_variant_id: null,
       supplier_id: priorityLink ? priorityLink.supplier_id : '',
       unit_price: defaultUnitPrice,
@@ -500,8 +502,17 @@ const Orders = () => {
             const h = parseFloat(row.height) || 0;
             const pcs = parseInt(row.pcs) || 1;
             const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
-            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-            const totalBilledSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+            let totalBilledSqft = 0;
+            const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+            if (isPvc) {
+              const slatSize = parseFloat(block.product_size) || 8;
+              const slats = Math.round((7 / 41) * w);
+              const calcWidth = slats * slatSize;
+              totalBilledSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
+            } else {
+              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+              totalBilledSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+            }
             const lineTotal = Math.round((totalBilledSqft * unitPrice) * 100) / 100;
 
             return {
@@ -545,8 +556,19 @@ const Orders = () => {
             const pcs = parseInt(updatedSize.pcs) || 1;
 
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-            const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+            let billedSqft = 0;
+            if (w > 0 && h > 0) {
+              const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+              if (isPvc) {
+                const slatSize = parseFloat(block.product_size) || 8;
+                const slats = Math.round((7 / 41) * w);
+                const calcWidth = slats * slatSize;
+                billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
+              } else {
+                const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+                billedSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+              }
+            }
             const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
 
             return {
@@ -582,6 +604,8 @@ const Orders = () => {
 
               updatedBlock.product_name = prod.name;
               updatedBlock.product_code = prod.product_code || '';
+              updatedBlock.product_size = prod.product_size || null;
+              updatedBlock.category_name = prod.category?.name || '';
               updatedBlock.unit_price = defaultUnitPrice;
               updatedBlock.cost_price = priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0;
               updatedBlock.min_billing_sqft = defaultMinSqft;
@@ -601,8 +625,19 @@ const Orders = () => {
               const pcs = parseInt(size.pcs) || 1;
 
               const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-              const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+              let billedSqft = 0;
+              if (w > 0 && h > 0) {
+                const isPvc = (updatedBlock.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+                if (isPvc) {
+                  const slatSize = parseFloat(updatedBlock.product_size) || 8;
+                  const slats = Math.round((7 / 41) * w);
+                  const calcWidth = slats * slatSize;
+                  billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
+                } else {
+                  const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+                  billedSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+                }
+              }
               const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
 
               return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };

@@ -2898,6 +2898,69 @@ select.custom-form-input {
   text-decoration: underline;
 }
 
+/* ==========================================================================
+   PWA & Mobile View Optimization Rules
+   ========================================================================== */
+
+/* Remove mobile tap highlight delay/overlay */
+a, button, select, input, textarea, .nav-item {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scrollbar optimizations for mobile touch overflow containers */
+.card-table-wrapper::-webkit-scrollbar,
+.responsive-table-wrapper::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.card-table-wrapper::-webkit-scrollbar-thumb,
+.responsive-table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+
+.card-table-wrapper::-webkit-scrollbar-track,
+.responsive-table-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  /* Optimize main page content container spacing for small screens */
+  .main-wrapper {
+    padding: 0;
+  }
+  
+  .content-container {
+    padding: 12px 10px !important;
+  }
+
+  /* Make header elements tighter on mobile */
+  .header {
+    padding: 0 12px !important;
+    height: 56px !important;
+  }
+
+  .page-title {
+    font-size: 15px !important;
+  }
+  /* Optimize login card padding on small screens */
+  .login-card {
+    padding: 24px 16px !important;
+  }
+  
+  /* Ensure text inputs have a comfortable size to prevent iOS Safari auto-zoom on focus */
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 16px !important;
+  }
+
+  .custom-form-input {
+    padding: 10px 12px !important;
+    min-height: 40px;
+  }
+}
+
+
 
 
 

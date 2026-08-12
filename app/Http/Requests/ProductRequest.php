@@ -27,6 +27,7 @@ class ProductRequest extends FormRequest
             'unit'                               => 'nullable|string|max:20',
             'product_category_id'                => 'nullable|exists:product_categories,id',
             'default_unit_price'                 => 'required|numeric|min:0|max:99999999.99',
+            'product_size'                       => 'nullable|numeric|min:0|max:1000',
             'details'                            => 'nullable|string|max:5000',
             'supplier_links'                     => 'nullable|array',
             'supplier_links.*.supplier_id'       => 'required|exists:suppliers,id',

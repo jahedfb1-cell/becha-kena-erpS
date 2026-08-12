@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dhaka Blinds - PWA Icon Generator</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      padding: 32px;
+      border-radius: 16px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      max-width: 500px;
+      text-align: center;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 24px;
+      color: #1e293b;
+    }
+    p {
+      color: #64748b;
+      line-height: 1.6;
+    }
+    button {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 8px -1px rgba(99, 102, 241, 0.3);
+    }
+    .status {
+      margin-top: 20px;
+      font-weight: 500;
+      color: #10b981;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="128" height="128" style="margin-bottom: 20px;">
+      <rect width="512" height="512" fill="white" rx="100"/>
+      <rect x="112" y="52" width="288" height="368" rx="16" fill="none" stroke="#1a2f5a" stroke-width="12"/>
+      <rect x="128" y="92" width="256" height="24" rx="8" fill="#ff7b00"/>
+      <rect x="128" y="132" width="256" height="24" rx="8" fill="#1a2f5a"/>
+      <rect x="128" y="172" width="256" height="24" rx="8" fill="#ff7b00"/>
+      <rect x="128" y="212" width="256" height="24" rx="8" fill="#1a2f5a"/>
+      <rect x="128" y="252" width="256" height="24" rx="8" fill="#ff7b00"/>
+      <rect x="128" y="292" width="256" height="24" rx="8" fill="#1a2f5a"/>
+      <rect x="128" y="332" width="256" height="24" rx="8" fill="#ff7b00"/>
+      <line x1="256" y1="356" x2="256" y2="436" stroke="#1a2f5a" stroke-width="8"/>
+      <circle cx="256" cy="444" r="16" fill="#ff7b00"/>
+    </svg>
+
+    <h1>PWA PNG Icon Generator</h1>
+    <p>This utility converts the SVG brand logo into PNG formats required for Android and iOS PWA installation (192x192, 512x512, and 180x180 Apple touch icon).</p>
+    
+    <button id="generateBtn">Generate & Download Icons</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      const sizes = [
+        { size: 192, name: 'pwa-192x192.png' },
+        { size: 512, name: 'pwa-512x512.png' },
+        { size: 180, name: 'apple-touch-icon.png' }
+      ];
+
+      const svgString = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+        <rect width="512" height="512" fill="white"/>
+        <rect x="112" y="52" width="288" height="368" rx="16" fill="none" stroke="#1a2f5a" stroke-width="12"/>
+        <rect x="128" y="92" width="256" height="24" rx="8" fill="#ff7b00"/>
+        <rect x="128" y="132" width="256" height="24" rx="8" fill="#1a2f5a"/>
+        <rect x="128" y="172" width="256" height="24" rx="8" fill="#ff7b00"/>
+        <rect x="128" y="212" width="256" height="24" rx="8" fill="#1a2f5a"/>
+        <rect x="128" y="252" width="256" height="24" rx="8" fill="#ff7b00"/>
+        <rect x="128" y="292" width="256" height="24" rx="8" fill="#1a2f5a"/>
+        <rect x="128" y="332" width="256" height="24" rx="8" fill="#ff7b00"/>
+        <line x1="256" y1="356" x2="256" y2="436" stroke="#1a2f5a" stroke-width="8"/>
+        <circle cx="256" cy="444" r="16" fill="#ff7b00"/>
+      </svg>`;
+
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+
+      img.onload = () => {
+        sizes.forEach(({ size, name }, index) => {
+          setTimeout(() => {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw image on canvas with high smoothing
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, size, size);
+            
+            // Export canvas as PNG
+            const pngUrl = canvas.toDataURL('image/png');
+            
+            // Trigger automatic download
+            const link = document.createElement('a');
+            link.href = pngUrl;
+            link.download = name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            if (index === sizes.length - 1) {
+              document.getElementById('status').innerText = 'All icons downloaded! Please place them inside your "frontend/public" directory.';
+              URL.revokeObjectURL(url);
+            }
+          }, index * 500); // 500ms delay between downloads to prevent popup blockers
+        });
+      };
+
+      img.src = url;
+    });
+  </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# 🎨 Frontend Design Guidelines — Becha Kena ERP / Dhaka Blinds IMS
+# 🎨 Frontend Design Guidelines — Dhakablinds-Ims
 
 > **Purpose**: This document is the single source of truth for all frontend design decisions in this project.
 > Every new page, component, or feature must follow these guidelines.

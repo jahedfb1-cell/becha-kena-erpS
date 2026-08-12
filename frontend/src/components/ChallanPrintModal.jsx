@@ -59,7 +59,7 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
                 <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>
-                  BECHA KENA ERP
+                  DHAKABLINDS-IMS
                 </h1>
                 <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
                   Dhaka Blinds & Interior Solutions<br />

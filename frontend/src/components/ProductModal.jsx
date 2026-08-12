@@ -174,6 +174,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
   const [unit, setUnit]               = useState('Square feet');
   const [productCategoryId, setProductCategoryId] = useState('');
   const [defaultUnitPrice, setDefaultUnitPrice]   = useState('');
+  const [productSize, setProductSize]             = useState('');
   const [details, setDetails]         = useState('');
 
   const [categories, setCategories]       = useState([]);
@@ -208,6 +209,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
           setUnit(initialData.unit || 'Square feet');
           setProductCategoryId(initialData.product_category_id || '');
           setDefaultUnitPrice(initialData.default_unit_price || '');
+          setProductSize(initialData.product_size || '');
           setDetails(initialData.details || '');
           const existingLinks = initialData.supplierLinks || initialData.supplier_links || [];
           setSupplierLinks(
@@ -221,7 +223,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
           );
         } else {
           setProductCode(''); setName(''); setUnit('Square feet');
-          setProductCategoryId(''); setDefaultUnitPrice(''); setDetails('');
+          setProductCategoryId(''); setDefaultUnitPrice(''); setProductSize(''); setDetails('');
           setSupplierLinks(sups.length > 0
             ? [{ supplier_id: sups[0].id, priority_rank: 1, cost_price: '', min_billing_sqft: '' }]
             : []);
@@ -263,7 +265,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
 
   const handleClose = () => {
     setProductCode(''); setName(''); setUnit('Square feet');
-    setProductCategoryId(''); setDefaultUnitPrice(''); setDetails('');
+    setProductCategoryId(''); setDefaultUnitPrice(''); setProductSize(''); setDetails('');
     setSupplierLinks([]); setError('');
     onClose();
   };
@@ -285,6 +287,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
         name: name.trim(), unit,
         product_category_id: productCategoryId ? parseInt(productCategoryId) : null,
         default_unit_price: parseFloat(defaultUnitPrice),
+        product_size: productSize !== '' ? parseFloat(productSize) : null,
         details: details.trim(),
         supplier_links: supplierLinks
           .filter(l => l.supplier_id)
@@ -519,26 +522,49 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                 </div>
               ) : (
                 <>
-                  {/* Sales Price */}
-                  <div style={{ marginBottom:'14px' }}>
-                    <label style={S.label}>
-                      Sales Price (per {unit})
-                      {!isViewOnly && <span style={{ color:'#ef4444' }}> *</span>}
-                    </label>
-                    <div style={{ position:'relative' }}>
-                      <span style={{
-                        position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)',
-                        fontSize:'15px', fontWeight:700, color: isViewOnly ? '#94a3b8' : '#6366f1',
-                        pointerEvents:'none',
-                      }}>৳</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                    {/* Sales Price */}
+                    <div>
+                      <label style={S.label}>
+                        Sales Price (per {unit})
+                        {!isViewOnly && <span style={{ color:'#ef4444' }}> *</span>}
+                      </label>
+                      <div style={{ position:'relative' }}>
+                        <span style={{
+                          position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)',
+                          fontSize:'15px', fontWeight:700, color: isViewOnly ? '#94a3b8' : '#6366f1',
+                          pointerEvents:'none',
+                        }}>৳</span>
+                        <input
+                          className="pm-input"
+                          type="number" step="0.01" min="0"
+                          style={{ ...inputStyle('price'), paddingLeft:'30px' }}
+                          placeholder="0.00"
+                          value={defaultUnitPrice}
+                          onChange={e => setDefaultUnitPrice(e.target.value)}
+                          onFocus={() => setFocusedField('price')}
+                          onBlur={() => setFocusedField(null)}
+                          disabled={loading || isViewOnly}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Slat Width */}
+                    <div>
+                      <label style={S.label}>
+                        Slat Size / Width (inches)
+                        <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '11px', marginLeft: '6px' }}>
+                          (e.g., 8)
+                        </span>
+                      </label>
                       <input
                         className="pm-input"
-                        type="number" step="0.01" min="0"
-                        style={{ ...inputStyle('price'), paddingLeft:'30px' }}
-                        placeholder="0.00"
-                        value={defaultUnitPrice}
-                        onChange={e => setDefaultUnitPrice(e.target.value)}
-                        onFocus={() => setFocusedField('price')}
+                        type="number" step="0.1" min="0"
+                        style={inputStyle('size')}
+                        placeholder="e.g. 8"
+                        value={productSize}
+                        onChange={e => setProductSize(e.target.value)}
+                        onFocus={() => setFocusedField('size')}
                         onBlur={() => setFocusedField(null)}
                         disabled={loading || isViewOnly}
                       />

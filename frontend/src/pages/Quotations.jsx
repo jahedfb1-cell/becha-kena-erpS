@@ -329,6 +329,8 @@ const Quotations = () => {
       product_id: prod.id,
       product_code: prod.product_code || '',
       product_name: prod.name,
+      product_size: prod.product_size || null,
+      category_name: prod.category?.name || '',
       product_variant_id: null,
       supplier_id: priorityLink ? priorityLink.supplier_id : '',
       unit_price: defaultUnitPrice,
@@ -519,8 +521,17 @@ const Quotations = () => {
             const h = parseFloat(row.height) || 0;
             const pcs = parseInt(row.pcs) || 1;
             const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
-            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-            const totalBilledSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+            let totalBilledSqft = 0;
+            const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+            if (isPvc) {
+              const slatSize = parseFloat(block.product_size) || 8;
+              const slats = Math.round((7 / 41) * w);
+              const calcWidth = slats * slatSize;
+              totalBilledSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
+            } else {
+              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+              totalBilledSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+            }
             const lineTotal = Math.round((totalBilledSqft * unitPrice) * 100) / 100;
 
             return {
@@ -564,8 +575,19 @@ const Quotations = () => {
             const pcs = parseInt(updatedSize.pcs) || 1;
 
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-            const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-            const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+            let billedSqft = 0;
+            if (w > 0 && h > 0) {
+              const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+              if (isPvc) {
+                const slatSize = parseFloat(block.product_size) || 8;
+                const slats = Math.round((7 / 41) * w);
+                const calcWidth = slats * slatSize;
+                billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
+              } else {
+                const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+                billedSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+              }
+            }
             const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
 
             return {
@@ -601,6 +623,8 @@ const Quotations = () => {
               const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
               updatedBlock.product_name = prod.name;
               updatedBlock.product_code = prod.product_code || '';
+              updatedBlock.product_size = prod.product_size || null;
+              updatedBlock.category_name = prod.category?.name || '';
               updatedBlock.unit_price = parseFloat(prod.default_unit_price) || 0;
               updatedBlock.min_billing_sqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
               updatedBlock.cost_price = priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0;
@@ -616,8 +640,19 @@ const Quotations = () => {
               const h = parseFloat(size.height) || 0;
               const pcs = parseInt(size.pcs) || 1;
               const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
-              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-              const billedSqft = (w > 0 && h > 0) ? Math.round((sqftPerPiece * pcs) * 100) / 100 : 0;
+              let billedSqft = 0;
+              if (w > 0 && h > 0) {
+                const isPvc = (updatedBlock.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+                if (isPvc) {
+                  const slatSize = parseFloat(updatedBlock.product_size) || 8;
+                  const slats = Math.round((7 / 41) * w);
+                  const calcWidth = slats * slatSize;
+                  billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
+                } else {
+                  const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+                  billedSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+                }
+              }
               const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
               return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
             });
@@ -814,8 +849,20 @@ const Quotations = () => {
         const unitPrice = parseFloat(item.unit_price) || 0;
         const minSqft = parseFloat(item.min_billing_sqft) || 0;
 
+        const catName = prod?.category?.name || item.product?.category?.name || '';
+        const isPvc = catName.toLowerCase().trim() === 'pvc strip curtains';
         const actualSqft = Math.round(((width * height) / 144) * 100) / 100;
-        const billedSqft = Math.round((Math.max(actualSqft, minSqft) * pcs) * 100) / 100;
+        let billedSqft = 0;
+        if (width > 0 && height > 0) {
+          if (isPvc) {
+            const slatSize = parseFloat(prod?.product_size || item.product?.product_size) || 8;
+            const slats = Math.round((7 / 41) * width);
+            const calcWidth = slats * slatSize;
+            billedSqft = Math.round(((calcWidth * height) / 144 * pcs) * 100) / 100;
+          } else {
+            billedSqft = Math.round((Math.max(actualSqft, minSqft) * pcs) * 100) / 100;
+          }
+        }
         const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
 
         const sizeObj = {
@@ -840,6 +887,8 @@ const Quotations = () => {
             product_id: item.product_id,
             product_code: prod?.product_code || '',
             product_name: prod?.name || `Product #${item.product_id}`,
+            product_size: prod?.product_size || item.product?.product_size || null,
+            category_name: catName,
             product_variant_id: item.product_variant_id || null,
             supplier_id: item.supplier_id || null,
             unit_price: unitPrice,

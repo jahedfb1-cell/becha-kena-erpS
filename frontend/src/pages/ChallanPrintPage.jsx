@@ -65,7 +65,7 @@ const ChallanPrintPage = () => {
       document.title = customTitle;
 
       return () => {
-        document.title = 'Becha Kena ERP';
+        document.title = 'Dhakablinds-Ims';
       };
     }
   }, [invoice]);

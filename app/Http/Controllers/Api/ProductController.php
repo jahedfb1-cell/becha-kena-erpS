@@ -45,6 +45,7 @@ class ProductController extends Controller
                 'unit'                => $request->unit ?? 'sqft',
                 'product_category_id' => $request->product_category_id,
                 'default_unit_price'  => $request->default_unit_price,
+                'product_size'        => $request->product_size,
                 'details'             => $request->details,
                 'created_by'          => $request->user()->id,
             ]);
@@ -115,6 +116,7 @@ class ProductController extends Controller
                 'unit'                => $request->unit ?? 'sqft',
                 'product_category_id' => $request->product_category_id,
                 'default_unit_price'  => $request->default_unit_price,
+                'product_size'        => $request->product_size,
                 'details'             => $request->details,
             ]);
 
