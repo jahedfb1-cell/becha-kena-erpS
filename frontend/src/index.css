@@ -2960,6 +2960,451 @@ a, button, select, input, textarea, .nav-item {
   }
 }
 
+/* ============================================================
+   Collapsible Filter Panel — shared pattern for list pages with
+   several filter fields (Products, Quotations, Payments, etc).
+   The toggle button + active-filter badge are reused as-is; each
+   page supplies its own filter fields inside the collapsible body.
+   ============================================================ */
+.filter-toggle-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.filter-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg-base, #f8fafc);
+  border: 1.5px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-heading, #0f172a);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  min-height: 38px;
+}
+
+.filter-toggle-btn:hover {
+  background: var(--border, #e2e8f0);
+}
+
+.filter-toggle-btn:focus-visible {
+  outline: 2px solid var(--primary, #6366f1);
+  outline-offset: 2px;
+}
+
+.filter-toggle-chevron {
+  transition: transform 0.2s ease;
+  display: inline-block;
+  font-size: 11px;
+}
+
+.filter-toggle-chevron.open {
+  transform: rotate(180deg);
+}
+
+.filter-active-badge {
+  background: var(--primary, #6366f1);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+.filter-panel-body {
+  animation: filterPanelIn 0.18s ease;
+}
+
+@keyframes filterPanelIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .filter-toggle-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ============================================================
+   Products page: desktop table vs. mobile card list toggle
+   (same pattern established for Invoices — see .invoices-mobile-list)
+   ============================================================ */
+.products-mobile-list {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .products-desktop-table {
+    display: none;
+  }
+
+  .products-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .product-mobile-card {
+    background-color: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.08));
+  }
+
+  .product-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  .product-mobile-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .product-mobile-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .product-mobile-card-row > span:first-child {
+    color: var(--text-main, #64748b);
+    flex-shrink: 0;
+  }
+
+  .product-mobile-card-row > span:last-child {
+    font-weight: 600;
+    color: var(--text-heading, #0f172a);
+    text-align: right;
+  }
+}
+
+/* ============================================================
+   Payments page: desktop table vs. mobile card list toggle
+   ============================================================ */
+.payments-mobile-list {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .payments-desktop-table {
+    display: none;
+  }
+
+  .payments-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .payment-mobile-card {
+    background-color: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.08));
+  }
+
+  .payment-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  .payment-mobile-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .payment-mobile-card-row > span:first-child {
+    color: var(--text-main, #64748b);
+    flex-shrink: 0;
+  }
+
+  .payment-mobile-card-row > span:last-child {
+    font-weight: 600;
+    color: var(--text-heading, #0f172a);
+    text-align: right;
+  }
+
+  .payment-mobile-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border, #e2e8f0);
+  }
+}
+
+/* ============================================================
+   Orders page: desktop table vs. mobile card list toggle, with
+   a compact actions menu (same pattern as Invoices mobile cards)
+   ============================================================ */
+.orders-mobile-list {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .orders-desktop-table {
+    display: none;
+  }
+
+  .orders-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .order-mobile-card {
+    background-color: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.08));
+  }
+
+  .order-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  .order-mobile-actions-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .order-mobile-kebab-btn {
+    background-color: var(--bg-base, #f8fafc);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 6px;
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-heading, #0f172a);
+  }
+
+  .order-mobile-actions-dropdown {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    background-color: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg, 0 10px 25px rgba(0,0,0,.15));
+    min-width: 190px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    padding: 6px;
+    gap: 2px;
+  }
+
+  .order-mobile-actions-dropdown .text-btn {
+    text-align: left;
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    white-space: nowrap;
+    min-height: 0;
+  }
+
+  .order-mobile-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .order-mobile-card-row > span:first-child {
+    color: var(--text-main, #64748b);
+    flex-shrink: 0;
+  }
+
+  .order-mobile-card-row > span:last-child {
+    font-weight: 600;
+    color: var(--text-heading, #0f172a);
+    text-align: right;
+  }
+}
+
+/* ============================================================
+   Customers & Suppliers pages: desktop table vs. mobile card list
+   ============================================================ */
+.customers-mobile-list,
+.suppliers-mobile-list {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .customers-desktop-table,
+  .suppliers-desktop-table {
+    display: none;
+  }
+
+  .customers-mobile-list,
+  .suppliers-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .customer-mobile-card,
+  .supplier-mobile-card {
+    background-color: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.08));
+  }
+
+  .customer-mobile-card-header,
+  .supplier-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  .customer-mobile-card-row,
+  .supplier-mobile-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .customer-mobile-card-row > span:first-child,
+  .supplier-mobile-card-row > span:first-child {
+    color: var(--text-main, #64748b);
+    flex-shrink: 0;
+  }
+
+  .customer-mobile-card-row > span:last-child,
+  .supplier-mobile-card-row > span:last-child {
+    font-weight: 600;
+    color: var(--text-heading, #0f172a);
+    text-align: right;
+  }
+
+  .supplier-mobile-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+}
+
+/* ============================================================
+   Purchases page: desktop table vs. mobile card list toggle
+   ============================================================ */
+.purchases-mobile-list {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .purchases-desktop-table {
+    display: none;
+  }
+
+  .purchases-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .purchase-mobile-card {
+    background-color: var(--bg-card, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,.08));
+  }
+
+  .purchase-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  .purchase-mobile-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .purchase-mobile-card-row > span:first-child {
+    color: var(--text-main, #64748b);
+    flex-shrink: 0;
+  }
+
+  .purchase-mobile-card-row > span:last-child {
+    font-weight: 600;
+    color: var(--text-heading, #0f172a);
+    text-align: right;
+  }
+
+  .purchase-mobile-card-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+}
+
 
 
 

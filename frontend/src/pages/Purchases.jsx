@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -7,6 +8,7 @@ import { formatCurrency, formatDate } from '../utils/format';
 const Purchases = () => {
   const { user } = useAuth();
   const { can } = usePermission();
+  const [searchParams] = useSearchParams();
 
   const [purchases, setPurchases] = useState([]);
   const [suppliersList, setSuppliersList] = useState([]);
@@ -17,7 +19,7 @@ const Purchases = () => {
   // Filters
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [colorCodeSearch, setColorCodeSearch] = useState('');
-  const [tableSearch, setTableSearch] = useState('');
+  const [tableSearch, setTableSearch] = useState(searchParams.get('search') || '');
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -327,7 +329,8 @@ const Purchases = () => {
       {loading ? (
         <div className="flex-center" style={{ padding: '50px' }}><div className="spinner"></div></div>
       ) : (
-        <div className="card-table-wrapper" style={{ overflowX: 'auto' }}>
+        <>
+        <div className="card-table-wrapper purchases-desktop-table" style={{ overflowX: 'auto' }}>
           <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
@@ -483,6 +486,96 @@ const Purchases = () => {
             )}
           </table>
         </div>
+
+        {/* Mobile card list — same grouped data as the desktop table */}
+        <div className="purchases-mobile-list">
+          {paginatedPurchases.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+              No purchase entry records found matching selected criteria.
+            </div>
+          ) : (
+            paginatedPurchases.map((group, index) => {
+              const sn = (currentPage - 1) * entriesPerPage + index + 1;
+              const supplier = group.supplier || {};
+              const ledger = supplierLedgers[supplier.id] || {};
+              const due = ledger.due_balance !== undefined ? ledger.due_balance : Math.max(0, group.totalCost - (ledger.total_paid || 0));
+
+              const uniqueProducts = Array.from(
+                new Map(
+                  group.rawEntries.map((item) => {
+                    const pCode = item.product?.product_code || item.product?.name || 'Product';
+                    const vName = item.variant?.variant_name ? ` (${item.variant.variant_name})` : '';
+                    return [`${pCode}${vName}`, `${pCode}${vName}`];
+                  })
+                ).values()
+              );
+
+              return (
+                <div className="purchase-mobile-card" key={group.groupKey}>
+                  <div className="purchase-mobile-card-header">
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{sn}</span>
+                      <strong style={{ color: '#0f172a', display: 'block', fontSize: '14px' }}>{group.supplierCompName}</strong>
+                      <span style={{ fontSize: '12px', color: '#2563eb', fontWeight: 700 }}>{group.orderNo}</span>
+                    </div>
+                    <div className="purchase-mobile-card-actions">
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedPurchase(group); setIsDetailModalOpen(true); }}
+                        style={{ backgroundColor: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', cursor: 'pointer', fontSize: '13px' }}
+                        title="View Details"
+                      >
+                        👁️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPaymentModal(supplier)}
+                        style={{ backgroundColor: '#eab308', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', cursor: 'pointer', fontSize: '13px' }}
+                        title="Record Supplier Payment"
+                      >
+                        ➕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="purchase-mobile-card-row">
+                    <span>Customer</span>
+                    <span>{group.customerCompName}</span>
+                  </div>
+                  <div className="purchase-mobile-card-row">
+                    <span>Address</span>
+                    <span>{group.customerAddress}</span>
+                  </div>
+                  <div className="purchase-mobile-card-row">
+                    <span>Products</span>
+                    <span>{uniqueProducts.join(', ')}</span>
+                  </div>
+                  <div className="purchase-mobile-card-row">
+                    <span>Total Qty</span>
+                    <span>{group.totalSqft.toFixed(2)} sq.ft ({group.totalPcs} Pcs/Nos)</span>
+                  </div>
+                  <div className="purchase-mobile-card-row">
+                    <span>Date</span>
+                    <span>{formatDate(group.purchaseDate)}</span>
+                  </div>
+                  <div className="purchase-mobile-card-row">
+                    <span>Total</span>
+                    <span>{formatCurrency(group.totalCost)}</span>
+                  </div>
+                  <div className="purchase-mobile-card-row">
+                    <span>Paid</span>
+                    <span style={{ color: '#16a34a' }}>{formatCurrency(ledger.total_paid || 0)}</span>
+                  </div>
+                  <div className="purchase-mobile-card-row">
+                    <span>Due</span>
+                    <span style={{ color: due > 0 ? '#dc2626' : undefined }}>{formatCurrency(due)}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        </>
       )}
 
       {/* Pagination Bar */}

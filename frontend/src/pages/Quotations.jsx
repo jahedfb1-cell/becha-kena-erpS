@@ -27,6 +27,7 @@ const Quotations = () => {
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterEmployee, setFilterEmployee] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [filterSearch, setFilterSearch] = useState('');
   const [employees, setEmployees] = useState([]);
 
@@ -316,8 +317,14 @@ const Quotations = () => {
     const defaultMinSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
     const defaultUnitPrice = parseFloat(prod.default_unit_price) || 0;
 
-    const defaultNotes = prod.details || 
+    const defaultNotes = prod.details ||
       `5% Sunscreen Fabrics\nHeavy Duty side clump & Controller\nFittings, Fixing, and installations\nWith all Accessories\nPer Blinds Minimum Quantity ${defaultMinSqft || 20} Sft`;
+
+    // Pcs-unit products (hardware, accessories, remote controls, etc.) have
+    // no meaningful width/height — they're billed by piece count instead, so
+    // default the dimensions to 1x1 (a valid, invisible placeholder) and
+    // start with a single quantity row rather than 4 blank size rows.
+    const isPcsProduct = (prod.unit || '').trim().toLowerCase() === 'pcs';
 
     const newBlock = {
       id: Date.now() + Math.random(),
@@ -331,6 +338,7 @@ const Quotations = () => {
       product_name: prod.name,
       product_size: prod.product_size || null,
       category_name: prod.category?.name || '',
+      unit: prod.unit || '',
       product_variant_id: null,
       supplier_id: priorityLink ? priorityLink.supplier_id : '',
       unit_price: defaultUnitPrice,
@@ -339,7 +347,18 @@ const Quotations = () => {
       notes: defaultNotes,
       // Start with 4 empty size rows so mobile users can fill in
       // multiple window sizes right away; unused rows can be deleted.
-      sizes: Array.from({ length: 4 }, (_, i) => ({
+      // Pcs-unit products get a single ready-to-use quantity row instead.
+      sizes: isPcsProduct
+        ? [{
+            id: Date.now() + 1,
+            width: 1,
+            height: 1,
+            pcs: 1,
+            actual_sqft: 1,
+            billed_sqft: 1,
+            line_total: defaultUnitPrice,
+          }]
+        : Array.from({ length: 4 }, (_, i) => ({
         id: Date.now() + i + 1,
         width: '',
         height: '',
@@ -412,18 +431,19 @@ const Quotations = () => {
         ...sec,
         blocks: sec.blocks.map(block => {
           if (block.id !== blockId) return block;
+          const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs';
           return {
             ...block,
             sizes: [
               ...block.sizes,
               {
                 id: Date.now() + Math.random(),
-                width: '',
-                height: '',
+                width: isPcsBlock ? 1 : '',
+                height: isPcsBlock ? 1 : '',
                 pcs: 1,
-                actual_sqft: 0,
-                billed_sqft: 0,
-                line_total: 0
+                actual_sqft: isPcsBlock ? 1 : 0,
+                billed_sqft: isPcsBlock ? 1 : 0,
+                line_total: isPcsBlock ? (parseFloat(block.unit_price) || 0) : 0
               }
             ]
           };
@@ -522,10 +542,10 @@ const Quotations = () => {
             const pcs = parseInt(row.pcs) || 1;
             const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
             let totalBilledSqft = 0;
-            const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+            const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
             if (isPvc) {
               const slatSize = parseFloat(block.product_size) || 8;
-              const slats = Math.round((7 / 41) * w);
+              const slats = Math.ceil(w / 5.85);
               const calcWidth = slats * slatSize;
               totalBilledSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
             } else {
@@ -574,13 +594,16 @@ const Quotations = () => {
             const h = parseFloat(updatedSize.height) || 0;
             const pcs = parseInt(updatedSize.pcs) || 1;
 
+            const isPcs = (block.unit || '').trim().toLowerCase() === 'pcs';
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
             let billedSqft = 0;
-            if (w > 0 && h > 0) {
-              const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+            if (isPcs) {
+              billedSqft = pcs;
+            } else if (w > 0 && h > 0) {
+              const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
               if (isPvc) {
                 const slatSize = parseFloat(block.product_size) || 8;
-                const slats = Math.round((7 / 41) * w);
+                const slats = Math.ceil(w / 5.85);
                 const calcWidth = slats * slatSize;
                 billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
               } else {
@@ -592,7 +615,7 @@ const Quotations = () => {
 
             return {
               ...updatedSize,
-              actual_sqft: singlePieceSqft,
+              actual_sqft: isPcs ? pcs : singlePieceSqft,
               billed_sqft: billedSqft,
               line_total: lineTotal
             };
@@ -620,32 +643,49 @@ const Quotations = () => {
           if (field === 'product_id') {
             const prod = products.find(p => p.id === parseInt(value));
             if (prod) {
-              const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
+              const links = prod.supplier_links || prod.supplierLinks || [];
+              const priorityLink = links.find(link => link.priority_rank === 1) || links[0];
               updatedBlock.product_name = prod.name;
               updatedBlock.product_code = prod.product_code || '';
               updatedBlock.product_size = prod.product_size || null;
               updatedBlock.category_name = prod.category?.name || '';
+              updatedBlock.unit = prod.unit || '';
               updatedBlock.unit_price = parseFloat(prod.default_unit_price) || 0;
               updatedBlock.min_billing_sqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
               updatedBlock.cost_price = priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0;
               updatedBlock.supplier_id = priorityLink ? priorityLink.supplier_id : '';
+
+              // Switching to a Pcs-unit product: width/height are meaningless
+              // for it, so fill in the 1x1 placeholder on any rows still
+              // missing dimensions instead of leaving them blank (which would
+              // otherwise fail the "valid size required" check on submit).
+              if ((prod.unit || '').trim().toLowerCase() === 'pcs') {
+                updatedBlock.sizes = updatedBlock.sizes.map(size => ({
+                  ...size,
+                  width: parseFloat(size.width) > 0 ? size.width : 1,
+                  height: parseFloat(size.height) > 0 ? size.height : 1,
+                }));
+              }
             }
           }
 
           if (field === 'unit_price' || field === 'product_id') {
             const unitPrice = parseFloat(updatedBlock.unit_price) || 0;
             const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
+            const isPcs = (updatedBlock.unit || '').trim().toLowerCase() === 'pcs';
             updatedBlock.sizes = updatedBlock.sizes.map(size => {
               const w = parseFloat(size.width) || 0;
               const h = parseFloat(size.height) || 0;
               const pcs = parseInt(size.pcs) || 1;
               const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
               let billedSqft = 0;
-              if (w > 0 && h > 0) {
-                const isPvc = (updatedBlock.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+              if (isPcs) {
+                billedSqft = pcs;
+              } else if (w > 0 && h > 0) {
+                const isPvc = (updatedBlock.unit || '').toLowerCase().includes('pvc') || (updatedBlock.category_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('clear water');
                 if (isPvc) {
                   const slatSize = parseFloat(updatedBlock.product_size) || 8;
-                  const slats = Math.round((7 / 41) * w);
+                  const slats = Math.ceil(w / 5.85);
                   const calcWidth = slats * slatSize;
                   billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
                 } else {
@@ -654,7 +694,7 @@ const Quotations = () => {
                 }
               }
               const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
-              return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
+              return { ...size, actual_sqft: isPcs ? pcs : singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
             });
           }
 
@@ -730,13 +770,17 @@ const Quotations = () => {
           return;
         }
 
+        const isPcs = (block.unit || '').trim().toLowerCase().includes('pc') ||
+                      (block.unit || '').trim().toLowerCase().includes('piece') ||
+                      (block.unit || '').trim().toLowerCase().includes('no');
+
         let validSizeCount = 0;
         block.sizes.forEach((s) => {
           const w = parseFloat(s.width) || 0;
           const h = parseFloat(s.height) || 0;
           const pcs = parseInt(s.pcs) || 1;
 
-          if (w > 0 && h > 0 && pcs > 0) {
+          if (isPcs ? (pcs > 0) : (w > 0 && h > 0 && pcs > 0)) {
             validSizeCount++;
             items.push({
               section_name: sec.name,
@@ -747,8 +791,8 @@ const Quotations = () => {
               product_id: block.product_id,
               product_variant_id: block.product_variant_id || null,
               supplier_id: block.supplier_id || null,
-              width: w,
-              height: h,
+              width: isPcs ? (w > 0 ? w : 1) : w,
+              height: isPcs ? (h > 0 ? h : 1) : h,
               pcs: pcs,
               unit_price: parseFloat(block.unit_price) || 0,
               cost_price: block.cost_price || 0,
@@ -759,7 +803,7 @@ const Quotations = () => {
         });
 
         if (validSizeCount === 0) {
-          setFormError(`[${sec.name}] Product "${block.product_name}": At least 1 valid size (Width & Height greater than 0) is required.`);
+          setFormError(`[${sec.name}] Product "${block.product_name}": ${isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
           return;
         }
       }
@@ -790,9 +834,14 @@ const Quotations = () => {
       } else {
         await api.post('/quotations', payload);
       }
-      setView('list');
-      loadData();
-      resetForm();
+      
+      if (statusOverride === 'pending_approval') {
+        navigate('/orders?tab=pending');
+      } else {
+        setView('list');
+        loadData();
+        resetForm();
+      }
     } catch (err) {
       setFormError(err.response?.data?.message || 'Error occurred while saving quotation.');
     } finally {
@@ -849,14 +898,19 @@ const Quotations = () => {
         const unitPrice = parseFloat(item.unit_price) || 0;
         const minSqft = parseFloat(item.min_billing_sqft) || 0;
 
-        const catName = prod?.category?.name || item.product?.category?.name || '';
-        const isPvc = catName.toLowerCase().trim() === 'pvc strip curtains';
+        const catName = prod?.category?.name || item.product?.category?.name || item.category_name || '';
+        const prodUnit = prod?.unit || item.product?.unit || item.unit || '';
+        const prodName = prod?.name || item.product?.name || `Product #${item.product_id}`;
+        const isPvc = prodUnit.toLowerCase().includes('pvc') || catName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('clear water');
+        const isPcs = prodUnit.trim().toLowerCase() === 'pcs';
         const actualSqft = Math.round(((width * height) / 144) * 100) / 100;
         let billedSqft = 0;
-        if (width > 0 && height > 0) {
+        if (isPcs) {
+          billedSqft = pcs;
+        } else if (width > 0 && height > 0) {
           if (isPvc) {
             const slatSize = parseFloat(prod?.product_size || item.product?.product_size) || 8;
-            const slats = Math.round((7 / 41) * width);
+            const slats = Math.ceil(width / 5.85);
             const calcWidth = slats * slatSize;
             billedSqft = Math.round(((calcWidth * height) / 144 * pcs) * 100) / 100;
           } else {
@@ -870,7 +924,7 @@ const Quotations = () => {
           width: item.width,
           height: item.height,
           pcs: item.pcs,
-          actual_sqft: actualSqft,
+          actual_sqft: isPcs ? pcs : actualSqft,
           billed_sqft: billedSqft,
           line_total: lineTotal
         };
@@ -885,10 +939,11 @@ const Quotations = () => {
             is_selected: item.is_selected !== false,
             is_enabled_for_print: item.is_enabled_for_print !== false,
             product_id: item.product_id,
-            product_code: prod?.product_code || '',
-            product_name: prod?.name || `Product #${item.product_id}`,
+            product_code: prod?.product_code || item.product?.product_code || '',
+            product_name: prodName,
             product_size: prod?.product_size || item.product?.product_size || null,
             category_name: catName,
+            unit: prodUnit,
             product_variant_id: item.product_variant_id || null,
             supplier_id: item.supplier_id || null,
             unit_price: unitPrice,
@@ -987,7 +1042,7 @@ const Quotations = () => {
     try {
       await api.post(`/quotations/${convertConfirmTarget.id}/convert-to-order`, {});
       setConvertConfirmTarget(null);
-      loadData();
+      navigate('/orders?tab=pending');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to convert quotation to order.');
     }
@@ -1027,6 +1082,26 @@ const Quotations = () => {
             marginBottom: '20px',
             border: '1px solid var(--border, #e2e8f0)'
           }}>
+            <div className="filter-toggle-bar" style={{ marginBottom: filtersOpen ? '18px' : 0 }}>
+              <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text-heading, #0f172a)' }}>📋 Report Filters</span>
+              <button
+                type="button"
+                className="filter-toggle-btn"
+                onClick={() => setFiltersOpen((v) => !v)}
+                aria-expanded={filtersOpen}
+              >
+                🔍 Filters
+                {[filterDate, filterMonth, filterYear, filterCustomer, filterEmployee, filterStatus].filter(Boolean).length > 0 && (
+                  <span className="filter-active-badge">
+                    {[filterDate, filterMonth, filterYear, filterCustomer, filterEmployee, filterStatus].filter(Boolean).length}
+                  </span>
+                )}
+                <span className={`filter-toggle-chevron${filtersOpen ? ' open' : ''}`}>▼</span>
+              </button>
+            </div>
+
+            {filtersOpen && (
+            <div className="filter-panel-body">
             <div style={{ display: 'flex', gap: '28px', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px', color: 'var(--text-main, #2d3748)' }}>
                 <input
@@ -1250,6 +1325,8 @@ const Quotations = () => {
               </div>
 
             </div>
+            </div>
+            )}
           </div>
 
           <div className="entries-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
@@ -1323,10 +1400,11 @@ const Quotations = () => {
                         <td>
                           {q.customer ? (
                             <Link
-                              to={`/customers?search=${encodeURIComponent(q.customer.name)}`}
+                              to={`/customers?search=${encodeURIComponent(q.customer.company_name || q.customer.name)}`}
                               className="clickable-link"
+                              style={{ fontWeight: 600 }}
                             >
-                              {q.customer.name}
+                              {q.customer.company_name || q.customer.name}
                             </Link>
                           ) : (
                             '—'
@@ -1370,7 +1448,7 @@ const Quotations = () => {
                           </button>
                           
                           {q.status === 'quotation' && (
-                            <button className="text-btn" onClick={() => setConvertConfirmTarget(q)} style={{ marginLeft: '8px', color: 'var(--accent)', fontWeight: 700 }}>
+                            <button className="text-btn" onClick={() => setConvertConfirmTarget(q)} style={{ marginLeft: '8px', color: '#000000', fontWeight: 700 }}>
                               🛒 Convert to Order
                             </button>
                           )}
@@ -1556,20 +1634,71 @@ const Quotations = () => {
                                   setSelectedTopProductId('');
                                   setProductSearchQuery('');
                                   setShowProductDropdown(false);
-                                  setLastAddedProductName(p.product_code ? p.product_code.toUpperCase() : p.name);
+                                  setLastAddedProductName(`${p.name} (${p.product_code ? p.product_code.toUpperCase() : 'NO CODE'})`);
                                 }}
+                                style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
                               >
-                                <strong>{p.product_code ? p.product_code.toUpperCase() : (p.name || '—')}</strong>
+                                <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>{p.name}</div>
+                                <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '6px', marginTop: '2px' }}>
+                                  <span>Code: <strong style={{ color: '#475569' }}>{p.product_code ? p.product_code.toUpperCase() : 'N/A'}</strong></span>
+                                  {p.unit && <span style={{ color: '#059669', fontWeight: '600' }}>| Unit: {p.unit}</span>}
+                                </div>
                               </div>
                             ))
                           )}
                         </div>
                       )}
-                      {lastAddedProductName && (
-                        <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: '#16a34a' }}>
-                          ✓ Added: {lastAddedProductName}
-                        </div>
-                      )}
+                      {/* Selected Products Tags List */}
+                      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {(() => {
+                          const selectedProductsList = [];
+                          const seen = new Set();
+                          sections.forEach(sec => {
+                            (sec.blocks || []).forEach(block => {
+                              if (block.product_id && !seen.has(block.product_id)) {
+                                seen.add(block.product_id);
+                                selectedProductsList.push({
+                                  id: block.product_id,
+                                  name: block.product_name,
+                                  code: block.product_code,
+                                  unit: block.unit
+                                });
+                              }
+                            });
+                          });
+
+                          if (selectedProductsList.length === 0) return null;
+
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                              <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Selected Products ({selectedProductsList.length}):
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {selectedProductsList.map((p, idx) => (
+                                  <span
+                                    key={p.id || idx}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: '#f0fdf4',
+                                      border: '1px solid #bbf7d0',
+                                      color: '#166534',
+                                      padding: '3px 10px',
+                                      borderRadius: '20px',
+                                      fontSize: '12px',
+                                      fontWeight: '600'
+                                    }}
+                                  >
+                                    ✓ {p.name || `Product #${p.id}`} {p.code && <span style={{ color: '#15803d', opacity: 0.8 }}>({p.code.toUpperCase()})</span>}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -1673,15 +1802,16 @@ const Quotations = () => {
                             <table className="data-table item-builder-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                               <thead>
                                 <tr>
-                                  <th className="cell-product-th" style={{ width: '180px' }}>Product Code / Name *</th>
-                                  <th style={{ width: '120px' }}>Unit Price</th>
-                                  <th style={{ width: '90px' }}>Width</th>
-                                  <th style={{ width: '90px' }}>Height</th>
-                                  <th style={{ width: '70px' }}>Pcs</th>
-                                  <th style={{ width: '120px' }}>Sq.Ft</th>
-                                  <th className="cell-total-sqft-th" style={{ width: '90px' }}>Total Sq.Ft</th>
-                                  <th style={{ width: '140px' }}>Total Price</th>
-                                  <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
+                                  <th className="cell-product-th" style={{ width: '250px', minWidth: '220px' }}>Product Code / Name *</th>
+                                  <th style={{ width: '110px', minWidth: '95px' }}>Unit Price</th>
+                                  <th style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>Width</th>
+                                  <th style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>T. Width (in)</th>
+                                  <th style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>Height</th>
+                                  <th style={{ width: '75px', minWidth: '65px', textAlign: 'center' }}>Pcs</th>
+                                  <th style={{ width: '120px', minWidth: '105px', textAlign: 'center' }}>Sq.Ft</th>
+                                  <th className="cell-total-sqft-th" style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>Total Sq.Ft</th>
+                                  <th style={{ width: '130px', minWidth: '110px', textAlign: 'center' }}>Total Price</th>
+                                  <th style={{ width: '90px', minWidth: '80px', textAlign: 'center' }}>Action</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1694,7 +1824,7 @@ const Quotations = () => {
                                     <React.Fragment key={block.id}>
                                       {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
                                       <tr className="mobile-size-card-row">
-                                        <td colSpan="9" className="mobile-size-card-cell">
+                                        <td colSpan="10" className="mobile-size-card-cell">
                                           <div className="mobile-size-card">
                                             <div className="mobile-size-header-bar">
                                               <div className="mobile-size-header-item">
@@ -1782,46 +1912,88 @@ const Quotations = () => {
                                           {sIdx === 0 && (
                                             <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 10px' }}>
                                               {productChangeBlockId === block.id ? (
-                                                <div style={{ position: 'relative' }}>
-                                                  <input
-                                                    type="text"
-                                                    autoFocus
-                                                    placeholder="Search product by code or name..."
-                                                    value={productChangeQuery}
-                                                    onChange={(e) => setProductChangeQuery(e.target.value)}
-                                                    onBlur={() => setTimeout(() => setProductChangeBlockId(null), 200)}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px' }}>
+                                                  <select
+                                                    value={block.product_id || ''}
+                                                    onChange={(e) => {
+                                                      if (e.target.value) {
+                                                        handleBlockChange(sec.id, block.id, 'product_id', e.target.value);
+                                                        setProductChangeBlockId(null);
+                                                        setProductChangeQuery('');
+                                                      }
+                                                    }}
                                                     className="modern-form-control"
-                                                    style={{ fontWeight: 'bold', fontSize: '13px' }}
-                                                  />
-                                                  <div className="search-dropdown-list">
-                                                    {filteredProductsForChange.length === 0 ? (
-                                                      <div className="dropdown-item empty">No products found</div>
-                                                    ) : (
-                                                      filteredProductsForChange.map(p => (
-                                                        <div
-                                                          key={p.id}
-                                                          className="dropdown-item"
-                                                          onMouseDown={() => {
-                                                            handleBlockChange(sec.id, block.id, 'product_id', p.id);
-                                                            setProductChangeBlockId(null);
-                                                            setProductChangeQuery('');
-                                                          }}
-                                                        >
-                                                          <strong>{p.product_code ? p.product_code.toUpperCase() : p.name}</strong>
-                                                        </div>
-                                                      ))
+                                                    style={{ fontWeight: '600', fontSize: '12px', padding: '6px' }}
+                                                  >
+                                                    <option value="">-- Choose Product --</option>
+                                                    {products.map(p => (
+                                                      <option key={p.id} value={p.id}>
+                                                        {p.name} {p.product_code ? `(${p.product_code.toUpperCase()})` : ''}
+                                                      </option>
+                                                    ))}
+                                                  </select>
+                                                  <div style={{ position: 'relative' }}>
+                                                    <input
+                                                      type="text"
+                                                      placeholder="Or search by name/code..."
+                                                      value={productChangeQuery}
+                                                      onChange={(e) => setProductChangeQuery(e.target.value)}
+                                                      className="modern-form-control"
+                                                      style={{ fontSize: '11px', padding: '5px 8px' }}
+                                                    />
+                                                    {productChangeQuery.trim() !== '' && (
+                                                      <div className="search-dropdown-list" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', maxHeight: '200px', overflowY: 'auto' }}>
+                                                        {filteredProductsForChange.length === 0 ? (
+                                                          <div className="dropdown-item empty" style={{ padding: '8px', fontSize: '12px', color: '#94a3b8' }}>No matching products</div>
+                                                        ) : (
+                                                          filteredProductsForChange.map(p => (
+                                                            <div
+                                                              key={p.id}
+                                                              className="dropdown-item"
+                                                              onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                handleBlockChange(sec.id, block.id, 'product_id', p.id);
+                                                                setProductChangeBlockId(null);
+                                                                setProductChangeQuery('');
+                                                              }}
+                                                              style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                                                            >
+                                                              <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{p.name}</div>
+                                                              <div style={{ fontSize: '10px', color: '#64748b' }}>Code: {p.product_code || 'N/A'} {p.unit ? `| ${p.unit}` : ''}</div>
+                                                            </div>
+                                                          ))
+                                                        )}
+                                                      </div>
                                                     )}
                                                   </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setProductChangeBlockId(null)}
+                                                    style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', alignSelf: 'flex-start' }}
+                                                  >
+                                                    Cancel
+                                                  </button>
                                                 </div>
                                               ) : (
-                                                <div
-                                                  onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
-                                                  style={{ cursor: 'pointer', padding: '9px 12px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '8px', background: 'var(--bg-base, #ffffff)' }}
-                                                  title="Click to change product"
-                                                >
-                                                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#16a34a' }}>
-                                                    ✓ {block.product_code ? block.product_code.toUpperCase() : (block.product_name || '—')} <span style={{ color: '#94a3b8', fontWeight: '500' }}>(tap to change)</span>
+                                                <div style={{ padding: '4px 0' }}>
+                                                  <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a', lineHeight: '1.3' }}>
+                                                    {block.product_name || '—'}
                                                   </div>
+                                                  <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                                    <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
+                                                      {block.product_code ? block.product_code.toUpperCase() : 'NO CODE'}
+                                                    </span>
+                                                    {block.unit && <span style={{ color: '#059669', fontWeight: '600' }}>({block.unit})</span>}
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
+                                                    style={{ marginTop: '6px', fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '3px 9px', cursor: 'pointer', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                    title="Click to change to another product"
+                                                  >
+                                                    🔄 Change Product
+                                                  </button>
                                                 </div>
                                               )}
                                             </td>
@@ -1852,6 +2024,28 @@ const Quotations = () => {
                                             />
                                           </td>
 
+                                          {/* T. Width (in) */}
+                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                            <input
+                                              type="text"
+                                              value={(() => {
+                                                const w = parseFloat(sizeRow.width) || 0;
+                                                if (w <= 0) return '';
+                                                const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
+                                                if (isPvc) {
+                                                  const slatSize = parseFloat(block.product_size) || 8;
+                                                  const slats = Math.ceil(w / 5.85);
+                                                  return slats * slatSize;
+                                                }
+                                                return w;
+                                              })()}
+                                              readOnly
+                                              placeholder="T. Width"
+                                              className="modern-form-control"
+                                              style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '600' }}
+                                            />
+                                          </td>
+
                                           {/* Height */}
                                           <td className="cell-size" style={{ padding: '6px' }}>
                                             <input
@@ -1879,23 +2073,30 @@ const Quotations = () => {
 
                                           {/* Sq.Ft */}
                                           <td className="cell-sqft" style={{ padding: '6px' }}>
-                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                              <input
-                                                type="text"
-                                                value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'}
-                                                readOnly
-                                                className="modern-form-control"
-                                                style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '9px 4px', minWidth: 0 }}
-                                              />
-                                              {block.sizes.length > 1 && (
-                                                <button 
-                                                  type="button" 
-                                                  onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
-                                                  className="btn-action-circle btn-action-delete"
-                                                  style={{ padding: '4px 6px', fontSize: '12px' }}
-                                                >
-                                                  🗑️
-                                                </button>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                <input
+                                                  type="text"
+                                                  value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'}
+                                                  readOnly
+                                                  className="modern-form-control"
+                                                  style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '9px 4px', minWidth: 0 }}
+                                                />
+                                                {block.sizes.length > 1 && (
+                                                  <button 
+                                                    type="button" 
+                                                    onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
+                                                    className="btn-action-circle btn-action-delete"
+                                                    style={{ padding: '4px 6px', fontSize: '12px' }}
+                                                  >
+                                                    🗑️
+                                                  </button>
+                                                )}
+                                              </div>
+                                              {parseFloat(sizeRow.width) > 0 && parseFloat(sizeRow.height) > 0 && (
+                                                <div style={{ fontSize: '10px', fontWeight: '700', color: '#0284c7', textAlign: 'center', marginTop: '2px' }}>
+                                                  📏 Row #{sIdx + 1}: {sizeRow.width}" W × {sizeRow.height}" H
+                                                </div>
                                               )}
                                             </div>
                                           </td>
@@ -1927,48 +2128,56 @@ const Quotations = () => {
                                           )}
 
                                           {/* Block Actions */}
-                                          {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} className="cell-action" style={{ verticalAlign: 'top', paddingTop: '12px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                              <button 
-                                                type="button" 
-                                                onClick={() => removeProductBlock(sec.id, block.id)} 
-                                                className="btn-action-circle btn-action-delete"
-                                                style={{ marginRight: '6px' }}
-                                                title="Remove Block"
-                                              >
-                                                🗑️
-                                              </button>
+                                          <td className="cell-action" style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                                               <button 
                                                 type="button" 
                                                 onClick={() => addSizeRowToBlock(sec.id, block.id)} 
                                                 className="btn-action-circle btn-action-add"
                                                 title="Add Size Row"
+                                                style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                               >
                                                 ➕
                                               </button>
                                               <button 
                                                 type="button" 
                                                 onClick={() => {
-                                                  setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
-                                                  setExcelPasteText('');
+                                                  if (block.sizes.length > 1) {
+                                                    removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
+                                                  } else {
+                                                    removeProductBlock(sec.id, block.id);
+                                                  }
                                                 }} 
-                                                style={{
-                                                  background: '#059669',
-                                                  color: '#ffffff',
-                                                  border: 'none',
-                                                  borderRadius: '4px',
-                                                  padding: '4px 8px',
-                                                  fontSize: '11px',
-                                                  fontWeight: 'bold',
-                                                  cursor: 'pointer',
-                                                  marginLeft: '6px'
-                                                }}
-                                                title="Paste Width, Height, Pcs from Excel"
+                                                className="btn-action-circle btn-action-delete"
+                                                title={block.sizes.length > 1 ? "Delete Size Row" : "Delete Product Block"}
+                                                style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                               >
-                                                📋 Excel
+                                                🗑️
                                               </button>
-                                            </td>
-                                          )}
+                                              {sIdx === 0 && (
+                                                <button 
+                                                  type="button" 
+                                                  onClick={() => {
+                                                    setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                                    setExcelPasteText('');
+                                                  }} 
+                                                  style={{
+                                                    background: '#059669',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '6px',
+                                                    padding: '4px 7px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer'
+                                                  }} 
+                                                  title="Paste Width, Height, Pcs from Excel"
+                                                >
+                                                  📋 Excel
+                                                </button>
+                                              )}
+                                            </div>
+                                          </td>
                                         </tr>
                                       ))}
 
@@ -2501,16 +2710,17 @@ const Quotations = () => {
               </h3>
               <button type="button" className="custom-modal-close" onClick={() => setConvertConfirmTarget(null)}>✕</button>
             </div>
-            <div className="custom-modal-form" style={{ textAlign: 'center', gap: '16px', padding: '24px' }}>
-              <div style={{ fontSize: '48px', lineHeight: 1 }}>🛍️</div>
-              <div style={{ fontSize: '15px', color: '#cbd5e1' }}>
-                Are you sure you want to convert Quotation <strong style={{ color: '#00f2fe' }}>#{convertConfirmTarget.quotation_number}</strong> into a Confirmed Direct Order?
+            <div className="custom-modal-form" style={{ textAlign: 'center', gap: '16px', padding: '32px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ fontSize: '56px', lineHeight: 1, filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))', marginBottom: '8px' }}>🛍️</div>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '18px', color: '#1e293b', fontWeight: 'bold' }}>Ready to Convert?</h4>
+              <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.5', maxWidth: '320px' }}>
+                You are about to convert the quotation for <strong style={{ color: '#0ea5e9', fontWeight: '700' }}>{convertConfirmTarget.customer?.company_name || convertConfirmTarget.customer?.name || `Quotation #${convertConfirmTarget.quotation_number}`}</strong> into a Confirmed Direct Order.
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '12px' }}>
-                <button type="button" className="btn-modal-cancel" onClick={() => setConvertConfirmTarget(null)}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '24px', width: '100%' }}>
+                <button type="button" onClick={() => setConvertConfirmTarget(null)} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#64748b', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
                   Cancel
                 </button>
-                <button type="button" className="btn-modal-submit" onClick={handleConfirmConvert}>
+                <button type="button" onClick={handleConfirmConvert} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: '#ffffff', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px rgba(14, 165, 233, 0.2)', transition: 'all 0.2s' }}>
                   Confirm & Convert
                 </button>
               </div>

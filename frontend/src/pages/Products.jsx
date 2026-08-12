@@ -17,6 +17,7 @@ const Products = () => {
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterPriceMin, setFilterPriceMin] = useState('');
   const [filterPriceMax, setFilterPriceMax] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -135,6 +136,9 @@ const Products = () => {
     setFilterPriceMax('');
   };
 
+  const activeFilterCount = [filterCategory, filterSupplier, filterPriceMin, filterPriceMax, searchQuery]
+    .filter(Boolean).length;
+
   return (
     <div className="content-container">
       {/* Header & Title */}
@@ -159,96 +163,110 @@ const Products = () => {
 
       {/* Main Card / Table Wrapper */}
       <div className="card-table-wrapper" style={{ padding: '20px', background: '#fff', borderRadius: '10px' }}>
-        <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', color: '#333' }}>
-          PRODUCT LIST
-        </h3>
-
-        {/* Filter & Search Bar */}
-        <div className="list-filter-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '10px', marginBottom: '18px' }}>
-          <div style={{ minWidth: '170px', flex: '1 1 170px' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Category</label>
-            <select
-              className="custom-form-input"
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ minWidth: '170px', flex: '1 1 170px' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Supplier</label>
-            <select
-              className="custom-form-input"
-              value={filterSupplier}
-              onChange={(e) => setFilterSupplier(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
-            >
-              <option value="">All Suppliers</option>
-              {suppliers.map((s) => {
-                let comp = s.company_name || '';
-                let human = s.name || '';
-                const isHumanComp = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(human);
-                const isCompPerson = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(comp);
-
-                if ((!comp && isHumanComp) || (isHumanComp && isCompPerson)) {
-                  comp = human;
-                }
-                return (
-                  <option key={s.id} value={s.id}>{comp || human || 'Supplier'}</option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div style={{ minWidth: '110px', flex: '1 1 110px' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Price Min (৳)</label>
-            <input
-              type="number"
-              className="custom-form-input"
-              placeholder="Min"
-              value={filterPriceMin}
-              onChange={(e) => setFilterPriceMin(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
-            />
-          </div>
-
-          <div style={{ minWidth: '110px', flex: '1 1 110px' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Price Max (৳)</label>
-            <input
-              type="number"
-              className="custom-form-input"
-              placeholder="Max"
-              value={filterPriceMax}
-              onChange={(e) => setFilterPriceMax(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
-            />
-          </div>
-
-          <div style={{ minWidth: '200px', flex: '2 1 200px' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Search (Code or Name)</label>
-            <input
-              type="text"
-              className="custom-form-input"
-              placeholder="Code or Name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
-            />
-          </div>
-
+        <div className="filter-toggle-bar">
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, textTransform: 'uppercase', color: '#333' }}>
+            PRODUCT LIST
+          </h3>
           <button
-            onClick={handleResetFilters}
-            className="logout-btn"
-            style={{ padding: '8px 16px', height: '36px', whiteSpace: 'nowrap' }}
+            type="button"
+            className="filter-toggle-btn"
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
           >
-            Reset Filters
+            🔍 Filters
+            {activeFilterCount > 0 && <span className="filter-active-badge">{activeFilterCount}</span>}
+            <span className={`filter-toggle-chevron${filtersOpen ? ' open' : ''}`}>▼</span>
           </button>
         </div>
+
+        {/* Filter & Search Bar */}
+        {filtersOpen && (
+          <div className="list-filter-row filter-panel-body" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '10px', marginBottom: '18px' }}>
+            <div style={{ minWidth: '170px', flex: '1 1 170px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Category</label>
+              <select
+                className="custom-form-input"
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
+              >
+                <option value="">All Categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ minWidth: '170px', flex: '1 1 170px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Supplier</label>
+              <select
+                className="custom-form-input"
+                value={filterSupplier}
+                onChange={(e) => setFilterSupplier(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
+              >
+                <option value="">All Suppliers</option>
+                {suppliers.map((s) => {
+                  let comp = s.company_name || '';
+                  let human = s.name || '';
+                  const isHumanComp = /blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(human);
+                  const isCompPerson = /^[a-zA-Z\s]+$/.test(comp) && !/blinds|ltd|inc|corp|company|enterprise|trader|store|shop|supplier|factory|group|brosan|hardware|bd|solutions|decor|interior/i.test(comp);
+
+                  if ((!comp && isHumanComp) || (isHumanComp && isCompPerson)) {
+                    comp = human;
+                  }
+                  return (
+                    <option key={s.id} value={s.id}>{comp || human || 'Supplier'}</option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div style={{ minWidth: '110px', flex: '1 1 110px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Price Min (৳)</label>
+              <input
+                type="number"
+                className="custom-form-input"
+                placeholder="Min"
+                value={filterPriceMin}
+                onChange={(e) => setFilterPriceMin(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
+              />
+            </div>
+
+            <div style={{ minWidth: '110px', flex: '1 1 110px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Price Max (৳)</label>
+              <input
+                type="number"
+                className="custom-form-input"
+                placeholder="Max"
+                value={filterPriceMax}
+                onChange={(e) => setFilterPriceMax(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
+              />
+            </div>
+
+            <div style={{ minWidth: '200px', flex: '2 1 200px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#555', marginBottom: '4px' }}>Search (Code or Name)</label>
+              <input
+                type="text"
+                className="custom-form-input"
+                placeholder="Code or Name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '100%', padding: '7px 10px', background: '#fff', color: '#222' }}
+              />
+            </div>
+
+            <button
+              onClick={handleResetFilters}
+              className="logout-btn"
+              style={{ padding: '8px 16px', height: '36px', whiteSpace: 'nowrap' }}
+            >
+              Reset Filters
+            </button>
+          </div>
+        )}
 
         <div style={{ fontSize: '13px', color: '#888', marginBottom: '10px' }}>
           Showing {filteredProducts.length} of {products.length} products
@@ -263,7 +281,8 @@ const Products = () => {
             No products found.
           </div>
         ) : (
-          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <>
+          <table className="data-table products-desktop-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
                 <th style={{ padding: '12px', width: '50px' }}>SN</th>
@@ -368,6 +387,83 @@ const Products = () => {
               })}
             </tbody>
           </table>
+
+          {/* Mobile card list — same data as the desktop table, one card per product */}
+          <div className="products-mobile-list">
+            {filteredProducts.map((product, index) => {
+              const prefLink = getPreferredLink(product);
+              const prefSupplierName = prefLink?.supplier?.name || '-';
+              const rawCost = prefLink?.cost_price;
+              const buyPrice = (rawCost !== undefined && rawCost !== null && rawCost !== '')
+                ? parseFloat(rawCost).toFixed(2)
+                : '-';
+
+              return (
+                <div className="product-mobile-card" key={product.id}>
+                  <div className="product-mobile-card-header">
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{index + 1}</span>
+                      <strong style={{ color: '#0f172a', display: 'block', fontSize: '14px' }}>{product.name}</strong>
+                      <span style={{ fontSize: '12px', color: '#007bff', fontWeight: 700 }}>{product.product_code}</span>
+                    </div>
+                    <div className="product-mobile-card-actions">
+                      <button
+                        onClick={() => handleOpenViewModal(product)}
+                        style={{ background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', fontSize: '12px', cursor: 'pointer' }}
+                        title="View Product Details"
+                      >
+                        👁️
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditModal(product)}
+                        style={{ background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', fontSize: '12px', cursor: 'pointer' }}
+                        title="Edit Product"
+                      >
+                        ✏️
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleArchiveProduct(product.id, product.name)}
+                          style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', fontSize: '12px', cursor: 'pointer' }}
+                          title="Archive Product"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="product-mobile-card-row">
+                    <span>Category</span>
+                    <span>
+                      {product.category?.name ? (
+                        <span className="badge badge-secondary" style={{ fontSize: '11px', background: '#6c757d', color: '#fff', padding: '3px 7px', borderRadius: '3px' }}>
+                          {product.category.name}
+                        </span>
+                      ) : '-'}
+                    </span>
+                  </div>
+                  <div className="product-mobile-card-row">
+                    <span>Priority Supplier</span>
+                    <span className="badge badge-info" style={{ fontSize: '11px' }}>{prefSupplierName}</span>
+                  </div>
+                  <div className="product-mobile-card-row">
+                    <span>Unit</span>
+                    <span>{product.unit || 'Square feet'}</span>
+                  </div>
+                  <div className="product-mobile-card-row">
+                    <span>Buy (Cost)</span>
+                    <span style={{ color: '#28a745' }}>{buyPrice !== '-' ? `৳ ${buyPrice}` : '-'}</span>
+                  </div>
+                  <div className="product-mobile-card-row">
+                    <span>Sales (Price)</span>
+                    <span style={{ color: '#007bff' }}>৳ {parseFloat(product.default_unit_price).toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
       </div>
 

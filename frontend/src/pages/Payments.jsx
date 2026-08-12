@@ -19,6 +19,7 @@ const Payments = () => {
   const [filterMethod, setFilterMethod] = useState('');
   const [filterFromDate, setFilterFromDate] = useState('');
   const [filterToDate, setFilterToDate] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(true);
 
   // Detail Modal
   const [selectedPayment, setSelectedPayment] = useState(null);
@@ -147,69 +148,87 @@ const Payments = () => {
       </div>
 
       {/* Filters Banner */}
-      <div className="welcome-banner" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '20px', alignItems: 'flex-end' }}>
-        <div className="form-group" style={{ margin: 0, flex: 2, minWidth: '180px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600' }}>Search Receipt / Customer / Invoice</label>
-          <input
-            type="text"
-            placeholder="Search receipt code, customer, invoice no..."
-            value={filterSearch}
-            onChange={(e) => setFilterSearch(e.target.value)}
-            className="modern-form-control"
-            style={{ padding: '8px 12px', fontSize: '13px' }}
-          />
-        </div>
-
-        <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '140px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600' }}>Payment Method</label>
-          <select
-            value={filterMethod}
-            onChange={(e) => setFilterMethod(e.target.value)}
-            className="modern-form-control"
-            style={{ padding: '8px 12px', fontSize: '13px' }}
-          >
-            <option value="">All Methods</option>
-            <option value="cash">Cash</option>
-            <option value="bank">Bank Cheque</option>
-            <option value="mobile">Mobile Banking</option>
-          </select>
-        </div>
-
-        <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '130px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600' }}>From Date</label>
-          <input
-            type="date"
-            value={filterFromDate}
-            onChange={(e) => setFilterFromDate(e.target.value)}
-            className="modern-form-control"
-            style={{ padding: '7px 10px', fontSize: '13px' }}
-          />
-        </div>
-
-        <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '130px' }}>
-          <label style={{ fontSize: '12px', fontWeight: '600' }}>To Date</label>
-          <input
-            type="date"
-            value={filterToDate}
-            onChange={(e) => setFilterToDate(e.target.value)}
-            className="modern-form-control"
-            style={{ padding: '7px 10px', fontSize: '13px' }}
-          />
-        </div>
-
+      <div className="filter-toggle-bar">
+        <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-heading)' }}>Filter Payments</span>
         <button
-          className="logout-btn"
-          onClick={() => {
-            setFilterSearch('');
-            setFilterMethod('');
-            setFilterFromDate('');
-            setFilterToDate('');
-          }}
-          style={{ height: '36px', padding: '0 14px' }}
+          type="button"
+          className="filter-toggle-btn"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
         >
-          Reset Filters
+          🔍 Filters
+          {[filterSearch, filterMethod, filterFromDate, filterToDate].filter(Boolean).length > 0 && (
+            <span className="filter-active-badge">{[filterSearch, filterMethod, filterFromDate, filterToDate].filter(Boolean).length}</span>
+          )}
+          <span className={`filter-toggle-chevron${filtersOpen ? ' open' : ''}`}>▼</span>
         </button>
       </div>
+
+      {filtersOpen && (
+        <div className="welcome-banner filter-panel-body" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '20px', alignItems: 'flex-end' }}>
+          <div className="form-group" style={{ margin: 0, flex: 2, minWidth: '180px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600' }}>Search Receipt / Customer / Invoice</label>
+            <input
+              type="text"
+              placeholder="Search receipt code, customer, invoice no..."
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              className="modern-form-control"
+              style={{ padding: '8px 12px', fontSize: '13px' }}
+            />
+          </div>
+
+          <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '140px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600' }}>Payment Method</label>
+            <select
+              value={filterMethod}
+              onChange={(e) => setFilterMethod(e.target.value)}
+              className="modern-form-control"
+              style={{ padding: '8px 12px', fontSize: '13px' }}
+            >
+              <option value="">All Methods</option>
+              <option value="cash">Cash</option>
+              <option value="bank">Bank Cheque</option>
+              <option value="mobile">Mobile Banking</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '130px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600' }}>From Date</label>
+            <input
+              type="date"
+              value={filterFromDate}
+              onChange={(e) => setFilterFromDate(e.target.value)}
+              className="modern-form-control"
+              style={{ padding: '7px 10px', fontSize: '13px' }}
+            />
+          </div>
+
+          <div className="form-group" style={{ margin: 0, flex: 1, minWidth: '130px' }}>
+            <label style={{ fontSize: '12px', fontWeight: '600' }}>To Date</label>
+            <input
+              type="date"
+              value={filterToDate}
+              onChange={(e) => setFilterToDate(e.target.value)}
+              className="modern-form-control"
+              style={{ padding: '7px 10px', fontSize: '13px' }}
+            />
+          </div>
+
+          <button
+            className="logout-btn"
+            onClick={() => {
+              setFilterSearch('');
+              setFilterMethod('');
+              setFilterFromDate('');
+              setFilterToDate('');
+            }}
+            style={{ height: '36px', padding: '0 14px' }}
+          >
+            Reset Filters
+          </button>
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
@@ -221,7 +240,8 @@ const Payments = () => {
       {loading ? (
         <div className="flex-center" style={{ padding: '40px' }}><div className="spinner"></div></div>
       ) : (
-        <div className="card-table-wrapper">
+        <>
+        <div className="card-table-wrapper payments-desktop-table">
           <table className="data-table">
             <thead>
               <tr>
@@ -325,6 +345,87 @@ const Payments = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile card list — same data as the desktop table, one card per payment */}
+        <div className="payments-mobile-list">
+          {filteredPayments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px', color: 'var(--text-main)' }}>
+              No payment collection records found.
+            </div>
+          ) : (
+            filteredPayments.map((p) => (
+              <div className="payment-mobile-card" key={p.id}>
+                <div className="payment-mobile-card-header">
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ color: 'var(--primary)', display: 'block' }}>{p.payment_number}</strong>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>{p.customer?.name}</span>
+                  </div>
+                  <span className={`badge ${
+                    p.payment_method === 'cash' ? 'badge-success' :
+                    p.payment_method === 'bank' ? 'badge-info' : 'badge-warning'
+                  }`} style={{ textTransform: 'uppercase', flexShrink: 0 }}>
+                    {p.payment_method === 'cash' ? '💵 Cash' : p.payment_method === 'bank' ? '🏦 Bank' : '📱 Mobile'}
+                  </span>
+                </div>
+
+                <div className="payment-mobile-card-row">
+                  <span>Invoice No.</span>
+                  <span>{p.invoice?.invoice_number || 'N/A'}</span>
+                </div>
+                <div className="payment-mobile-card-row">
+                  <span>Payment Date</span>
+                  <span>{formatDate(p.payment_date)}</span>
+                </div>
+                {p.payment_method === 'bank' && (
+                  <div className="payment-mobile-card-row">
+                    <span>Ref Details</span>
+                    <span>{p.bank_name || 'Bank'}{p.cheque_number ? ` · Cheque: ${p.cheque_number}` : ''}</span>
+                  </div>
+                )}
+                {p.payment_method === 'mobile' && (
+                  <div className="payment-mobile-card-row">
+                    <span>Ref Details</span>
+                    <span>{p.mobile_provider || 'Mobile'}{p.transaction_id ? ` · Txn: ${p.transaction_id}` : ''}</span>
+                  </div>
+                )}
+                <div className="payment-mobile-card-row">
+                  <span>Amount</span>
+                  <span style={{ color: 'var(--success)', fontSize: '15px' }}>{formatCurrency(p.amount)}</span>
+                </div>
+
+                <div className="payment-mobile-card-actions">
+                  <button
+                    type="button"
+                    className="text-btn"
+                    onClick={() => { setSelectedPayment(p); setIsDetailModalOpen(true); }}
+                  >
+                    👁️ Details
+                  </button>
+                  <button
+                    type="button"
+                    className="text-btn"
+                    onClick={() => window.open(`/payments/${p.id}/receipt`, '_blank')}
+                    style={{ color: '#2563eb', fontWeight: 700 }}
+                    title="Print Money Receipt"
+                  >
+                    🧾 Receipt
+                  </button>
+                  {(can('payments:void') || user?.role === 'admin') && (
+                    <button
+                      type="button"
+                      className="text-btn"
+                      onClick={() => handleVoidPayment(p.id, p.payment_number)}
+                      style={{ color: 'var(--danger)' }}
+                    >
+                      🚫 Void
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        </>
       )}
 
       {/* Payment Details Modal */}

@@ -25,3 +25,7 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 frontend/src/pages/Quotations.backup.jsx
+
+# Standalone Android WebView app project — local deliverable only,
+# never commit/push/deploy this (user's explicit instruction).
+/webview-apk-app

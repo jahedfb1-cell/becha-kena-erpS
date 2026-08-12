@@ -128,7 +128,8 @@ const Suppliers = () => {
             No suppliers found.
           </div>
         ) : (
-          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <>
+          <table className="data-table suppliers-desktop-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
                 <th style={{ padding: '12px', width: '50px' }}>#SN.</th>
@@ -213,6 +214,65 @@ const Suppliers = () => {
               })}
             </tbody>
           </table>
+
+          {/* Mobile card list — same data as the desktop table */}
+          <div className="suppliers-mobile-list">
+            {filteredSuppliers.map((supplier, index) => {
+              const compName = supplier.company_name || supplier.name || '-';
+              const humanName = (supplier.company_name && supplier.name !== supplier.company_name) ? supplier.name : '-';
+
+              return (
+                <div className="supplier-mobile-card" key={supplier.id}>
+                  <div className="supplier-mobile-card-header">
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{index + 1}</span>
+                      <strong style={{ color: '#0f172a', display: 'block', fontSize: '14px' }}>{compName}</strong>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#007bff' }}>{supplier.supplier_code}</span>
+                    </div>
+                    <div className="supplier-mobile-card-actions">
+                      <button
+                        onClick={() => handleOpenViewModal(supplier)}
+                        style={{ background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', fontSize: '12px', cursor: 'pointer' }}
+                        title="View Supplier"
+                      >
+                        👁️
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditModal(supplier)}
+                        style={{ background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', fontSize: '12px', cursor: 'pointer' }}
+                        title="Edit Supplier"
+                      >
+                        ✏️
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleArchiveSupplier(supplier.id, supplier.name)}
+                          style={{ background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', padding: '6px 9px', fontSize: '12px', cursor: 'pointer' }}
+                          title="Archive Supplier"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="supplier-mobile-card-row">
+                    <span>Supplier H Name</span>
+                    <span>{humanName}</span>
+                  </div>
+                  <div className="supplier-mobile-card-row">
+                    <span>Mobile</span>
+                    <span>{supplier.phone || '-'}</span>
+                  </div>
+                  <div className="supplier-mobile-card-row">
+                    <span>Address</span>
+                    <span>{supplier.address || '-'}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
       </div>
 

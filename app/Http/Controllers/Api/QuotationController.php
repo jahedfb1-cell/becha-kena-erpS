@@ -59,7 +59,10 @@ class QuotationController extends Controller
 
         $user = $request->user();
         $query = Quotation::with(['customer:id,customer_code,name,phone', 'salesman:id,name,email'])
-            ->withCount('items');
+            ->withCount('items')
+            ->withSum(['items' => function($q) {
+                $q->where('is_selected', true)->where('is_enabled_for_print', true);
+            }], 'billed_sqft');
 
         // Archived filter
         if ($request->boolean('archived')) {
@@ -207,7 +210,7 @@ class QuotationController extends Controller
             'salesman:id,name,email,phone',
             'creator:id,name',
             'approver:id,name',
-            'items.product',
+            'items.product.category',
             'items.variant',
             'items.supplier',
             'purchaseEntries',
@@ -258,9 +261,8 @@ class QuotationController extends Controller
         $oldSnapshot = $quotation->toArray();
 
         return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot) {
-            $newStatus = $quotation->status;
-
-            if ($quotation->status === 'approved') {
+            $newStatus = $request->get('status', $quotation->status);
+            if ($quotation->status === 'approved' && !$request->has('status')) {
                 $newStatus = 'pending_reapproval';
             }
 

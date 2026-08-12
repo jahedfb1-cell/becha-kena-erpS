@@ -19,7 +19,15 @@ class ProductController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $products = Product::with(['category', 'variants', 'supplierLinks.supplier'])
+        $products = Product::select('id', 'product_code', 'name', 'unit', 'product_category_id', 'default_unit_price', 'product_size', 'details', 'is_archived', 'created_at')
+            ->with([
+                'category:id,name',
+                'variants',
+                'supplierLinks' => function ($q) {
+                    $q->select('id', 'product_id', 'supplier_id', 'priority_rank', 'cost_price', 'min_billing_sqft');
+                },
+                'supplierLinks.supplier:id,name,supplier_code'
+            ])
             ->when(!$request->boolean('include_archived'), function ($q) {
                 $q->active();
             })

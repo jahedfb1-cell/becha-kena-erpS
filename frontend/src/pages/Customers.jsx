@@ -108,7 +108,8 @@ const Customers = () => {
           {loading ? (
             <div className="flex-center" style={{ padding: '40px' }}><div className="spinner"></div></div>
           ) : (
-            <div className="card-table-wrapper">
+            <>
+            <div className="card-table-wrapper customers-desktop-table">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -168,6 +169,68 @@ const Customers = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile card list — same data as the desktop table */}
+            <div className="customers-mobile-list">
+              {filteredCustomers.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>No customers found.</div>
+              ) : (
+                filteredCustomers.map((c) => (
+                  <div className="customer-mobile-card" key={c.id}>
+                    <div className="customer-mobile-card-header">
+                      <div style={{ minWidth: 0 }}>
+                        <button
+                          type="button"
+                          className="clickable-link"
+                          onClick={() => loadCustomerDetails(c.id)}
+                          style={{ fontWeight: 700, display: 'block' }}
+                        >
+                          {c.name}
+                        </button>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>{c.customer_code}</span>
+                      </div>
+                      <span className={`badge ${c.is_archived ? 'badge-danger' : 'badge-success'}`} style={{ flexShrink: 0 }}>
+                        {c.is_archived ? 'Archived' : 'Active'}
+                      </span>
+                    </div>
+
+                    <div className="customer-mobile-card-row">
+                      <span>Company</span>
+                      <span>{c.company_name || '—'}</span>
+                    </div>
+                    <div className="customer-mobile-card-row">
+                      <span>Phone</span>
+                      <span>{c.phone || '—'}</span>
+                    </div>
+                    <div className="customer-mobile-card-row">
+                      <span>Category</span>
+                      <span><span className="badge badge-outline">{c.category?.name}</span></span>
+                    </div>
+                    <div className="customer-mobile-card-row">
+                      <span>Opening Balance</span>
+                      <span style={{ color: c.opening_balance > 0 ? 'var(--warning)' : undefined }}>
+                        {c.opening_balance > 0 ? formatCurrency(c.opening_balance) : '—'}
+                      </span>
+                    </div>
+                    <div className="customer-mobile-card-row">
+                      <span>Current Due</span>
+                      <span style={{ color: getCustomerDue(c) > 0 ? 'var(--danger)' : undefined }}>
+                        {formatCurrency(getCustomerDue(c))}
+                      </span>
+                    </div>
+
+                    <button
+                      className="text-btn"
+                      onClick={() => loadCustomerDetails(c.id)}
+                      style={{ marginTop: '8px', width: '100%', textAlign: 'center', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px' }}
+                    >
+                      View Ledger
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            </>
           )}
         </>
       )}

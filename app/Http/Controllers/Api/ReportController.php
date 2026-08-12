@@ -135,9 +135,33 @@ class ReportController extends Controller
     public function dashboardStats(Request $request): JsonResponse
     {
         $todayDate = date('Y-m-d');
+        $user = $request->user();
+        $isSalesman = $user->role === 'salesman';
+        $userId = $user->id;
+
+        // Auto-heal users table for monthly_sales_target
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('users', 'monthly_sales_target')) {
+            \Illuminate\Support\Facades\Schema::table('users', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->decimal('monthly_sales_target', 14, 2)->default(0)->after('is_active');
+            });
+        }
+
+        // Base Queries scoped by role
+        $invQuery = Invoice::where('is_archived', false);
+        $purQuery = PurchaseEntry::where('is_archived', false)->where('is_reversed', false);
+        $expQuery = Expense::query();
+        $payQuery = Payment::where('is_archived', false);
+        $quoQuery = Quotation::with('customer')->where('is_archived', false);
+
+        if ($isSalesman) {
+            $invQuery->where('salesman_id', $userId);
+            $payQuery->where('created_by', $userId);
+            $quoQuery->where('salesman_id', $userId);
+            // Purchases and Expenses are typically company-wide, but we can hide them from salesman later
+        }
 
         // Today's Stats
-        $todaySales = (float) Invoice::where('is_archived', false)
+        $todaySales = (float) (clone $invQuery)
             ->whereDate('invoice_date', $todayDate)
             ->sum('grand_total');
 
@@ -156,10 +180,11 @@ class ReportController extends Controller
             ->sum('amount');
 
         // Global Totals (Counts)
-        $totalInvoicesCount = Invoice::where('is_archived', false)->count();
+        $totalInvoicesCount = (clone $invQuery)->count();
         $totalCustomersCount = Customer::where('is_archived', false)->count();
         $totalSuppliersCount = Supplier::where('is_archived', false)->count();
         $totalProductsCount = \App\Models\Product::where('is_archived', false)->count();
+        $totalSalesDues = (float) (clone $invQuery)->sum('due_amount');
 
         // Chart Data: Sales & Purchases for the last 7 months
         $chartData = [];
@@ -168,7 +193,10 @@ class ReportController extends Controller
             $monthEnd = date('Y-m-t', strtotime("-$i months"));
             $monthLabel = date('M', strtotime("-$i months")); // e.g. "Jun"
 
-            $mSales = (float) Invoice::where('is_archived', false)
+            $monthEnd = date('Y-m-t', strtotime("-$i months"));
+            $monthLabel = date('M', strtotime("-$i months")); // e.g. "Jun"
+
+            $mSales = (float) (clone $invQuery)
                 ->whereDate('invoice_date', '>=', $monthStart)
                 ->whereDate('invoice_date', '<=', $monthEnd)
                 ->sum('grand_total');
@@ -187,8 +215,7 @@ class ReportController extends Controller
         }
 
         // Recent Orders (approved / invoiced quotations)
-        $recentOrders = Quotation::with('customer')
-            ->where('is_archived', false)
+        $recentOrders = (clone $quoQuery)
             ->whereIn('status', ['approved', 'invoiced'])
             ->orderBy('updated_at', 'desc')
             ->limit(5)
@@ -205,8 +232,7 @@ class ReportController extends Controller
             });
 
         // Recent Quotations (draft or pending)
-        $recentQuotations = Quotation::with('customer')
-            ->where('is_archived', false)
+        $recentQuotations = (clone $quoQuery)
             ->whereIn('status', ['draft', 'pending_approval', 'pending_reapproval', 'rejected'])
             ->orderBy('created_at', 'desc')
             ->limit(5)
@@ -223,8 +249,7 @@ class ReportController extends Controller
             });
 
         // Top Customer Dues
-        $topDueCustomers = Invoice::with('customer')
-            ->where('is_archived', false)
+        $topDueCustomers = (clone $invQuery)->with('customer')
             ->where('due_amount', '>', 0)
             ->orderBy('due_amount', 'desc')
             ->limit(5)
@@ -287,6 +312,9 @@ class ReportController extends Controller
 
         return response()->json([
             'status' => 'success',
+            'is_salesman' => $isSalesman,
+            'sales_target' => (float) ($user->monthly_sales_target ?? 0),
+            'sales_dues' => $totalSalesDues,
             'data'   => [
                 'today' => [
                     'sales'      => $todaySales,

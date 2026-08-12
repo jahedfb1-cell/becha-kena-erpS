@@ -168,6 +168,9 @@ const SkeletonLine = ({ w = '100%', h = '38px', r = '10px' }) => (
   }} />
 );
 
+let cachedCategories = null;
+let cachedSuppliers = null;
+
 const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isViewOnly = false }) => {
   const [productCode, setProductCode] = useState('');
   const [name, setName]               = useState('');
@@ -177,11 +180,11 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
   const [productSize, setProductSize]             = useState('');
   const [details, setDetails]         = useState('');
 
-  const [categories, setCategories]       = useState([]);
-  const [suppliers, setSuppliers]         = useState([]);
+  const [categories, setCategories]       = useState(cachedCategories || []);
+  const [suppliers, setSuppliers]         = useState(cachedSuppliers || []);
   const [supplierLinks, setSupplierLinks] = useState([]);
 
-  const [loadingData, setLoadingData] = useState(false);
+  const [loadingData, setLoadingData] = useState(!cachedCategories || !cachedSuppliers);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState('');
   const [focusedField, setFocusedField] = useState(null);
@@ -190,44 +193,57 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
   /* ─── fetch data on open ─── */
   useEffect(() => {
     if (!isOpen) return;
-    setLoadingData(true);
     setError('');
 
+    const populateFormData = (cats, sups) => {
+      setCategories(cats);
+      setSuppliers(sups);
+      if (initialData) {
+        setProductCode(initialData.product_code || '');
+        setName(initialData.name || '');
+        setUnit(initialData.unit || 'Square feet');
+        setProductCategoryId(initialData.product_category_id || '');
+        setDefaultUnitPrice(initialData.default_unit_price || '');
+        setProductSize(initialData.product_size || '');
+        setDetails(initialData.details || '');
+        const existingLinks = initialData.supplierLinks || initialData.supplier_links || [];
+        setSupplierLinks(
+          existingLinks.map(l => ({
+            id: l.id,
+            supplier_id: l.supplier_id,
+            priority_rank: l.priority_rank || 1,
+            cost_price: l.cost_price ?? '',
+            min_billing_sqft: l.min_billing_sqft ?? '',
+          }))
+        );
+      } else {
+        setProductCode(''); setName(''); setUnit('Square feet');
+        setProductCategoryId(''); setDefaultUnitPrice(''); setProductSize(''); setDetails('');
+        setSupplierLinks(sups.length > 0
+          ? [{ supplier_id: sups[0].id, priority_rank: 1, cost_price: '', min_billing_sqft: '' }]
+          : []);
+      }
+    };
+
+    if (cachedCategories && cachedSuppliers) {
+      populateFormData(cachedCategories, cachedSuppliers);
+      setLoadingData(false);
+      setTimeout(() => firstRef.current?.focus(), 50);
+      return;
+    }
+
+    setLoadingData(true);
     const fetchData = async () => {
       try {
         const [catRes, supRes] = await Promise.all([
           api.get('/master/product-categories'),
           api.get('/suppliers'),
         ]);
-        setCategories(catRes.data.data || []);
+        const cats = catRes.data.data || [];
         const sups = supRes.data.data || [];
-        setSuppliers(sups);
-
-        if (initialData) {
-          setProductCode(initialData.product_code || '');
-          setName(initialData.name || '');
-          setUnit(initialData.unit || 'Square feet');
-          setProductCategoryId(initialData.product_category_id || '');
-          setDefaultUnitPrice(initialData.default_unit_price || '');
-          setProductSize(initialData.product_size || '');
-          setDetails(initialData.details || '');
-          const existingLinks = initialData.supplierLinks || initialData.supplier_links || [];
-          setSupplierLinks(
-            existingLinks.map(l => ({
-              id: l.id,
-              supplier_id: l.supplier_id,
-              priority_rank: l.priority_rank || 1,
-              cost_price: l.cost_price ?? '',
-              min_billing_sqft: l.min_billing_sqft ?? '',
-            }))
-          );
-        } else {
-          setProductCode(''); setName(''); setUnit('Square feet');
-          setProductCategoryId(''); setDefaultUnitPrice(''); setProductSize(''); setDetails('');
-          setSupplierLinks(sups.length > 0
-            ? [{ supplier_id: sups[0].id, priority_rank: 1, cost_price: '', min_billing_sqft: '' }]
-            : []);
-        }
+        cachedCategories = cats;
+        cachedSuppliers = sups;
+        populateFormData(cats, sups);
       } catch (err) {
         setError('Failed to load form data. Please try again.');
       } finally {
@@ -502,6 +518,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                       <option value="Meter">Meter</option>
                       <option value="Yard">Yard</option>
                       <option value="Box">Box</option>
+                      <option value="PVC sq.ft">PVC sq.ft</option>
                     </select>
                   </div>
                 </div>
@@ -522,7 +539,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: unit === 'PVC sq.ft' ? '1fr 1fr' : '1fr', gap: '14px', marginBottom: '14px' }} className="pm-grid2">
                     {/* Sales Price */}
                     <div>
                       <label style={S.label}>
@@ -549,26 +566,29 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                       </div>
                     </div>
 
-                    {/* Slat Width */}
-                    <div>
-                      <label style={S.label}>
-                        Slat Size / Width (inches)
-                        <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '11px', marginLeft: '6px' }}>
-                          (e.g., 8)
-                        </span>
-                      </label>
-                      <input
-                        className="pm-input"
-                        type="number" step="0.1" min="0"
-                        style={inputStyle('size')}
-                        placeholder="e.g. 8"
-                        value={productSize}
-                        onChange={e => setProductSize(e.target.value)}
-                        onFocus={() => setFocusedField('size')}
-                        onBlur={() => setFocusedField(null)}
-                        disabled={loading || isViewOnly}
-                      />
-                    </div>
+                    {/* Slat Width — only meaningful for PVC strip curtains, whose
+                        billed width is calculated from a slat count */}
+                    {unit === 'PVC sq.ft' && (
+                      <div>
+                        <label style={S.label}>
+                          Slat Size / Width (inches)
+                          <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '11px', marginLeft: '6px' }}>
+                            (e.g., 8)
+                          </span>
+                        </label>
+                        <input
+                          className="pm-input"
+                          type="number" step="0.1" min="0"
+                          style={inputStyle('size')}
+                          placeholder="e.g. 8"
+                          value={productSize}
+                          onChange={e => setProductSize(e.target.value)}
+                          onFocus={() => setFocusedField('size')}
+                          onBlur={() => setFocusedField(null)}
+                          disabled={loading || isViewOnly}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Details */}

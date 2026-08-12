@@ -25,7 +25,7 @@ const Dashboard = () => {
     try {
       const response = await api.get('/reports/dashboard-stats');
       if (response?.data?.status === 'success') {
-        setData(response.data.data);
+        setData(response.data);
       } else {
         setError(response?.data?.message || 'Failed to fetch dashboard data.');
       }
@@ -129,14 +129,17 @@ const Dashboard = () => {
   }
 
   // Extract data with fallback defaults
-  const today = data?.today || {};
-  const totals = data?.totals || {};
-  const chart = data?.chart || [];
-  const recent_orders = data?.recent_orders || [];
-  const recent_quotations = data?.recent_quotations || [];
-  const top_due_customers = data?.top_due_customers || [];
-  const top_selling_products = data?.top_selling_products || [];
-  const wallets = data?.wallets || {};
+  // (top-level fields like is_salesman/sales_target/sales_dues live directly
+  // on `data`, but the stats themselves are nested one level deeper under
+  // `data.data` — that's the shape ReportController::dashboardStats returns)
+  const today = data?.data?.today || {};
+  const totals = data?.data?.totals || {};
+  const chart = data?.data?.chart || [];
+  const recent_orders = data?.data?.recent_orders || [];
+  const recent_quotations = data?.data?.recent_quotations || [];
+  const top_due_customers = data?.data?.top_due_customers || [];
+  const top_selling_products = data?.data?.top_selling_products || [];
+  const wallets = data?.data?.wallets || {};
 
   const todayData = {
     sales: today.sales || 0,
@@ -187,67 +190,117 @@ const Dashboard = () => {
   const sectionWidth = graphWidth / chartLength;
 
   // Stats cards metadata
-  const cards = [
-    {
-      title: 'Today Sales',
-      value: formatCurrency(todayData.sales),
-      color: '#10b981', // Emerald Green
-      borderGlow: 'rgba(16, 185, 129, 0.4)',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#10b981' }}>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Todays Purchase',
-      value: formatCurrency(todayData.purchases),
-      color: '#0284c7', // Cyan/Teal
-      borderGlow: 'rgba(2, 132, 199, 0.4)',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#0284c7' }}>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Today Expense',
-      value: formatCurrency(todayData.expenses),
-      color: '#ef4444', // Red
-      borderGlow: 'rgba(239, 68, 68, 0.4)',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#ef4444' }}>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Today Profit',
-      value: formatCurrency(todayData.profit),
-      color: todayData.profit >= 0 ? '#10b981' : '#ef4444',
-      borderGlow: todayData.profit >= 0 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: todayData.profit >= 0 ? '#10b981' : '#ef4444' }}>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Today Collection',
-      value: formatCurrency(todayData.collection),
-      color: '#f59e0b', // Amber
-      borderGlow: 'rgba(245, 158, 11, 0.4)',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#f59e0b' }}>
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
-    {
-      title: 'Total Invoice',
-      value: totalsData.invoices,
-      color: '#10b981', // Green
+  let cards = [];
+  
+  if (data?.is_salesman) {
+    cards = [
+      {
+        title: 'Monthly Sales Target',
+        value: formatCurrency(data.sales_target),
+        color: '#10b981',
+        borderGlow: 'rgba(16, 185, 129, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#10b981' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        ),
+      },
+      {
+        title: 'My Sales (Today)',
+        value: formatCurrency(todayData.sales),
+        color: '#0284c7',
+        borderGlow: 'rgba(2, 132, 199, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#0284c7' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        ),
+      },
+      {
+        title: 'Total Sales Dues',
+        value: formatCurrency(data.sales_dues),
+        color: '#ef4444',
+        borderGlow: 'rgba(239, 68, 68, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#ef4444' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        ),
+      },
+      {
+        title: 'My Collection (Today)',
+        value: formatCurrency(todayData.collection),
+        color: '#f59e0b',
+        borderGlow: 'rgba(245, 158, 11, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#f59e0b' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      }
+    ];
+  } else {
+    cards = [
+      {
+        title: 'Today Sales',
+        value: formatCurrency(todayData.sales),
+        color: '#10b981', // Emerald Green
+        borderGlow: 'rgba(16, 185, 129, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#10b981' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+        ),
+      },
+      {
+        title: 'Todays Purchase',
+        value: formatCurrency(todayData.purchases),
+        color: '#0284c7', // Cyan/Teal
+        borderGlow: 'rgba(2, 132, 199, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#0284c7' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+          </svg>
+        ),
+      },
+      {
+        title: 'Today Expense',
+        value: formatCurrency(todayData.expenses),
+        color: '#ef4444', // Red
+        borderGlow: 'rgba(239, 68, 68, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#ef4444' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+          </svg>
+        ),
+      },
+      {
+        title: 'Today Profit',
+        value: formatCurrency(todayData.profit),
+        color: todayData.profit >= 0 ? '#10b981' : '#ef4444',
+        borderGlow: todayData.profit >= 0 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: todayData.profit >= 0 ? '#10b981' : '#ef4444' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        ),
+      },
+      {
+        title: 'Today Collection',
+        value: formatCurrency(todayData.collection),
+        color: '#f59e0b', // Amber
+        borderGlow: 'rgba(245, 158, 11, 0.4)',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#f59e0b' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      },
+      {
+        title: 'Total Invoice',
+        value: totalsData.invoices,
+        color: '#10b981', // Green
       borderGlow: 'rgba(16, 185, 129, 0.3)',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="36" height="36" style={{ opacity: 0.8, color: '#10b981' }}>
@@ -287,8 +340,9 @@ const Dashboard = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
         </svg>
       ),
-    },
+    }
   ];
+}
 
   // Role-tailored cards filter
   const userRole = user?.role || 'staff';
@@ -334,7 +388,7 @@ const Dashboard = () => {
       </div>
 
       {/* Grid of Role-Filtered Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '20px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
         {visibleCards.map((card, idx) => {
           const isHovered = hoveredCard === idx;
           return (
@@ -378,7 +432,7 @@ const Dashboard = () => {
       </div>
 
       {/* Row 1 Widgets: Top Selling Products + Liquid Funds + Quick Actions */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))', gap: '24px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
         
         {/* Top Selling Products Widget */}
         <div style={{ ...glassmorphismStyle, borderRadius: '16px', padding: '24px' }}>
@@ -420,45 +474,47 @@ const Dashboard = () => {
         </div>
 
         {/* Cash & Book Balance Widget */}
-        <div style={{ ...glassmorphismStyle, borderRadius: '16px', padding: '24px' }}>
-          <h2 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 800, color: theme.textMain }}>
-            💳 Liquid Funds Overview
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* Cash Wallet */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: theme.itemBg, border: `1px solid ${theme.itemBorder}`, borderRadius: '12px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
-                💵
+        {!data.is_salesman && (
+          <div style={{ ...glassmorphismStyle, borderRadius: '16px', padding: '24px' }}>
+            <h2 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: 800, color: theme.textMain }}>
+              💳 Liquid Funds Overview
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Cash Wallet */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: theme.itemBg, border: `1px solid ${theme.itemBorder}`, borderRadius: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
+                  💵
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '11px', color: theme.textSub, fontWeight: 700, letterSpacing: '0.5px' }}>CASH BOOK BALANCE</div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#10b981', marginTop: '3px' }}>{formatCurrency(walletBalances.cash)}</div>
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '11px', color: theme.textSub, fontWeight: 700, letterSpacing: '0.5px' }}>CASH BOOK BALANCE</div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#10b981', marginTop: '3px' }}>{formatCurrency(walletBalances.cash)}</div>
-              </div>
-            </div>
 
-            {/* Bank Wallet */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: theme.itemBg, border: `1px solid ${theme.itemBorder}`, borderRadius: '12px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#0284c7', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
-                🏦
+              {/* Bank Wallet */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: theme.itemBg, border: `1px solid ${theme.itemBorder}`, borderRadius: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#0284c7', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
+                  🏦
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '11px', color: theme.textSub, fontWeight: 700, letterSpacing: '0.5px' }}>BANK BOOK BALANCE</div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#0284c7', marginTop: '3px' }}>{formatCurrency(walletBalances.bank)}</div>
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '11px', color: theme.textSub, fontWeight: 700, letterSpacing: '0.5px' }}>BANK BOOK BALANCE</div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#0284c7', marginTop: '3px' }}>{formatCurrency(walletBalances.bank)}</div>
-              </div>
-            </div>
 
-            {/* Mobile Banking Wallet */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: theme.itemBg, border: `1px solid ${theme.itemBorder}`, borderRadius: '12px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', color: '#7e22ce', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
-                📱
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '11px', color: theme.textSub, fontWeight: 700, letterSpacing: '0.5px' }}>MOBILE BANKING BALANCE</div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#7e22ce', marginTop: '3px' }}>{formatCurrency(walletBalances.mobile)}</div>
+              {/* Mobile Banking Wallet */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: theme.itemBg, border: `1px solid ${theme.itemBorder}`, borderRadius: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', color: '#7e22ce', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '18px' }}>
+                  📱
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '11px', color: theme.textSub, fontWeight: 700, letterSpacing: '0.5px' }}>MOBILE BANKING BALANCE</div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#7e22ce', marginTop: '3px' }}>{formatCurrency(walletBalances.mobile)}</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Quick Actions Panel */}
         <div style={{ ...glassmorphismStyle, borderRadius: '16px', padding: '24px' }}>
@@ -566,8 +622,8 @@ const Dashboard = () => {
 
       </div>
 
-      {/* Row 2 Widgets: Recent Activity Feed & Outstanding Receivables */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
+      {/* Row 2 Widgets: Recent Activity Feed */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '28px', position: 'relative', zIndex: 1 }}>
         
         {/* Recent Activity Tabs Widget */}
         <div style={{ ...glassmorphismStyle, borderRadius: '16px', padding: '24px' }}>

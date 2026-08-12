@@ -25,6 +25,10 @@ const Orders = () => {
   // Filters & Reporting Period
   const [filterSearch, setFilterSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [activeTab, setActiveTab] = useState('confirmed');
+
+  // Mobile card view: which row's actions menu is currently open
+  const [openActionsId, setOpenActionsId] = useState(null);
 
   // Print Modal States
   const [printingOrder, setPrintingOrder] = useState(null);
@@ -34,6 +38,10 @@ const Orders = () => {
   // Excel Paste Modal States
   const [excelPasteTargetBlock, setExcelPasteTargetBlock] = useState(null);
   const [excelPasteText, setExcelPasteText] = useState('');
+
+  // Edit Mode States
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editId, setEditId] = useState(null);
 
   // -------------------------------------------------------------
   // FORM STATE FOR DIRECT ORDER CREATION (Dynamic Builder)
@@ -120,12 +128,29 @@ const Orders = () => {
     fetchOrders();
   }, [fetchOrders]);
 
-  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    if (openActionsId === null) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.order-mobile-actions-wrap')) {
+        setOpenActionsId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openActionsId]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     const q = searchParams.get('search');
     if (q) {
       setFilterSearch(decodeURIComponent(q));
+    }
+    const tab = searchParams.get('tab');
+    if (tab === 'pending') {
+      setActiveTab('pending');
+    } else if (tab === 'confirmed') {
+      setActiveTab('confirmed');
     }
   }, [searchParams]);
 
@@ -135,6 +160,16 @@ const Orders = () => {
       loadProducts();
     }
   }, [view, loadBasicData, loadProducts]);
+
+  const handleGenerateInvoice = async (orderId, orderNo) => {
+    if (!confirm(`Generate Sales Invoice for Order ${orderNo}?`)) return;
+    try {
+      await api.post(`/invoices/generate/${orderId}`, {});
+      navigate(`/invoices?search=${encodeURIComponent(orderNo)}`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to generate invoice.');
+    }
+  };
 
   const loadOrderDetails = async (id) => {
     try {
@@ -197,7 +232,7 @@ const Orders = () => {
     }
   };
 
-  const handleGenerateInvoice = async (id) => {
+  const handleGenerateInvoiceFromDetail = async (id) => {
     try {
       const res = await api.post(`/invoices/generate/${id}`);
       alert(res.data?.message || 'Invoice generated successfully.');
@@ -211,16 +246,24 @@ const Orders = () => {
     if (!Array.isArray(orders)) return [];
     return orders.filter(o => {
       if (!o) return false;
+
+      if (activeTab === 'confirmed') {
+        if (o.status === 'pending_approval' || o.status === 'pending_reapproval' || o.status === 'quotation' || o.status === 'rejected') return false;
+      } else if (activeTab === 'pending') {
+        if (o.status !== 'pending_approval' && o.status !== 'pending_reapproval') return false;
+      }
+
       const matchesStatus = filterStatus ? o.status === filterStatus : true;
       const searchQ = (filterSearch || '').toLowerCase().trim();
       const matchesSearch = searchQ
         ? (o.quotation_number && String(o.quotation_number).toLowerCase().includes(searchQ)) ||
           (o.customer?.name && String(o.customer.name).toLowerCase().includes(searchQ)) ||
-          (o.customer?.phone && String(o.customer.phone).toLowerCase().includes(searchQ))
+          (o.customer?.phone && String(o.customer.phone).toLowerCase().includes(searchQ)) ||
+          (o.delivery_address && String(o.delivery_address).toLowerCase().includes(searchQ))
         : true;
       return matchesStatus && matchesSearch;
     });
-  }, [orders, filterStatus, filterSearch]);
+  }, [orders, filterStatus, filterSearch, activeTab]);
 
   const selectedCustomerObj = useMemo(() => {
     return customers.find(c => c.id === parseInt(selectedCustomerId));
@@ -309,8 +352,14 @@ const Orders = () => {
     const defaultMinSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
     const defaultUnitPrice = parseFloat(prod.default_unit_price) || 0;
 
-    const defaultNotes = prod.details || 
+    const defaultNotes = prod.details ||
       `5% Sunscreen Fabrics\nHeavy Duty side clump & Controller\nFittings, Fixing, and installations\nWith all Accessories\nPer Blinds Minimum Quantity ${defaultMinSqft || 20} Sft`;
+
+    // Pcs-unit products (hardware, accessories, remote controls, etc.) have
+    // no meaningful width/height — they're billed by piece count instead, so
+    // default the dimensions to 1x1 (a valid, invisible placeholder) and
+    // start with a single quantity row rather than 4 blank size rows.
+    const isPcsProduct = (prod.unit || '').trim().toLowerCase() === 'pcs';
 
     const newBlock = {
       id: Date.now() + Math.random(),
@@ -324,6 +373,7 @@ const Orders = () => {
       product_name: prod.name,
       product_size: prod.product_size || null,
       category_name: prod.category?.name || '',
+      unit: prod.unit || '',
       product_variant_id: null,
       supplier_id: priorityLink ? priorityLink.supplier_id : '',
       unit_price: defaultUnitPrice,
@@ -332,7 +382,18 @@ const Orders = () => {
       notes: defaultNotes,
       // Start with 4 empty size rows so mobile users can fill in
       // multiple window sizes right away; unused rows can be deleted.
-      sizes: Array.from({ length: 4 }, (_, i) => ({
+      // Pcs-unit products get a single ready-to-use quantity row instead.
+      sizes: isPcsProduct
+        ? [{
+            id: Date.now() + 1,
+            width: 1,
+            height: 1,
+            pcs: 1,
+            actual_sqft: 1,
+            billed_sqft: 1,
+            line_total: defaultUnitPrice,
+          }]
+        : Array.from({ length: 4 }, (_, i) => ({
         id: Date.now() + i + 1,
         width: '',
         height: '',
@@ -393,18 +454,19 @@ const Orders = () => {
         ...sec,
         blocks: sec.blocks.map(block => {
           if (block.id !== blockId) return block;
+          const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs';
           return {
             ...block,
             sizes: [
               ...block.sizes,
               {
                 id: Date.now() + Math.random(),
-                width: '',
-                height: '',
+                width: isPcsBlock ? 1 : '',
+                height: isPcsBlock ? 1 : '',
                 pcs: 1,
-                actual_sqft: 0,
-                billed_sqft: 0,
-                line_total: 0
+                actual_sqft: isPcsBlock ? 1 : 0,
+                billed_sqft: isPcsBlock ? 1 : 0,
+                line_total: isPcsBlock ? (parseFloat(block.unit_price) || 0) : 0
               }
             ]
           };
@@ -503,10 +565,10 @@ const Orders = () => {
             const pcs = parseInt(row.pcs) || 1;
             const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
             let totalBilledSqft = 0;
-            const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+            const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
             if (isPvc) {
               const slatSize = parseFloat(block.product_size) || 8;
-              const slats = Math.round((7 / 41) * w);
+              const slats = Math.ceil(w / 5.85);
               const calcWidth = slats * slatSize;
               totalBilledSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
             } else {
@@ -555,13 +617,16 @@ const Orders = () => {
             const h = parseFloat(updatedSize.height) || 0;
             const pcs = parseInt(updatedSize.pcs) || 1;
 
+            const isPcs = (block.unit || '').trim().toLowerCase() === 'pcs';
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
             let billedSqft = 0;
-            if (w > 0 && h > 0) {
-              const isPvc = (block.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+            if (isPcs) {
+              billedSqft = pcs;
+            } else if (w > 0 && h > 0) {
+              const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
               if (isPvc) {
                 const slatSize = parseFloat(block.product_size) || 8;
-                const slats = Math.round((7 / 41) * w);
+                const slats = Math.ceil(w / 5.85);
                 const calcWidth = slats * slatSize;
                 billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
               } else {
@@ -573,7 +638,7 @@ const Orders = () => {
 
             return {
               ...updatedSize,
-              actual_sqft: singlePieceSqft,
+              actual_sqft: isPcs ? pcs : singlePieceSqft,
               billed_sqft: billedSqft,
               line_total: lineTotal
             };
@@ -598,7 +663,8 @@ const Orders = () => {
           if (field === 'product_id') {
             const prod = products.find(p => p.id === parseInt(value));
             if (prod) {
-              const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
+              const links = prod.supplier_links || prod.supplierLinks || [];
+              const priorityLink = links.find(link => link.priority_rank === 1) || links[0];
               const defaultMinSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
               const defaultUnitPrice = parseFloat(prod.default_unit_price) || 0;
 
@@ -606,18 +672,32 @@ const Orders = () => {
               updatedBlock.product_code = prod.product_code || '';
               updatedBlock.product_size = prod.product_size || null;
               updatedBlock.category_name = prod.category?.name || '';
+              updatedBlock.unit = prod.unit || '';
               updatedBlock.unit_price = defaultUnitPrice;
               updatedBlock.cost_price = priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0;
               updatedBlock.min_billing_sqft = defaultMinSqft;
               updatedBlock.supplier_id = priorityLink ? priorityLink.supplier_id : '';
-              updatedBlock.notes = prod.details || 
+              updatedBlock.notes = prod.details ||
                 `5% Sunscreen Fabrics\nHeavy Duty side clump & Controller\nFittings, Fixing, and installations\nWith all Accessories\nPer Blinds Minimum Quantity ${defaultMinSqft || 20} Sft`;
+
+              // Switching to a Pcs-unit product: width/height are meaningless
+              // for it, so fill in the 1x1 placeholder on any rows still
+              // missing dimensions instead of leaving them blank (which would
+              // otherwise fail the "valid size required" check on submit).
+              if ((prod.unit || '').trim().toLowerCase() === 'pcs') {
+                updatedBlock.sizes = updatedBlock.sizes.map(size => ({
+                  ...size,
+                  width: parseFloat(size.width) > 0 ? size.width : 1,
+                  height: parseFloat(size.height) > 0 ? size.height : 1,
+                }));
+              }
             }
           }
 
           if (field === 'unit_price' || field === 'product_id') {
             const unitPrice = parseFloat(updatedBlock.unit_price) || 0;
             const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
+            const isPcs = (updatedBlock.unit || '').trim().toLowerCase() === 'pcs';
 
             updatedBlock.sizes = updatedBlock.sizes.map(size => {
               const w = parseFloat(size.width) || 0;
@@ -626,11 +706,13 @@ const Orders = () => {
 
               const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
               let billedSqft = 0;
-              if (w > 0 && h > 0) {
-                const isPvc = (updatedBlock.category_name || '').toLowerCase().trim() === 'pvc strip curtains';
+              if (isPcs) {
+                billedSqft = pcs;
+              } else if (w > 0 && h > 0) {
+                const isPvc = (updatedBlock.unit || '').toLowerCase().includes('pvc') || (updatedBlock.category_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('clear water');
                 if (isPvc) {
                   const slatSize = parseFloat(updatedBlock.product_size) || 8;
-                  const slats = Math.round((7 / 41) * w);
+                  const slats = Math.ceil(w / 5.85);
                   const calcWidth = slats * slatSize;
                   billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
                 } else {
@@ -640,7 +722,7 @@ const Orders = () => {
               }
               const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
 
-              return { ...size, actual_sqft: singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
+              return { ...size, actual_sqft: isPcs ? pcs : singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
             });
           }
 
@@ -686,6 +768,8 @@ const Orders = () => {
   }, [sections, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
 
   const resetForm = () => {
+    setIsEditMode(false);
+    setEditId(null);
     setDate(new Date().toISOString().substring(0, 10));
     setSelectedCustomerId('');
     setCustomerSearchQuery('');
@@ -707,6 +791,136 @@ const Orders = () => {
     setRemark('');
     setTerms('');
     setFormError('');
+  };
+
+  const handleEditClick = async (o) => {
+    try {
+      setLoading(true);
+      let fullQ = o;
+      try {
+        const res = await api.get(`/quotations/${o.id}`);
+        if (res.data && res.data.data) {
+          fullQ = res.data.data;
+        }
+      } catch (e) {
+        console.warn('Using list item fallback for order edit:', e);
+      }
+
+      setIsEditMode(true);
+      setEditId(fullQ.id);
+      setDate(fullQ.created_at ? fullQ.created_at.substring(0, 10) : new Date().toISOString().substring(0, 10));
+      setSelectedCustomerId(fullQ.customer_id);
+      setCustomerSearchQuery(fullQ.customer ? (fullQ.customer.company_name || fullQ.customer.name) : '');
+      setDeliveryAddress(fullQ.delivery_address || '');
+      setConvenienceCharge(parseFloat(fullQ.convenience_charge) || 0);
+      setOtherCharge(parseFloat(fullQ.other_charge) || 0);
+      setOtherChargeLabel(fullQ.other_charge_label || '');
+      setVatPercentage(parseFloat(fullQ.vat_percentage) || 0);
+      setDiscountType(fullQ.discount_type || 'flat');
+      setDiscountValue(parseFloat(fullQ.discount_value) || 0);
+      setRemark(fullQ.note || '');
+
+      await loadProducts();
+
+      const sectionMap = new Map();
+      (fullQ.items || []).forEach(item => {
+        const secName = item.section_name || 'Section A: Main Items';
+        if (!sectionMap.has(secName)) {
+          sectionMap.set(secName, new Map());
+        }
+        const blockMap = sectionMap.get(secName);
+        const optGrpId = item.option_group_id || null;
+        const key = `${optGrpId}_${item.product_id}_${item.unit_price}_${item.notes || ''}`;
+
+        const prod = products.find(p => p.id === item.product_id) || item.product;
+        const width = parseFloat(item.width) || 0;
+        const height = parseFloat(item.height) || 0;
+        const pcs = parseInt(item.pcs) || 1;
+        const unitPrice = parseFloat(item.unit_price) || 0;
+        const minSqft = parseFloat(item.min_billing_sqft) || 0;
+
+        const catName = prod?.category?.name || item.product?.category?.name || item.category_name || '';
+        const prodUnit = prod?.unit || item.product?.unit || item.unit || '';
+        const prodName = prod?.name || item.product?.name || `Product #${item.product_id}`;
+        const isPvc = prodUnit.toLowerCase().includes('pvc') || catName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('clear water');
+        const actualSqft = Math.round(((width * height) / 144) * 100) / 100;
+        let billedSqft = 0;
+        if (width > 0 && height > 0) {
+          if (isPvc) {
+            const slatSize = parseFloat(prod?.product_size || item.product?.product_size) || 8;
+            const slats = Math.round(width / 5.85);
+            const calcWidth = slats * slatSize;
+            billedSqft = Math.round(((calcWidth * height) / 144 * pcs) * 100) / 100;
+          } else {
+            billedSqft = Math.round((Math.max(actualSqft, minSqft) * pcs) * 100) / 100;
+          }
+        }
+        const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
+
+        const sizeObj = {
+          id: item.id || Date.now() + Math.random(),
+          width: item.width,
+          height: item.height,
+          pcs: item.pcs,
+          actual_sqft: actualSqft,
+          billed_sqft: billedSqft,
+          line_total: lineTotal
+        };
+
+        if (blockMap.has(key)) {
+          blockMap.get(key).sizes.push(sizeObj);
+        } else {
+          blockMap.set(key, {
+            id: Date.now() + Math.random(),
+            option_group_id: optGrpId,
+            is_optional: item.is_optional || false,
+            is_selected: item.is_selected !== false,
+            is_enabled_for_print: item.is_enabled_for_print !== false,
+            product_id: item.product_id,
+            product_code: prod?.product_code || item.product?.product_code || '',
+            product_name: prodName,
+            product_size: prod?.product_size || item.product?.product_size || null,
+            category_name: catName,
+            unit: prodUnit,
+            product_variant_id: item.product_variant_id || null,
+            supplier_id: item.supplier_id || null,
+            unit_price: unitPrice,
+            cost_price: item.cost_price || 0,
+            min_billing_sqft: minSqft,
+            notes: item.notes || '',
+            sizes: [sizeObj]
+          });
+        }
+      });
+
+      const loadedSections = [];
+      let sCounter = 1;
+      sectionMap.forEach((blockMap, secName) => {
+        const sId = 'sec_' + sCounter++;
+        const blocks = Array.from(blockMap.values()).map(b => ({ ...b, section_id: sId }));
+        loadedSections.push({
+          id: sId,
+          name: secName,
+          blocks: blocks
+        });
+      });
+
+      if (loadedSections.length === 0) {
+        loadedSections.push({
+          id: 'sec_default',
+          name: 'Section A: Main Items',
+          blocks: []
+        });
+      }
+
+      setSections(loadedSections);
+      setView('form');
+    } catch (err) {
+      console.error('Error loading order for edit:', err);
+      alert('Could not load order details for editing.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateDirectOrder = async (e) => {
@@ -737,13 +951,17 @@ const Orders = () => {
           return;
         }
 
+        const isPcs = (block.unit || '').trim().toLowerCase().includes('pc') ||
+                      (block.unit || '').trim().toLowerCase().includes('piece') ||
+                      (block.unit || '').trim().toLowerCase().includes('no');
+
         let validSizeCount = 0;
         block.sizes.forEach((s) => {
           const w = parseFloat(s.width) || 0;
           const h = parseFloat(s.height) || 0;
           const pcs = parseInt(s.pcs) || 1;
 
-          if (w > 0 && h > 0 && pcs > 0) {
+          if (isPcs ? (pcs > 0) : (w > 0 && h > 0 && pcs > 0)) {
             validSizeCount++;
             items.push({
               section_name: sec.name,
@@ -754,8 +972,8 @@ const Orders = () => {
               product_id: block.product_id,
               product_variant_id: block.product_variant_id || null,
               supplier_id: block.supplier_id || null,
-              width: w,
-              height: h,
+              width: isPcs ? (w > 0 ? w : 1) : w,
+              height: isPcs ? (h > 0 ? h : 1) : h,
               pcs: pcs,
               unit_price: parseFloat(block.unit_price) || 0,
               cost_price: block.cost_price || 0,
@@ -766,7 +984,7 @@ const Orders = () => {
         });
 
         if (validSizeCount === 0) {
-          setFormError(`[${sec.name}] Product "${block.product_name}": At least 1 valid size (Width & Height greater than 0) is required.`);
+          setFormError(`[${sec.name}] Product "${block.product_name}": ${isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
           return;
         }
       }
@@ -788,14 +1006,19 @@ const Orders = () => {
 
     try {
       setIsSubmitting(true);
-      await api.post('/quotations', payload);
-      alert('Direct Order created & Purchase Entries generated successfully!');
+      if (isEditMode && editId) {
+        await api.put(`/quotations/${editId}`, payload);
+        alert('Order updated successfully!');
+      } else {
+        await api.post('/quotations', payload);
+        alert('Direct Order created & Purchase Entries generated successfully!');
+      }
       resetForm();
       setView('list');
       fetchOrders();
     } catch (err) {
-      console.error('Error creating direct order:', err);
-      setFormError(err.response?.data?.message || 'Failed to create direct order. Please check all fields.');
+      console.error('Error saving direct order:', err);
+      setFormError(err.response?.data?.message || 'Failed to save order. Please check all fields.');
     } finally {
       setIsSubmitting(false);
     }
@@ -807,11 +1030,65 @@ const Orders = () => {
         <>
           <div className="page-header-row no-print">
             <div>
-              <h1>Confirmed Orders</h1>
-              <p>Manage confirmed sales orders, manager approvals, and automated supplier routing</p>
+              <h1>{activeTab === 'confirmed' ? 'Confirmed Orders' : 'Placed / Pending Orders'}</h1>
+              <p>Manage {activeTab === 'confirmed' ? 'confirmed sales orders' : 'orders waiting for approval'}</p>
             </div>
             <button className="primary-btn" onClick={() => { resetForm(); setView('form'); }}>
               + Create Order
+            </button>
+          </div>
+
+          {/* PREMIUM TABS */}
+          <div className="no-print" style={{ 
+            display: 'flex', 
+            gap: '12px', 
+            marginBottom: '24px', 
+            background: '#f8fafc',
+            padding: '6px',
+            borderRadius: '12px',
+            width: 'fit-content',
+            border: '1px solid #e2e8f0',
+            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)'
+          }}>
+            <button
+              onClick={() => { setActiveTab('confirmed'); setFilterStatus(''); setSearchParams({ tab: 'confirmed' }); }}
+              style={{
+                background: activeTab === 'confirmed' ? '#ffffff' : 'transparent',
+                border: 'none',
+                padding: '10px 20px',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: activeTab === 'confirmed' ? '#0f172a' : '#64748b',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: activeTab === 'confirmed' ? '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>✅</span> Confirmed Orders
+            </button>
+            <button
+              onClick={() => { setActiveTab('pending'); setFilterStatus(''); setSearchParams({ tab: 'pending' }); }}
+              style={{
+                background: activeTab === 'pending' ? '#ffffff' : 'transparent',
+                border: 'none',
+                padding: '10px 20px',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: activeTab === 'pending' ? '#0f172a' : '#64748b',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: activeTab === 'pending' ? '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>⏳</span> Placed Orders (Pending)
             </button>
           </div>
 
@@ -832,25 +1109,33 @@ const Orders = () => {
               style={{ width: '200px' }}
             >
               <option value="">All Statuses</option>
-              <option value="pending_approval">Pending Approval</option>
-              <option value="approved">Approved</option>
-              <option value="invoiced">Invoiced</option>
-              <option value="rejected">Rejected</option>
+              {activeTab === 'confirmed' ? (
+                <>
+                  <option value="approved">Approved</option>
+                  <option value="invoiced">Invoiced</option>
+                </>
+              ) : (
+                <>
+                  <option value="pending_approval">Pending Approval</option>
+                  <option value="pending_reapproval">Pending Reapproval</option>
+                </>
+              )}
             </select>
           </div>
 
           {loading ? (
             <div className="flex-center" style={{ padding: '40px' }}><div className="spinner"></div></div>
           ) : (
-            <div className="card-table-wrapper">
+            <>
+            <div className="card-table-wrapper orders-desktop-table">
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>Order Number</th>
                     <th>Customer</th>
-                    <th className="hide-mobile-col">Customer Address</th>
                     <th>Delivery Address</th>
                     <th className="hide-mobile-col">Salesman</th>
+                    <th>Total Sq.Ft</th>
                     <th>Status</th>
                     <th>Date</th>
                     <th>Actions</th>
@@ -877,26 +1162,25 @@ const Orders = () => {
                         <td>
                           {o.customer ? (
                             <Link
-                              to={`/customers?search=${encodeURIComponent(o.customer.name)}`}
+                              to={`/customers?search=${encodeURIComponent(o.customer.company_name || o.customer.name)}`}
                               className="clickable-link"
+                              style={{ fontWeight: 600 }}
                             >
-                              {o.customer.name}
+                              {o.customer.company_name || o.customer.name}
                             </Link>
                           ) : (
                             'N/A'
                           )}
                         </td>
-                        <td className="hide-mobile-col">
-                          <div style={{ fontSize: '12px', color: 'var(--text-main)', maxWidth: '180px', whiteSpace: 'normal', lineHeight: '1.4' }}>
-                            {o.customer?.address || 'N/A'}
-                          </div>
-                        </td>
                         <td>
-                          <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, maxWidth: '180px', whiteSpace: 'normal', lineHeight: '1.4' }}>
+                          <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, maxWidth: '220px', whiteSpace: 'normal', lineHeight: '1.4' }}>
                             {o.delivery_address || o.customer?.address || 'N/A'}
                           </div>
                         </td>
                         <td className="hide-mobile-col">{o.salesman?.name || o.creator?.name || '-'}</td>
+                        <td style={{ fontWeight: 'bold', color: '#0f172a' }}>
+                          {o.items_sum_billed_sqft ? parseFloat(o.items_sum_billed_sqft).toFixed(2) : '0.00'} sq.ft
+                        </td>
                         <td>
                           <span className={`badge ${
                             o.status === 'approved' ? 'badge-success' :
@@ -913,10 +1197,48 @@ const Orders = () => {
                             className="btn-action-circle"
                             onClick={() => loadOrderDetails(o.id)}
                             title="View Order Details"
-                            style={{ marginRight: '6px' }}
+                            style={{ marginRight: '4px' }}
                           >
                             👁️
                           </button>
+
+                          {/* Purchase Button */}
+                          {(o.status === 'approved' || o.status === 'invoiced') && (
+                            <button
+                              type="button"
+                              className="btn-action-circle"
+                              onClick={() => navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`)}
+                              title="Go to Purchase"
+                              style={{ marginRight: '4px', background: '#fef08a', border: '1px solid #fde047' }}
+                            >
+                              🛒
+                            </button>
+                          )}
+
+                          {/* Sales Button */}
+                          {o.status === 'approved' && (
+                            <button
+                              type="button"
+                              className="btn-action-circle"
+                              onClick={() => handleGenerateInvoice(o.id, o.quotation_number)}
+                              title="Generate Sales / Invoice"
+                              style={{ marginRight: '4px', background: '#bbf7d0', border: '1px solid #86efac' }}
+                            >
+                              🧾
+                            </button>
+                          )}
+
+                          {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
+                            <button
+                              type="button"
+                              className="btn-action-circle"
+                              onClick={() => handleEditClick(o)}
+                              title="Edit Order"
+                              style={{ marginRight: '4px', background: '#eff6ff', border: '1px solid #93c5fd' }}
+                            >
+                              ✏️
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn-action-circle"
@@ -942,6 +1264,111 @@ const Orders = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile card list — same data as the desktop table, actions menu beside the order number */}
+            <div className="orders-mobile-list">
+              {filteredOrders.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>No confirmed orders found.</div>
+              ) : (
+                filteredOrders.map((o) => (
+                  <div className="order-mobile-card" key={o.id}>
+                    <div className="order-mobile-card-header">
+                      <div style={{ minWidth: 0 }}>
+                        <button
+                          type="button"
+                          className="clickable-link"
+                          onClick={() => loadOrderDetails(o.id)}
+                          style={{ fontWeight: 800, display: 'block' }}
+                        >
+                          {o.quotation_number}
+                        </button>
+                        <span style={{ fontSize: '12px', color: '#475569', fontWeight: 600 }}>
+                          {o.customer?.company_name || o.customer?.name || 'N/A'}
+                        </span>
+                      </div>
+
+                      <div className="order-mobile-actions-wrap">
+                        <button
+                          type="button"
+                          className="order-mobile-kebab-btn"
+                          onClick={() => setOpenActionsId(openActionsId === o.id ? null : o.id)}
+                          title="Actions"
+                        >
+                          ⋮
+                        </button>
+                        {openActionsId === o.id && (
+                          <div className="order-mobile-actions-dropdown">
+                            <button className="text-btn" onClick={() => { setOpenActionsId(null); loadOrderDetails(o.id); }}>
+                              👁️ View Details
+                            </button>
+                            {(o.status === 'approved' || o.status === 'invoiced') && (
+                              <button className="text-btn" style={{ color: '#b45309' }} onClick={() => { setOpenActionsId(null); navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`); }}>
+                                🛒 Go to Purchase
+                              </button>
+                            )}
+                            {o.status === 'approved' && (
+                              <button className="text-btn" style={{ color: '#15803d' }} onClick={() => { setOpenActionsId(null); handleGenerateInvoice(o.id, o.quotation_number); }}>
+                                🧾 Generate Sales / Invoice
+                              </button>
+                            )}
+                            {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
+                              <button className="text-btn" style={{ color: '#1d4ed8' }} onClick={() => { setOpenActionsId(null); handleEditClick(o); }}>
+                                ✏️ Edit Order
+                              </button>
+                            )}
+                            <button
+                              className="text-btn"
+                              onClick={async () => {
+                                setOpenActionsId(null);
+                                try {
+                                  const res = await api.get(`/quotations/${o.id}`);
+                                  const fullOrder = res.data?.data || res.data || o;
+                                  setPrintingOrder(fullOrder);
+                                  setIsPrintModalOpen(true);
+                                } catch (err) {
+                                  setPrintingOrder(o);
+                                  setIsPrintModalOpen(true);
+                                }
+                              }}
+                            >
+                              🖨️ Print Order
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="order-mobile-card-row">
+                      <span>Delivery Address</span>
+                      <span style={{ color: '#15803d' }}>{o.delivery_address || o.customer?.address || 'N/A'}</span>
+                    </div>
+                    <div className="order-mobile-card-row">
+                      <span>Salesman</span>
+                      <span>{o.salesman?.name || o.creator?.name || '-'}</span>
+                    </div>
+                    <div className="order-mobile-card-row">
+                      <span>Total Sq.Ft</span>
+                      <span>{o.items_sum_billed_sqft ? parseFloat(o.items_sum_billed_sqft).toFixed(2) : '0.00'} sq.ft</span>
+                    </div>
+                    <div className="order-mobile-card-row">
+                      <span>Status</span>
+                      <span className={`badge ${
+                        o.status === 'approved' ? 'badge-success' :
+                        o.status === 'invoiced' ? 'badge-info' :
+                        o.status === 'pending_approval' ? 'badge-warning' : 'badge-danger'
+                      }`}>
+                        {o.status?.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="order-mobile-card-row">
+                      <span>Date</span>
+                      <span>{formatDate(o.created_at || o.date)}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            </>
           )}
         </>
       ) : view === 'detail' ? (
@@ -1045,7 +1472,7 @@ const Orders = () => {
                   )}
 
                   {selectedOrder?.status === 'approved' && (user?.role === 'admin') && (
-                    <button type="button" className="primary-btn" onClick={() => handleGenerateInvoice(selectedOrder.id)} style={{ padding: '12px' }}>
+                    <button type="button" className="primary-btn" onClick={() => handleGenerateInvoiceFromDetail(selectedOrder.id)} style={{ padding: '12px' }}>
                       Generate Invoice
                     </button>
                   )}
@@ -1172,10 +1599,15 @@ const Orders = () => {
                                     setSelectedTopProductId('');
                                     setProductSearchQuery('');
                                     setShowProductDropdown(false);
-                                    setLastAddedProductName(p.product_code ? p.product_code.toUpperCase() : p.name);
+                                    setLastAddedProductName(`${p.name} (${p.product_code ? p.product_code.toUpperCase() : 'NO CODE'})`);
                                   }}
+                                  style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
                                 >
-                                  <strong>{p.product_code ? p.product_code.toUpperCase() : (p.name || '—')}</strong>
+                                  <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a' }}>{p.name}</div>
+                                  <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', gap: '6px', marginTop: '2px' }}>
+                                    <span>Code: <strong style={{ color: '#475569' }}>{p.product_code ? p.product_code.toUpperCase() : 'N/A'}</strong></span>
+                                    {p.unit && <span style={{ color: '#059669', fontWeight: '600' }}>| Unit: {p.unit}</span>}
+                                  </div>
                                 </div>
                               ))
                             )}
@@ -1191,12 +1623,58 @@ const Orders = () => {
                         +
                       </button>
                     </div>
-                    {lastAddedProductName && (
-                      <div style={{ marginTop: '6px', fontSize: '12px', fontWeight: '600', color: '#16a34a' }}>
-                        ✓ Added: {lastAddedProductName}
+                      {/* Selected Products Tags List */}
+                      <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {(() => {
+                          const selectedProductsList = [];
+                          const seen = new Set();
+                          sections.forEach(sec => {
+                            (sec.blocks || []).forEach(block => {
+                              if (block.product_id && !seen.has(block.product_id)) {
+                                seen.add(block.product_id);
+                                selectedProductsList.push({
+                                  id: block.product_id,
+                                  name: block.product_name,
+                                  code: block.product_code,
+                                  unit: block.unit
+                                });
+                              }
+                            });
+                          });
+
+                          if (selectedProductsList.length === 0) return null;
+
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                              <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Selected Products ({selectedProductsList.length}):
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {selectedProductsList.map((p, idx) => (
+                                  <span
+                                    key={p.id || idx}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      background: '#f0fdf4',
+                                      border: '1px solid #bbf7d0',
+                                      color: '#166534',
+                                      padding: '3px 10px',
+                                      borderRadius: '20px',
+                                      fontSize: '12px',
+                                      fontWeight: '600'
+                                    }}
+                                  >
+                                    ✓ {p.name || `Product #${p.id}`} {p.code && <span style={{ color: '#15803d', opacity: 0.8 }}>({p.code.toUpperCase()})</span>}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
-                    )}
-                  </div>
+                    </div>
                 </div>
 
                 {/* DELIVERY ADDRESS SECTION MATCHING QUOTATIONS */}
@@ -1331,21 +1809,22 @@ const Orders = () => {
                               <table className="data-table item-builder-table" style={{ width: '100%', margin: 0 }}>
                                 <thead>
                                   <tr>
-                                    <th className="cell-product-th" style={{ width: '220px' }}>Product *</th>
-                                    <th style={{ width: '110px' }}>Unit Price</th>
-                                    <th style={{ width: '90px' }}>Width</th>
-                                    <th style={{ width: '90px' }}>Height</th>
-                                    <th style={{ width: '65px' }}>Pcs</th>
-                                    <th style={{ width: '120px' }}>Sq.Ft</th>
-                                    <th className="cell-total-sqft-th" style={{ width: '90px' }}>Total Sq.Ft</th>
-                                    <th style={{ width: '130px' }}>Total Price</th>
-                                    <th style={{ width: '110px', textAlign: 'center' }}>Action</th>
+                                    <th className="cell-product-th" style={{ width: '250px', minWidth: '220px' }}>Product *</th>
+                                    <th style={{ width: '110px', minWidth: '95px' }}>Unit Price</th>
+                                    <th style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>Width</th>
+                                    <th style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>T. Width (in)</th>
+                                    <th style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>Height</th>
+                                    <th style={{ width: '75px', minWidth: '65px', textAlign: 'center' }}>Pcs</th>
+                                    <th style={{ width: '120px', minWidth: '105px', textAlign: 'center' }}>Sq.Ft</th>
+                                    <th className="cell-total-sqft-th" style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>Total Sq.Ft</th>
+                                    <th style={{ width: '130px', minWidth: '110px', textAlign: 'center' }}>Total Price</th>
+                                    <th style={{ width: '90px', minWidth: '80px', textAlign: 'center' }}>Action</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
                                   <tr className="mobile-size-card-row">
-                                    <td colSpan="9" className="mobile-size-card-cell">
+                                    <td colSpan="10" className="mobile-size-card-cell">
                                       <div className="mobile-size-card">
                                         <div className="mobile-size-header-bar">
                                           <div className="mobile-size-header-item">
@@ -1430,47 +1909,89 @@ const Orders = () => {
                                     <tr key={sizeRow.id}>
                                       {sIdx === 0 && (
                                         <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
-                                          {productChangeBlockId === block.id ? (
-                                            <div style={{ position: 'relative' }}>
-                                              <input
-                                                type="text"
-                                                autoFocus
-                                                placeholder="Search product by code or name..."
-                                                value={productChangeQuery}
-                                                onChange={(e) => setProductChangeQuery(e.target.value)}
-                                                onBlur={() => setTimeout(() => setProductChangeBlockId(null), 200)}
-                                                className="modern-form-control"
-                                                style={{ fontWeight: 'bold', fontSize: '13px' }}
-                                              />
-                                              <div className="search-dropdown-list">
-                                                {filteredProductsForChange.length === 0 ? (
-                                                  <div className="dropdown-item empty">No products found</div>
-                                                ) : (
-                                                  filteredProductsForChange.map(p => (
-                                                    <div
-                                                      key={p.id}
-                                                      className="dropdown-item"
-                                                      onMouseDown={() => {
-                                                        handleBlockChange(sec.id, block.id, 'product_id', p.id);
-                                                        setProductChangeBlockId(null);
-                                                        setProductChangeQuery('');
-                                                      }}
-                                                    >
-                                                      <strong>{p.product_code ? p.product_code.toUpperCase() : p.name}</strong>
-                                                    </div>
-                                                  ))
-                                                )}
+                                           {productChangeBlockId === block.id ? (
+                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px' }}>
+                                               <select
+                                                 value={block.product_id || ''}
+                                                 onChange={(e) => {
+                                                   if (e.target.value) {
+                                                     handleBlockChange(sec.id, block.id, 'product_id', e.target.value);
+                                                     setProductChangeBlockId(null);
+                                                     setProductChangeQuery('');
+                                                   }
+                                                 }}
+                                                 className="modern-form-control"
+                                                 style={{ fontWeight: '600', fontSize: '12px', padding: '6px' }}
+                                               >
+                                                 <option value="">-- Choose Product --</option>
+                                                 {products.map(p => (
+                                                   <option key={p.id} value={p.id}>
+                                                     {p.name} {p.product_code ? `(${p.product_code.toUpperCase()})` : ''}
+                                                   </option>
+                                                 ))}
+                                               </select>
+                                               <div style={{ position: 'relative' }}>
+                                                 <input
+                                                   type="text"
+                                                   placeholder="Or search by name/code..."
+                                                   value={productChangeQuery}
+                                                   onChange={(e) => setProductChangeQuery(e.target.value)}
+                                                   className="modern-form-control"
+                                                   style={{ fontSize: '11px', padding: '5px 8px' }}
+                                                 />
+                                                 {productChangeQuery.trim() !== '' && (
+                                                   <div className="search-dropdown-list" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', maxHeight: '200px', overflowY: 'auto' }}>
+                                                     {filteredProductsForChange.length === 0 ? (
+                                                       <div className="dropdown-item empty" style={{ padding: '8px', fontSize: '12px', color: '#94a3b8' }}>No matching products</div>
+                                                     ) : (
+                                                       filteredProductsForChange.map(p => (
+                                                         <div
+                                                           key={p.id}
+                                                           className="dropdown-item"
+                                                           onMouseDown={(e) => {
+                                                             e.preventDefault();
+                                                             e.stopPropagation();
+                                                             handleBlockChange(sec.id, block.id, 'product_id', p.id);
+                                                             setProductChangeBlockId(null);
+                                                             setProductChangeQuery('');
+                                                           }}
+                                                           style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                                                         >
+                                                           <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{p.name}</div>
+                                                           <div style={{ fontSize: '10px', color: '#64748b' }}>Code: {p.product_code || 'N/A'} {p.unit ? `| ${p.unit}` : ''}</div>
+                                                         </div>
+                                                       ))
+                                                     )}
+                                                   </div>
+                                                 )}
+                                               </div>
+                                               <button
+                                                 type="button"
+                                                 onClick={() => setProductChangeBlockId(null)}
+                                                 style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', alignSelf: 'flex-start' }}
+                                               >
+                                                 Cancel
+                                               </button>
+                                             </div>
+                                           ) : (
+                                            <div style={{ padding: '4px 0' }}>
+                                              <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a', lineHeight: '1.3' }}>
+                                                {block.product_name || '—'}
                                               </div>
-                                            </div>
-                                          ) : (
-                                            <div
-                                              onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
-                                              style={{ cursor: 'pointer', padding: '9px 12px', border: '1px solid var(--border, #cbd5e1)', borderRadius: '8px', background: 'var(--bg-base, #ffffff)' }}
-                                              title="Click to change product"
-                                            >
-                                              <div style={{ fontSize: '13px', fontWeight: '600', color: '#16a34a' }}>
-                                                ✓ {block.product_code ? block.product_code.toUpperCase() : (block.product_name || '—')} <span style={{ color: '#94a3b8', fontWeight: '500' }}>(tap to change)</span>
+                                              <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                                <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
+                                                  {block.product_code ? block.product_code.toUpperCase() : 'NO CODE'}
+                                                </span>
+                                                {block.unit && <span style={{ color: '#059669', fontWeight: '600' }}>({block.unit})</span>}
                                               </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
+                                                style={{ marginTop: '6px', fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '3px 9px', cursor: 'pointer', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                title="Click to change to another product"
+                                              >
+                                                🔄 Change Product
+                                              </button>
                                             </div>
                                           )}
                                         </td>
@@ -1499,6 +2020,28 @@ const Orders = () => {
                                         />
                                       </td>
 
+                                      {/* T. Width (in) */}
+                                      <td className="cell-size" style={{ padding: '6px' }}>
+                                        <input
+                                          type="text"
+                                          value={(() => {
+                                            const w = parseFloat(sizeRow.width) || 0;
+                                            if (w <= 0) return '';
+                                            const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
+                                            if (isPvc) {
+                                              const slatSize = parseFloat(block.product_size) || 8;
+                                              const slats = Math.ceil(w / 5.85);
+                                              return slats * slatSize;
+                                            }
+                                            return w;
+                                          })()}
+                                          readOnly
+                                          placeholder="T. Width"
+                                          className="modern-form-control"
+                                          style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '600' }}
+                                        />
+                                      </td>
+
                                       <td className="cell-size" style={{ padding: '6px' }}>
                                         <input
                                           type="number"
@@ -1523,23 +2066,30 @@ const Orders = () => {
                                       </td>
 
                                       <td className="cell-sqft" style={{ padding: '6px' }}>
-                                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                          <input
-                                            type="text"
-                                            value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'}
-                                            readOnly
-                                            className="modern-form-control"
-                                            style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '9px 4px', minWidth: 0 }}
-                                          />
-                                          {block.sizes.length > 1 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
-                                              className="btn-action-circle btn-action-delete"
-                                              style={{ padding: '4px 6px', fontSize: '12px' }}
-                                            >
-                                              🗑️
-                                            </button>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                            <input
+                                              type="text"
+                                              value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'}
+                                              readOnly
+                                              className="modern-form-control"
+                                              style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '9px 4px', minWidth: 0 }}
+                                            />
+                                            {block.sizes.length > 1 && (
+                                              <button
+                                                type="button"
+                                                onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
+                                                className="btn-action-circle btn-action-delete"
+                                                style={{ padding: '4px 6px', fontSize: '12px' }}
+                                              >
+                                                🗑️
+                                              </button>
+                                            )}
+                                          </div>
+                                          {parseFloat(sizeRow.width) > 0 && parseFloat(sizeRow.height) > 0 && (
+                                            <div style={{ fontSize: '10px', fontWeight: '700', color: '#0284c7', textAlign: 'center', marginTop: '2px' }}>
+                                              📏 Row #{sIdx + 1}: {sizeRow.width}" W × {sizeRow.height}" H
+                                            </div>
                                           )}
                                         </div>
                                       </td>
@@ -1569,48 +2119,56 @@ const Orders = () => {
                                         </td>
                                       )}
 
-                                      {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} className="cell-action" style={{ verticalAlign: 'top', paddingTop: '10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                          <button
-                                            type="button"
-                                            onClick={() => removeProductBlock(sec.id, block.id)}
-                                            className="btn-action-circle btn-action-delete"
-                                            style={{ marginRight: '6px' }}
-                                            title="Remove Block"
-                                          >
-                                            🗑️
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => addSizeRowToBlock(sec.id, block.id)}
-                                            className="btn-action-circle btn-action-add"
-                                            title="Add Size Row"
-                                          >
-                                            ➕
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
-                                              setExcelPasteText('');
-                                            }}
-                                            style={{
-                                              background: '#059669',
-                                              color: '#ffffff',
-                                              border: 'none',
-                                              borderRadius: '4px',
-                                              padding: '4px 8px',
-                                              fontSize: '11px',
-                                              fontWeight: 'bold',
-                                              cursor: 'pointer',
-                                              marginLeft: '6px'
-                                            }}
-                                            title="Paste Width, Height, Pcs from Excel"
-                                          >
-                                            📋 Excel
-                                          </button>
-                                        </td>
-                                      )}
+                                      <td className="cell-action" style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                           <button
+                                             type="button"
+                                             onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                             className="btn-action-circle btn-action-add"
+                                             title="Add Size Row"
+                                             style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                           >
+                                             ➕
+                                           </button>
+                                           <button
+                                             type="button"
+                                             onClick={() => {
+                                               if (block.sizes.length > 1) {
+                                                 removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
+                                               } else {
+                                                 removeProductBlock(sec.id, block.id);
+                                               }
+                                             }}
+                                             className="btn-action-circle btn-action-delete"
+                                             title={block.sizes.length > 1 ? "Delete Size Row" : "Delete Product Block"}
+                                             style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                           >
+                                             🗑️
+                                           </button>
+                                           {sIdx === 0 && (
+                                             <button
+                                               type="button"
+                                               onClick={() => {
+                                                 setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                                 setExcelPasteText('');
+                                               }}
+                                               style={{
+                                                 background: '#059669',
+                                                 color: '#ffffff',
+                                                 border: 'none',
+                                                 borderRadius: '6px',
+                                                 padding: '4px 7px',
+                                                 fontSize: '11px',
+                                                 fontWeight: 'bold',
+                                                 cursor: 'pointer'
+                                               }}
+                                               title="Paste Width, Height, Pcs from Excel"
+                                             >
+                                               📋 Excel
+                                             </button>
+                                           )}
+                                         </div>
+                                       </td>
                                     </tr>
                                   ))}
 
