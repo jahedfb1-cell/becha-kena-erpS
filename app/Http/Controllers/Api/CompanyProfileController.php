@@ -64,7 +64,46 @@ class CompanyProfileController extends Controller
         $data['receipt_logo_url'] = $this->getLogoUrl($data['receipt_logo'] ?? null);
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
 
+        $this->syncAppIcons($data['company_logo'] ?? null);
+
         return $this->successResponse($data, 'Company profile loaded.');
+    }
+
+    /**
+     * Automatically sync company logo to PWA & APK icons
+     */
+    private function syncAppIcons(?string $logoRelativePath): void
+    {
+        $targetLogo = null;
+        if ($logoRelativePath) {
+            $filename = basename($logoRelativePath);
+            $targetLogo = public_path('uploads/logos/' . $filename);
+        }
+
+        // If specific path not found, search public/uploads/logos for company_logo_*
+        if (!$targetLogo || !file_exists($targetLogo)) {
+            $logoDir = public_path('uploads/logos');
+            if (file_exists($logoDir)) {
+                $files = glob($logoDir . '/company_logo_*');
+                if (!empty($files)) {
+                    $targetLogo = $files[0];
+                }
+            }
+        }
+
+        if ($targetLogo && file_exists($targetLogo)) {
+            $destinations = [
+                public_path('pwa-192x192.png'),
+                public_path('pwa-512x512.png'),
+                public_path('apple-touch-icon.png'),
+                base_path('frontend/public/pwa-192x192.png'),
+                base_path('frontend/public/pwa-512x512.png'),
+                base_path('frontend/public/apple-touch-icon.png'),
+            ];
+            foreach ($destinations as $dest) {
+                @copy($targetLogo, $dest);
+            }
+        }
     }
 
     /** GET /api/company-profile/logo/{filename} */
@@ -192,6 +231,8 @@ class CompanyProfileController extends Controller
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
         $data['receipt_logo_url'] = $this->getLogoUrl($data['receipt_logo'] ?? null);
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
+
+        $this->syncAppIcons($data['company_logo'] ?? null);
 
         return $this->successResponse($data, 'Company profile updated successfully.');
     }

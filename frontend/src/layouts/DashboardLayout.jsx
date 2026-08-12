@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
 import NotificationBell from '../components/NotificationBell';
+import axios from '../api/axios';
 
 const DashboardLayout = () => {
   const { user, login, logout } = useAuth();
@@ -9,9 +10,26 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userMenuRef = React.useRef(null);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState(null);
+  const [companyName, setCompanyName] = useState('Dhaka Blinds');
+  const userMenuRef = useRef(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    axios.get('/company-profile')
+      .then(res => {
+        if (res.data?.data) {
+          if (res.data.data.company_logo_url) {
+            setCompanyLogoUrl(res.data.data.company_logo_url);
+          }
+          if (res.data.data.company_name) {
+            setCompanyName(res.data.data.company_name);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const handler = (e) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
         setUserMenuOpen(false);
@@ -166,9 +184,17 @@ const DashboardLayout = () => {
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div className="brand-logo" style={{ background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)', borderRadius: '10px', color: '#0f172a', fontWeight: '900', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>DB</div>
+            {companyLogoUrl ? (
+              <img
+                src={companyLogoUrl}
+                alt="Company Logo"
+                style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'contain', background: '#ffffff', padding: '2px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}
+              />
+            ) : (
+              <div className="brand-logo" style={{ background: 'linear-gradient(135deg, #00f2fe 0%, #4facfe 100%)', borderRadius: '10px', color: '#0f172a', fontWeight: '900', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>DB</div>
+            )}
             <div style={{ flex: 1, marginLeft: '10px' }}>
-              <div style={{ fontWeight: '800', fontSize: '15px', color: '#f8fafc' }}>Dhaka Blinds</div>
+              <div style={{ fontWeight: '800', fontSize: '15px', color: '#f8fafc' }}>{companyName}</div>
               <div style={{ fontSize: '11px', color: '#94a3b8' }}>IMS & ERP Portal</div>
             </div>
             <button className="mobile-close-btn" onClick={() => setMobileOpen(false)}>×</button>
