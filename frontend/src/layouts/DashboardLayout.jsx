@@ -18,16 +18,32 @@ const DashboardLayout = () => {
   useEffect(() => {
     axios.get('/company-profile')
       .then(res => {
-        if (res.data?.data) {
-          if (res.data.data.company_logo_url) {
-            setCompanyLogoUrl(res.data.data.company_logo_url);
+        const d = res.data?.data;
+        if (!d) return;
+
+        if (d.company_logo_url) {
+          setCompanyLogoUrl(d.company_logo_url);
+        }
+        if (d.company_name) {
+          setCompanyName(d.company_name);
+        }
+        if (d.browser_title) {
+          document.title = d.browser_title;
+        }
+
+        // The favicon upload in Company Profile only updated the tab of
+        // whoever had just clicked Save - index.html's static favicon.svg
+        // link was never replaced on a normal page load, so the custom icon
+        // never actually reached any other user or session. This is the one
+        // place every dashboard page passes through, so it belongs here.
+        if (d.favicon_url) {
+          let link = document.querySelector("link[rel~='icon']");
+          if (!link) {
+            link = document.createElement('link');
+            link.rel = 'icon';
+            document.head.appendChild(link);
           }
-          if (res.data.data.company_name) {
-            setCompanyName(res.data.data.company_name);
-          }
-          if (res.data.data.browser_title) {
-            document.title = res.data.data.browser_title;
-          }
+          link.href = d.favicon_url;
         }
       })
       .catch(() => {});
