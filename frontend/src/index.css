@@ -2941,7 +2941,11 @@ a, button, select, input, textarea, .nav-item {
   }
   
   .content-container {
-    padding: 12px 10px !important;
+    padding: 12px 6px !important;
+  }
+
+  .form-card-section {
+    padding: 5px !important;
   }
 
   /* Make header elements tighter on mobile */

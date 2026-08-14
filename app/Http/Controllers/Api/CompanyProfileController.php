@@ -86,6 +86,7 @@ class CompanyProfileController extends Controller
                 'invoice_logo'     => null,
                 'receipt_logo'     => null,
                 'favicon'          => null,
+                'app_icon'         => null,
             ];
         }
 
@@ -95,28 +96,43 @@ class CompanyProfileController extends Controller
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
         $data['receipt_logo_url'] = $this->getLogoUrl($data['receipt_logo'] ?? null);
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
+        $data['app_icon_url']     = $this->getLogoUrl($data['app_icon'] ?? null);
 
-        $this->syncAppIcons($data['company_logo'] ?? null);
+        $this->syncAppIcons($data['app_icon'] ?? null, $data['company_logo'] ?? null);
 
         return $this->successResponse($data, 'Company profile loaded.');
     }
 
     /**
-     * Automatically sync company logo to PWA & APK icons
+     * Syncs the PWA/APK home-screen icon files.
+     *
+     * A dedicated app icon (usually a square, transparent-background mark)
+     * is what these icons actually need — a wide banner-shaped company logo
+     * gets awkwardly cropped/padded when forced into a square. Prefers an
+     * explicitly uploaded app_icon; falls back to the company logo so
+     * accounts that never set a dedicated icon keep the icon they had
+     * before this field existed.
      */
-    private function syncAppIcons(?string $logoRelativePath): void
+    private function syncAppIcons(?string $appIconRelativePath, ?string $logoRelativePath): void
     {
         $targetLogo = null;
-        if ($logoRelativePath) {
-            $filename = basename($logoRelativePath);
-            $targetLogo = public_path('uploads/logos/' . $filename);
+        foreach ([$appIconRelativePath, $logoRelativePath] as $candidate) {
+            if (!$candidate) {
+                continue;
+            }
+            $path = public_path('uploads/logos/' . basename($candidate));
+            if (file_exists($path)) {
+                $targetLogo = $path;
+                break;
+            }
         }
 
-        // If specific path not found, search public/uploads/logos for company_logo_*
-        if (!$targetLogo || !file_exists($targetLogo)) {
+        // If neither is found, fall back to whatever app icon or company logo
+        // was last uploaded (covers a stale/renamed reference in the JSON).
+        if (!$targetLogo) {
             $logoDir = public_path('uploads/logos');
             if (file_exists($logoDir)) {
-                $files = glob($logoDir . '/company_logo_*');
+                $files = array_merge(glob($logoDir . '/app_icon_*') ?: [], glob($logoDir . '/company_logo_*') ?: []);
                 if (!empty($files)) {
                     $targetLogo = $files[0];
                 }
@@ -187,6 +203,7 @@ class CompanyProfileController extends Controller
             'invoice_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'receipt_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'favicon'         => 'nullable|file|mimes:jpg,jpeg,png,ico|max:2048',
+            'app_icon'        => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'browser_title'   => 'nullable|string|max:200',
         ]);
 
@@ -211,6 +228,7 @@ class CompanyProfileController extends Controller
             'invoice_logo'     => $existing['invoice_logo'] ?? null,
             'receipt_logo'     => $existing['receipt_logo'] ?? null,
             'favicon'          => $existing['favicon'] ?? null,
+            'app_icon'         => $existing['app_icon'] ?? null,
         ];
 
         // Ensure public/uploads/logos directory exists
@@ -268,6 +286,18 @@ class CompanyProfileController extends Controller
             $data['favicon'] = 'logos/' . $filename;
         }
 
+        // Handle app_icon upload (PWA / APK home-screen icon)
+        if ($request->hasFile('app_icon')) {
+            $file = $request->file('app_icon');
+            $filename = 'app_icon_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($uploadDir, $filename);
+
+            @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
+            $this->mirrorToPublicHtml($uploadDir . '/' . $filename, 'uploads/logos/' . $filename);
+
+            $data['app_icon'] = 'logos/' . $filename;
+        }
+
         Storage::put($this->filePath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         // Attach public URLs
@@ -275,8 +305,9 @@ class CompanyProfileController extends Controller
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
         $data['receipt_logo_url'] = $this->getLogoUrl($data['receipt_logo'] ?? null);
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
+        $data['app_icon_url']     = $this->getLogoUrl($data['app_icon'] ?? null);
 
-        $this->syncAppIcons($data['company_logo'] ?? null);
+        $this->syncAppIcons($data['app_icon'] ?? null, $data['company_logo'] ?? null);
 
         return $this->successResponse($data, 'Company profile updated successfully.');
     }

@@ -23,10 +23,12 @@ const CompanyProfile = () => {
   const [invoiceLogoFile, setInvoiceLogoFile] = useState(null);
   const [receiptLogoFile, setReceiptLogoFile] = useState(null);
   const [faviconFile, setFaviconFile] = useState(null);
+  const [appIconFile, setAppIconFile] = useState(null);
   const [companyLogoPreview, setCompanyLogoPreview] = useState('/logo-demo.svg');
   const [invoiceLogoPreview, setInvoiceLogoPreview] = useState('/logo-demo.svg');
   const [receiptLogoPreview, setReceiptLogoPreview] = useState('/logo-demo.svg');
   const [faviconPreview, setFaviconPreview] = useState('/logo-demo.svg');
+  const [appIconPreview, setAppIconPreview] = useState('/logo-demo.svg');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,6 +38,7 @@ const CompanyProfile = () => {
   const invoiceLogoRef = useRef(null);
   const receiptLogoRef = useRef(null);
   const faviconRef = useRef(null);
+  const appIconRef = useRef(null);
 
   // Load current profile on mount
   useEffect(() => {
@@ -61,12 +64,14 @@ const CompanyProfile = () => {
         setInvoiceLogoPreview(d.invoice_logo_url || '/logo-demo.svg');
         setReceiptLogoPreview(d.receipt_logo_url || '/logo-demo.svg');
         setFaviconPreview(d.favicon_url || '/logo-demo.svg');
+        setAppIconPreview(d.app_icon_url || '/logo-demo.svg');
       })
       .catch(() => {
         setCompanyLogoPreview('/logo-demo.svg');
         setInvoiceLogoPreview('/logo-demo.svg');
         setReceiptLogoPreview('/logo-demo.svg');
         setFaviconPreview('/logo-demo.svg');
+        setAppIconPreview('/logo-demo.svg');
       })
       .finally(() => setLoading(false));
   }, []);
@@ -88,6 +93,9 @@ const CompanyProfile = () => {
     } else if (type === 'receipt') {
       setReceiptLogoFile(file);
       setReceiptLogoPreview(url);
+    } else if (type === 'app_icon') {
+      setAppIconFile(file);
+      setAppIconPreview(url);
     } else {
       setInvoiceLogoFile(file);
       setInvoiceLogoPreview(url);
@@ -109,6 +117,7 @@ const CompanyProfile = () => {
       if (invoiceLogoFile) fd.append('invoice_logo', invoiceLogoFile);
       if (receiptLogoFile) fd.append('receipt_logo', receiptLogoFile);
       if (faviconFile) fd.append('favicon', faviconFile);
+      if (appIconFile) fd.append('app_icon', appIconFile);
 
       const res = await axios.post('/company-profile', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -117,6 +126,7 @@ const CompanyProfile = () => {
       if (d.company_logo_url) setCompanyLogoPreview(d.company_logo_url);
       if (d.invoice_logo_url) setInvoiceLogoPreview(d.invoice_logo_url);
       if (d.receipt_logo_url) setReceiptLogoPreview(d.receipt_logo_url);
+      if (d.app_icon_url) setAppIconPreview(d.app_icon_url);
       if (d.favicon_url) {
         setFaviconPreview(d.favicon_url);
         let link = document.querySelector("link[rel*='icon']");
@@ -134,9 +144,19 @@ const CompanyProfile = () => {
       setInvoiceLogoFile(null);
       setReceiptLogoFile(null);
       setFaviconFile(null);
+      setAppIconFile(null);
       showToast('Company profile updated successfully!', 'success');
     } catch (err) {
-      showToast(err?.response?.data?.message || 'Failed to save company profile.', 'error');
+      // A validation failure (422) puts the actually useful reason inside
+      // `errors`, e.g. "The app icon field must be a file of type: jpg,
+      // jpeg, png." - the top-level message is just "The given data was
+      // invalid.", which tells the user nothing about which field or why.
+      const fieldErrors = err?.response?.data?.errors;
+      const firstFieldError = fieldErrors ? Object.values(fieldErrors).flat()[0] : null;
+      showToast(
+        firstFieldError || err?.response?.data?.message || 'Failed to save company profile.',
+        'error'
+      );
     } finally {
       setSaving(false);
     }
@@ -479,7 +499,7 @@ const CompanyProfile = () => {
               </h2>
             </div>
             <span style={{ fontSize: '12px', color: '#64748b' }}>
-              Supported: PNG, JPG, SVG (Max 2MB)
+              Supported: PNG, JPG (Max 5MB — Favicon Max 2MB)
             </span>
           </div>
 
@@ -689,6 +709,64 @@ const CompanyProfile = () => {
               {faviconFile && (
                 <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   ✓ Selected: {faviconFile.name}
+                </div>
+              )}
+            </div>
+
+            {/* APK / App Icon Box */}
+            <div style={{ background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <label style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-heading)', margin: 0 }}>
+                  APK / App Icon
+                </label>
+                <span style={{ fontSize: '11px', background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                  Home Screen Icon
+                </span>
+              </div>
+
+              <div
+                onClick={() => appIconRef.current?.click()}
+                style={{
+                  height: '140px', border: '2px dashed #cbd5e1', borderRadius: '8px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', background: '#ffffff', position: 'relative',
+                  overflow: 'hidden', transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = '#cbd5e1'}
+              >
+                {appIconPreview ? (
+                  <img
+                    src={appIconPreview}
+                    alt="App Icon Preview"
+                    style={{ maxHeight: '110px', maxWidth: '90%', objectFit: 'contain' }}
+                    onError={(e) => { e.target.src = '/logo-demo.svg'; }}
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                    <div style={{ fontSize: '28px', marginBottom: '4px' }}>📱</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>Click to upload App Icon</div>
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="file"
+                ref={appIconRef}
+                accept="image/png,image/jpeg,image/jpg"
+                style={{ display: 'none' }}
+                onChange={e => handleFileChange(e, 'app_icon')}
+              />
+
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px', lineHeight: '1.4' }}>
+                Used for the installed PWA and WebView APK home-screen icon. A square image with a
+                transparent or solid background works best — a wide banner logo gets awkwardly
+                cropped here. Falls back to Main Company Logo until one is uploaded.
+              </div>
+
+              {appIconFile && (
+                <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  ✓ Selected: {appIconFile.name}
                 </div>
               )}
             </div>
