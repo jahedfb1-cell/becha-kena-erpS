@@ -66,4 +66,18 @@ return [
         'thinking_level' => env('GEMINI_THINKING_LEVEL', 'low'),
     ],
 
+    /*
+     | Hostinger serves this app from two separate folders: `public_html/`
+     | (the real web root) and `laravel_app/public/` (Laravel's own public
+     | path inside the git checkout, used only because `public_path()`
+     | resolves there). A deploy mirrors the frontend build into both, but
+     | anything the app writes at runtime — like an uploaded logo — only
+     | lands in `laravel_app/public/`, so it 404s on the live site and is
+     | invisible until the next deploy happens to sync it.
+     |
+     | Set only in production's .env; absent (and inert) everywhere else,
+     | including local dev where there is only one public folder.
+     */
+    'public_html_path' => env('PUBLIC_HTML_PATH'),
+
 ];

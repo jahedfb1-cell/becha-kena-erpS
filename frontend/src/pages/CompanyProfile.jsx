@@ -116,6 +116,7 @@ const CompanyProfile = () => {
       const d = res.data?.data || res.data;
       if (d.company_logo_url) setCompanyLogoPreview(d.company_logo_url);
       if (d.invoice_logo_url) setInvoiceLogoPreview(d.invoice_logo_url);
+      if (d.receipt_logo_url) setReceiptLogoPreview(d.receipt_logo_url);
       if (d.favicon_url) {
         setFaviconPreview(d.favicon_url);
         let link = document.querySelector("link[rel*='icon']");
@@ -131,6 +132,7 @@ const CompanyProfile = () => {
       }
       setCompanyLogoFile(null);
       setInvoiceLogoFile(null);
+      setReceiptLogoFile(null);
       setFaviconFile(null);
       showToast('Company profile updated successfully!', 'success');
     } catch (err) {

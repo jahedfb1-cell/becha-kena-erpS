@@ -14,6 +14,36 @@ class CompanyProfileController extends Controller
     // Settings file path (stored in storage/app/company_profile.json)
     private string $filePath = 'company_profile.json';
 
+    /**
+     * Mirrors a file written under public_path() into the real web root too.
+     *
+     * On this app's Hostinger deploy, `public_path()` resolves to
+     * `laravel_app/public/` — a copy of the public folder that only exists
+     * for Laravel's own routing needs. The site is actually served from a
+     * sibling `public_html/` folder, kept in sync with `laravel_app/public/`
+     * by the deploy script. A file this controller writes at runtime (an
+     * uploaded logo) never goes through that deploy step, so without this it
+     * silently 404s on the live site until someone happens to redeploy.
+     *
+     * `services.public_html_path` is unset in every other environment, so
+     * this is a no-op there — the whole method just doesn't run.
+     */
+    private function mirrorToPublicHtml(string $absoluteSourcePath, string $relativePath): void
+    {
+        $target = config('services.public_html_path');
+        if (!$target || !is_dir($target)) {
+            return;
+        }
+
+        $destination = rtrim($target, '/\\') . '/' . ltrim($relativePath, '/\\');
+        $destDir = dirname($destination);
+        if (!is_dir($destDir)) {
+            @mkdir($destDir, 0777, true);
+        }
+
+        @copy($absoluteSourcePath, $destination);
+    }
+
     /** Helper to format public logo URL */
     private function getLogoUrl(?string $path): string
     {
@@ -105,6 +135,12 @@ class CompanyProfileController extends Controller
             foreach ($destinations as $dest) {
                 @copy($targetLogo, $dest);
             }
+
+            // These are served straight from the web root, same split-folder
+            // issue as the logo uploads themselves — see mirrorToPublicHtml().
+            $this->mirrorToPublicHtml($targetLogo, 'pwa-192x192.png');
+            $this->mirrorToPublicHtml($targetLogo, 'pwa-512x512.png');
+            $this->mirrorToPublicHtml($targetLogo, 'apple-touch-icon.png');
         }
     }
 
@@ -188,10 +224,11 @@ class CompanyProfileController extends Controller
             $file = $request->file('company_logo');
             $filename = 'company_logo_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->move($uploadDir, $filename);
-            
+
             // Also keep storage copy for backup
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
-            
+            $this->mirrorToPublicHtml($uploadDir . '/' . $filename, 'uploads/logos/' . $filename);
+
             $data['company_logo'] = 'logos/' . $filename;
         }
 
@@ -202,6 +239,7 @@ class CompanyProfileController extends Controller
             $file->move($uploadDir, $filename);
 
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
+            $this->mirrorToPublicHtml($uploadDir . '/' . $filename, 'uploads/logos/' . $filename);
 
             $data['invoice_logo'] = 'logos/' . $filename;
         }
@@ -213,6 +251,7 @@ class CompanyProfileController extends Controller
             $file->move($uploadDir, $filename);
 
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
+            $this->mirrorToPublicHtml($uploadDir . '/' . $filename, 'uploads/logos/' . $filename);
 
             $data['receipt_logo'] = 'logos/' . $filename;
         }
@@ -224,6 +263,7 @@ class CompanyProfileController extends Controller
             $file->move($uploadDir, $filename);
 
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
+            $this->mirrorToPublicHtml($uploadDir . '/' . $filename, 'uploads/logos/' . $filename);
 
             $data['favicon'] = 'logos/' . $filename;
         }
