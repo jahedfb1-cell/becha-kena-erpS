@@ -292,6 +292,13 @@ const Quotations = () => {
     setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name: newName } : s));
   };
 
+  /**
+   * Returns the new block's id so callers can immediately open its inline
+   * product picker (see the "+ Add Item" button) — without that, adding a
+   * block to any section other than Section A silently fell back to
+   * whatever the top-level search box last held, or products[0] with no
+   * search at all, and "change" was the only way to fix it after the fact.
+   */
   const addProductBlockToSection = (sectionId, targetProductId = null, isOptional = false, optionGroupId = null, initialSelected = true) => {
     let pId = targetProductId || selectedTopProductId;
     if (!pId && products.length > 0) {
@@ -299,10 +306,10 @@ const Quotations = () => {
     }
     if (!pId) {
       alert('Please wait for products to load or add a product first.');
-      return;
+      return null;
     }
     const prod = products.find(p => p.id === parseInt(pId));
-    if (!prod) return;
+    if (!prod) return null;
 
     const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
     const defaultMinSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
@@ -368,6 +375,22 @@ const Quotations = () => {
       };
     }));
     setSelectedTopProductId('');
+    return newBlock.id;
+  };
+
+  /**
+   * "+ Add Item" for a specific section: adds a placeholder block, then
+   * immediately opens that block's inline product search (the same one
+   * "🔄 Change Product" uses) so the user picks the real product right
+   * away — this is what "add a product to Section B" actually means, since
+   * the top Select Product search only ever targets Section A.
+   */
+  const addItemToSectionAndPick = (sectionId) => {
+    const newBlockId = addProductBlockToSection(sectionId);
+    if (newBlockId) {
+      setProductChangeBlockId(newBlockId);
+      setProductChangeQuery('');
+    }
   };
 
   const addOptionGroupToSection = (sectionId) => {
@@ -1846,7 +1869,7 @@ const Quotations = () => {
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
                           type="button"
-                          onClick={() => addProductBlockToSection(sec.id)}
+                          onClick={() => addItemToSectionAndPick(sec.id)}
                           style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
                         >
                           ➕ Add Item
@@ -1912,6 +1935,15 @@ const Quotations = () => {
                                                        (block.unit || '').trim().toLowerCase() === 'piece' ||
                                                        (block.unit || '').trim().toLowerCase() === 'box' ||
                                                        (block.unit || '').trim().toLowerCase() === 'set';
+                                    // Per-block, not per-section: sectionHasPvc only decides whether the
+                                    // Approx Pcs / pcs of Slats / T. Width columns exist at all once a
+                                    // PVC item is anywhere in the section. Without this, a plain sq.ft or
+                                    // Pcs row sitting in the same section showed slat math that has no
+                                    // meaning for it (e.g. "Approx Pcs: 10.26" on a Roller Blind).
+                                    const isPvcBlock = (block.unit || '').toLowerCase().includes('pvc') ||
+                                                       (block.category_name || '').toLowerCase().includes('pvc') ||
+                                                       (block.product_name || '').toLowerCase().includes('pvc') ||
+                                                       (block.product_name || '').toLowerCase().includes('clear water');
                                     const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
                                     const totalPcs = block.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0);
                                     const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
@@ -2126,32 +2158,35 @@ const Quotations = () => {
                                               />
                                             </td>
 
-                                            {/* Approx Pcs - ONLY if sectionHasPvc */}
+                                            {/* Approx Pcs - column exists if sectionHasPvc, but only carries a
+                                                real value on the section's actual PVC rows */}
                                             {sectionHasPvc && (
                                               <td className="cell-size" style={{ padding: '6px' }}>
                                                 <input
                                                   type="text"
                                                   value={(() => {
-                                                    if (isPcsBlock) return '—';
+                                                    if (!isPvcBlock) return '—';
                                                     const w = parseFloat(sizeRow.width) || 0;
                                                     return w > 0 ? (w / 5.85).toFixed(2) : '';
                                                   })()}
                                                   readOnly
                                                   placeholder="Approx"
                                                   className="modern-form-control"
-                                                  style={{ backgroundColor: '#f0f9ff', color: '#0284c7', textAlign: 'center', fontWeight: '700', fontSize: '12px', border: '1px solid #bae6fd' }}
+                                                  style={isPvcBlock
+                                                    ? { backgroundColor: '#f0f9ff', color: '#0284c7', textAlign: 'center', fontWeight: '700', fontSize: '12px', border: '1px solid #bae6fd' }
+                                                    : { backgroundColor: '#f1f5f9', color: '#94a3b8', textAlign: 'center', cursor: 'not-allowed' }}
                                                 />
                                               </td>
                                             )}
 
-                                            {/* pcs of Slats - ONLY if sectionHasPvc */}
+                                            {/* pcs of Slats - same: only meaningful, only editable, on PVC rows */}
                                             {sectionHasPvc && (
                                               <td className="cell-size" style={{ padding: '6px' }}>
                                                 <input
-                                                  type="number"
+                                                  type={isPvcBlock ? 'number' : 'text'}
                                                   inputMode="numeric"
                                                   value={(() => {
-                                                    if (isPcsBlock) return '';
+                                                    if (!isPvcBlock) return '—';
                                                     const w = parseFloat(sizeRow.width) || 0;
                                                     if (w <= 0) return '';
                                                     if (sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '') {
@@ -2159,36 +2194,36 @@ const Quotations = () => {
                                                     }
                                                     return Math.ceil(w / 5.85);
                                                   })()}
-                                                  disabled={isPcsBlock}
+                                                  disabled={!isPvcBlock}
                                                   onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'slats', e.target.value)}
                                                   placeholder="Slats"
                                                   className="modern-form-control"
-                                                  style={{ textAlign: 'center', fontWeight: '700', border: '1.5px solid #0ea5e9', color: '#0369a1' }}
+                                                  style={isPvcBlock
+                                                    ? { textAlign: 'center', fontWeight: '700', border: '1.5px solid #0ea5e9', color: '#0369a1' }
+                                                    : { backgroundColor: '#f1f5f9', color: '#94a3b8', textAlign: 'center', cursor: 'not-allowed' }}
                                                 />
                                               </td>
                                             )}
 
-                                            {/* T. Width (in) - ONLY if sectionHasPvc */}
+                                            {/* T. Width (in) - same: real slat-based total width only for PVC rows */}
                                             {sectionHasPvc && (
                                               <td className="cell-size" style={{ padding: '6px' }}>
                                                 <input
                                                   type="text"
                                                   value={(() => {
-                                                    if (isPcsBlock) return '—';
+                                                    if (!isPvcBlock) return '—';
                                                     const w = parseFloat(sizeRow.width) || 0;
                                                     if (w <= 0) return '';
-                                                    const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
-                                                    if (isPvc) {
-                                                      const slatSize = parseFloat(block.product_size) || 8;
-                                                      const slatsCount = sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '' ? parseInt(sizeRow.slats) : Math.ceil(w / 5.85);
-                                                      return (slatsCount || 0) * slatSize;
-                                                    }
-                                                    return w;
+                                                    const slatSize = parseFloat(block.product_size) || 8;
+                                                    const slatsCount = sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '' ? parseInt(sizeRow.slats) : Math.ceil(w / 5.85);
+                                                    return (slatsCount || 0) * slatSize;
                                                   })()}
                                                   readOnly
                                                   placeholder="T. Width"
                                                   className="modern-form-control"
-                                                  style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '700', color: '#0f172a' }}
+                                                  style={isPvcBlock
+                                                    ? { backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '700', color: '#0f172a' }
+                                                    : { backgroundColor: '#f1f5f9', color: '#94a3b8', textAlign: 'center', cursor: 'not-allowed' }}
                                                 />
                                               </td>
                                             )}

@@ -324,6 +324,13 @@ const Orders = () => {
     setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name: newName } : s));
   };
 
+  /**
+   * Returns the new block's id so callers can immediately open its inline
+   * product picker (see the "+ Add Item" button) — without that, adding a
+   * block to any section other than Section A silently fell back to
+   * whatever the top-level search box last held, or products[0] with no
+   * search at all, and "change" was the only way to fix it after the fact.
+   */
   const addProductBlockToSection = (sectionId, targetProductId = null, isOptional = false, optionGroupId = null, initialSelected = true) => {
     let pId = targetProductId || selectedTopProductId;
     if (!pId && products.length > 0) {
@@ -331,10 +338,10 @@ const Orders = () => {
     }
     if (!pId) {
       alert('Please wait for products to load or add a product first.');
-      return;
+      return null;
     }
     const prod = products.find(p => p.id === parseInt(pId));
-    if (!prod) return;
+    if (!prod) return null;
 
     const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
     const defaultMinSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
@@ -400,6 +407,22 @@ const Orders = () => {
       };
     }));
     setSelectedTopProductId('');
+    return newBlock.id;
+  };
+
+  /**
+   * "+ Add Item" for a specific section: adds a placeholder block, then
+   * immediately opens that block's inline product search (the same one
+   * "🔄 Change Product" uses) so the user picks the real product right
+   * away — this is what "add a product to Section B" actually means, since
+   * the top Select Product search only ever targets Section A.
+   */
+  const addItemToSectionAndPick = (sectionId) => {
+    const newBlockId = addProductBlockToSection(sectionId);
+    if (newBlockId) {
+      setProductChangeBlockId(newBlockId);
+      setProductChangeQuery('');
+    }
   };
 
   const addOptionGroupToSection = (sectionId) => {
@@ -1797,7 +1820,7 @@ const Orders = () => {
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
                           type="button"
-                          onClick={() => addProductBlockToSection(sec.id)}
+                          onClick={() => addItemToSectionAndPick(sec.id)}
                           style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
                         >
                           ➕ Add Item
@@ -1831,6 +1854,7 @@ const Orders = () => {
                         const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
                         const isOptionGroup = Boolean(block.option_group_id);
                         const isSelected = block.is_selected !== false;
+                        const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs';
 
                         return (
                           <div key={block.id} style={{ marginBottom: '16px', background: isOptionGroup ? (isSelected ? '#faf5ff' : '#f8fafc') : '#ffffff', border: isOptionGroup ? (isSelected ? '1px solid #c084fc' : '1px dashed #cbd5e1') : '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
@@ -2066,32 +2090,36 @@ const Orders = () => {
                                         <input
                                           type="number"
                                           inputMode="decimal"
-                                          value={sizeRow.width}
+                                          value={isPcsBlock ? '' : sizeRow.width}
+                                          disabled={isPcsBlock}
                                           onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
-                                          placeholder="Width"
+                                          placeholder={isPcsBlock ? '—' : 'Width'}
                                           className="modern-form-control"
+                                          style={isPcsBlock ? { background: '#f1f5f9', cursor: 'not-allowed', textAlign: 'center' } : {}}
                                         />
                                       </td>
 
-                                      {/* T. Width (in) */}
+                                      {/* T. Width (in) - only meaningful for a PVC row; a plain sq.ft or
+                                          Pcs product showing a "total width" here is either a bare repeat
+                                          of Width or, worse, a number with no relation to what the row
+                                          actually is. */}
                                       <td className="cell-size" style={{ padding: '6px' }}>
                                         <input
                                           type="text"
                                           value={(() => {
+                                            if (isPcsBlock) return '—';
                                             const w = parseFloat(sizeRow.width) || 0;
                                             if (w <= 0) return '';
                                             const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
-                                            if (isPvc) {
-                                              const slatSize = parseFloat(block.product_size) || 8;
-                                              const slats = Math.ceil(w / 5.85);
-                                              return slats * slatSize;
-                                            }
-                                            return w;
+                                            if (!isPvc) return '—';
+                                            const slatSize = parseFloat(block.product_size) || 8;
+                                            const slats = Math.ceil(w / 5.85);
+                                            return slats * slatSize;
                                           })()}
                                           readOnly
                                           placeholder="T. Width"
                                           className="modern-form-control"
-                                          style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '600' }}
+                                          style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '600', color: '#0f172a' }}
                                         />
                                       </td>
 
@@ -2099,10 +2127,12 @@ const Orders = () => {
                                         <input
                                           type="number"
                                           inputMode="decimal"
-                                          value={sizeRow.height}
+                                          value={isPcsBlock ? '' : sizeRow.height}
+                                          disabled={isPcsBlock}
                                           onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
-                                          placeholder="Height"
+                                          placeholder={isPcsBlock ? '—' : 'Height'}
                                           className="modern-form-control"
+                                          style={isPcsBlock ? { background: '#f1f5f9', cursor: 'not-allowed', textAlign: 'center' } : {}}
                                         />
                                       </td>
 
