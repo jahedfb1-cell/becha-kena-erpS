@@ -520,22 +520,21 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                       disabled={loading || isViewOnly}
                     >
                       {(() => {
+                        // Quotations bill against exactly three measurement units, one
+                        // per pricing formula: sq.ft (W x H / 144), PVC sq.ft (slat-based
+                        // width first) and per-piece. Units coming from Settings are
+                        // deliberately NOT merged in here — an extra unit would have no
+                        // calculation behind it in the quotation builder.
                         const baseUnits = [
-                          { name: 'Square Feet (Sq.Ft)', value: 'Square feet' },
-                          { name: 'Pieces (Pcs)', value: 'Pcs' },
-                          { name: 'Meter', value: 'Meter' },
-                          { name: 'Yard', value: 'Yard' },
-                          { name: 'Box', value: 'Box' },
+                          { name: 'Square Feet ( sq.ft )', value: 'Square feet' },
                           { name: 'PVC sq.ft', value: 'PVC sq.ft' },
+                          { name: 'Pieces ( pcs )', value: 'Pcs' },
                         ];
-                        const list = Array.isArray(unitsList) ? unitsList : [];
-                        list.forEach(u => {
-                          const val = u.code || u.name;
-                          const label = u.name ? (u.code ? `${u.name} (${u.code})` : u.name) : val;
-                          if (val && !baseUnits.some(b => b.value.toLowerCase() === val.toLowerCase())) {
-                            baseUnits.push({ name: label, value: val });
-                          }
-                        });
+                        // Keep a legacy product's saved unit selectable so opening an old
+                        // record for edit does not silently re-assign its unit on save.
+                        if (unit && !baseUnits.some(b => b.value.toLowerCase() === unit.toLowerCase())) {
+                          baseUnits.push({ name: `${unit} (legacy)`, value: unit });
+                        }
                         return baseUnits.map((u, idx) => (
                           <option key={u.value + idx} value={u.value}>
                             {u.name}

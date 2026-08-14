@@ -11,6 +11,28 @@ class QuotationRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $inputs = $this->all();
+        foreach ($inputs as $key => $value) {
+            if ($value === 'null' || $value === 'undefined' || $value === '') {
+                $inputs[$key] = null;
+            }
+        }
+
+        if (isset($inputs['items']) && is_array($inputs['items'])) {
+            foreach ($inputs['items'] as $index => $item) {
+                foreach ($item as $key => $value) {
+                    if ($value === 'null' || $value === 'undefined' || $value === '') {
+                        $inputs['items'][$index][$key] = null;
+                    }
+                }
+            }
+        }
+
+        $this->replace($inputs);
+    }
+
     public function rules(): array
     {
         return [
@@ -40,7 +62,7 @@ class QuotationRequest extends FormRequest
             'items.*.unit_price'          => 'required|numeric|min:0',
             'items.*.cost_price'          => 'nullable|numeric|min:0',
             'items.*.min_billing_sqft'    => 'nullable|numeric|min:0',
-            'items.*.notes'               => 'nullable|string|max:500',
+            'items.*.notes'               => 'nullable|string|max:5000',
         ];
     }
 

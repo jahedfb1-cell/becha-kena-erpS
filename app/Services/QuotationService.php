@@ -112,9 +112,12 @@ class QuotationService
             if ($slatSize <= 0) {
                 $slatSize = 8;
             }
-            $slats = isset($item['slats']) && $item['slats'] !== null && $item['slats'] !== '' 
-                ? (int) $item['slats'] 
-                : (int) ceil($width / 5.85);
+            // Slat count drops the fraction unless it reaches three quarters of a
+            // slat (11.74 stays 11, 11.75 becomes 12). Must stay in step with
+            // pvcSlatCount() in frontend/src/utils/pvc.js.
+            $slats = isset($item['slats']) && $item['slats'] !== null && $item['slats'] !== ''
+                ? (int) $item['slats']
+                : (int) floor($width / 5.85 + 0.25);
             $calcWidth = $slats * $slatSize;
             $actualSqft = round(($width * $height) / 144, 2);
             $billedSqft = round((($calcWidth * $height) / 144) * $pcs, 2);
@@ -123,8 +126,10 @@ class QuotationService
             // actual_sqft = (width × height) / 144
             $actualSqft = round(($width * $height) / 144, 2);
 
-            // billed_sqft = MAX(actual_sqft, min_billing_sqft) × pcs
-            $billedSqft = round(max($actualSqft, $minBillingSqft) * $pcs, 2);
+            // billed_sqft = MAX(actual_sqft, min_billing_sqft) × pcs, rounded UP
+            // to the next quarter foot. Must stay in step with billableSqft()
+            // in frontend/src/utils/billing.js.
+            $billedSqft = ceil((max($actualSqft, $minBillingSqft) * $pcs) / 0.25) * 0.25;
         }
 
         // Pricing

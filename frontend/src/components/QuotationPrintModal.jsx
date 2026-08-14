@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
+import { pvcSlatCount } from '../utils/billing';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -588,7 +589,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                               let tWidthVal = '-';
                               if (isPvc && width > 0) {
                                 const slatSize = parseFloat(item.product?.product_size || item.product_size) || 8;
-                                const slatsCount = item.slats !== undefined && item.slats !== null && item.slats !== '' ? parseInt(item.slats) : Math.ceil(width / 5.85);
+                                const slatsCount = item.slats !== undefined && item.slats !== null && item.slats !== '' ? parseInt(item.slats) : pvcSlatCount(width);
                                 tWidthVal = slatsCount * slatSize;
                               }
 

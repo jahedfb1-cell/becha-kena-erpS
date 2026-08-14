@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatDate } from '../utils/format';
+import { pvcSlatCount } from '../utils/billing';
 
 const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
   if (!isOpen || !challan) return null;
@@ -188,7 +189,7 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
                     let tWidthVal = '-';
                     if (isPvc && width > 0) {
                       const slatSize = parseFloat(item.product?.product_size || item.product_size) || 8;
-                      const slats = Math.ceil(width / 5.85);
+                      const slats = pvcSlatCount(width);
                       tWidthVal = slats * slatSize;
                     }
 
