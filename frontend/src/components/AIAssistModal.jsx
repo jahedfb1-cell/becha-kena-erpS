@@ -258,7 +258,6 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
                 ref={fileRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                capture="environment"
                 style={{ display: 'none' }}
                 onChange={(e) => pickImage(e.target.files?.[0])}
               />

@@ -160,3 +160,29 @@ export async function transcribeAudio(audioBlob, filename = 'voice.webm') {
     return { ok: false, error: readError(err) };
   }
 }
+
+/**
+ * AI Size Scan — a photo of handwritten window measurements or a screenshot
+ * table becomes Width/Height/Pcs rows for the Quotation/Order size builder.
+ * A second way to fill the same grid the 📋 Excel-paste button feeds, not a
+ * new one — see AISizeScanModal.jsx.
+ */
+export async function parseSizes(imageFile) {
+  const body = new FormData();
+  body.append('image', imageFile);
+
+  try {
+    const res = await api.post('/ai/parse-sizes', body, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 90000,
+    });
+    return {
+      ok: true,
+      sizes: Array.isArray(res.data?.data?.sizes) ? res.data.data.sizes : [],
+      confidence: res.data?.data?.confidence ?? 0,
+      logId: res.data?.log_id || null,
+    };
+  } catch (err) {
+    return { ok: false, error: readError(err) };
+  }
+}

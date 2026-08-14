@@ -11,11 +11,13 @@ use Illuminate\Http\Request;
 use RuntimeException;
 
 /**
- * AI Assist for the New Customer Account form — see AI_Assist_PRD.md.
+ * AI Assist — see AI_Assist_PRD.md for the customer-form feature, and the
+ * class docblock on parseSizes() below for the quotation/order size scanner.
  *
- * Two endpoints:
+ * Endpoints:
  *   POST /api/ai/parse-customer  card image or pasted text -> structured fields
  *   POST /api/ai/transcribe      voice note -> plain transcript
+ *   POST /api/ai/parse-sizes     handwritten/screenshot image -> width/height/pcs rows
  *
  * Nothing here writes to the database. The output is a draft the salesman
  * reviews on screen before it is applied to the form, so a bad extraction
@@ -65,6 +67,30 @@ class AiAssistController extends Controller
         'contact_number_1', 'contact_number_2', 'contact_number_3',
         'email', 'address_line_1', 'address_line_2',
     ];
+
+    /** Response schema for the size-scan feature (parseSizes()). */
+    private const SIZES_RESPONSE_SCHEMA = [
+        'type'       => 'OBJECT',
+        'properties' => [
+            'sizes' => [
+                'type'  => 'ARRAY',
+                'items' => [
+                    'type'       => 'OBJECT',
+                    'properties' => [
+                        'width'  => ['type' => 'NUMBER'],
+                        'height' => ['type' => 'NUMBER'],
+                        'pcs'    => ['type' => 'NUMBER'],
+                    ],
+                    'required' => ['width', 'height', 'pcs'],
+                ],
+            ],
+            'confidence' => ['type' => 'NUMBER'],
+        ],
+        'required' => ['sizes', 'confidence'],
+    ];
+
+    /** A row this large is almost certainly a misread, not a real window. */
+    private const MAX_SIZE_INCHES = 500;
 
     public function __construct(protected GeminiService $gemini)
     {
@@ -186,6 +212,59 @@ class AiAssistController extends Controller
     }
 
     /**
+     * POST /api/ai/parse-sizes
+     *
+     * A site technician hands the salesman a photo of handwritten window
+     * measurements, or the salesman screenshots a WhatsApp message listing
+     * them. This turns that image into Width/Height/Pcs rows for the
+     * Quotation/Order size builder (Quotations.jsx / Orders.jsx), the same
+     * grid the Excel-paste button feeds — parse-sizes is a second way to
+     * fill that grid, not a new one.
+     *
+     * Every row is still shown on a review table for the salesman to
+     * correct or delete before anything is applied (AI_Assist_PRD.md §4.3's
+     * review-before-apply rule applies here too, even though this feature
+     * predates the PRD): a misread "60" as "80" is a wrong purchase order
+     * and a wrong invoice, so nothing here is trusted uncritically.
+     */
+    public function parseSizes(Request $request): JsonResponse
+    {
+        if ($denied = $this->denyUnlessCanCreateQuotation($request)) {
+            return $denied;
+        }
+
+        $request->validate([
+            'image' => 'required|file|mimes:jpg,jpeg,png,webp|max:8192',
+        ]);
+
+        $file = $request->file('image');
+        $parts = [
+            $this->gemini->inlineFilePart(
+                file_get_contents($file->getRealPath()),
+                $file->getMimeType() ?: 'image/jpeg'
+            ),
+            ['text' => 'Extract every window size from this image.'],
+        ];
+
+        try {
+            $draft = $this->gemini->generateJson($parts, $this->sizesExtractionPrompt(), self::SIZES_RESPONSE_SCHEMA);
+        } catch (RuntimeException $e) {
+            return $this->mapFailure($e);
+        }
+
+        $result = $this->normaliseSizes($draft);
+
+        $log = AiAssistLog::create([
+            'user_id'    => $request->user()?->id,
+            'mode'       => 'size_scan',
+            'confidence' => $result['confidence'],
+            'applied'    => false,
+        ]);
+
+        return response()->json(['data' => $result, 'log_id' => $log->id]);
+    }
+
+    /**
      * AI Assist is not a separate permission: anyone who may create a
      * customer may create one this way (PRD §2A). Checked in the controller
      * because this codebase gates permissions inline rather than via a
@@ -196,6 +275,18 @@ class AiAssistController extends Controller
         return $request->user()?->can('customers:create')
             ? null
             : $this->errorResponse('You do not have permission to create customers.', 403);
+    }
+
+    /**
+     * Same inline-permission pattern as denyUnlessCanCreateCustomer() above,
+     * gated on the permission that already governs the quotation/order
+     * builder these size rows are pasted into.
+     */
+    private function denyUnlessCanCreateQuotation(Request $request): ?JsonResponse
+    {
+        return $request->user()?->can('quotations:create')
+            ? null
+            : $this->errorResponse('You do not have permission to create quotations.', 403);
     }
 
     /**
@@ -221,6 +312,47 @@ class AiAssistController extends Controller
         $out['confidence'] = round(max(0, min(1, $confidence)), 2);
 
         return $out;
+    }
+
+    /**
+     * Guarantees every row is a usable positive width/height/pcs triple, or
+     * is dropped rather than passed through as junk the caller has to guard
+     * against. `pcs` is never left at 0 — a size line without a repeat count
+     * means one window, not zero.
+     */
+    private function normaliseSizes(array $draft): array
+    {
+        $rows = [];
+
+        foreach ((array) ($draft['sizes'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $width  = is_numeric($row['width'] ?? null) ? (float) $row['width'] : 0.0;
+            $height = is_numeric($row['height'] ?? null) ? (float) $row['height'] : 0.0;
+            $pcs    = is_numeric($row['pcs'] ?? null) ? (int) round((float) $row['pcs']) : 1;
+
+            if ($width <= 0 || $height <= 0) {
+                continue; // never invent a missing dimension
+            }
+            if ($width > self::MAX_SIZE_INCHES || $height > self::MAX_SIZE_INCHES) {
+                continue; // near-certain misread, not a real window
+            }
+
+            $rows[] = [
+                'width'  => round($width, 2),
+                'height' => round($height, 2),
+                'pcs'    => max(1, $pcs),
+            ];
+        }
+
+        $confidence = is_numeric($draft['confidence'] ?? null) ? (float) $draft['confidence'] : 0.0;
+
+        return [
+            'sizes'      => $rows,
+            'confidence' => round(max(0, min(1, $confidence)), 2),
+        ];
     }
 
     /**
@@ -296,6 +428,57 @@ and nobody notices.
 CONFIDENCE
 Set confidence between 0 and 1 for how reliable this extraction is overall.
 Lower it for blurry images, partial text, or ambiguous layouts.
+PROMPT;
+    }
+
+    /**
+     * The extraction rules for the size-scan feature, written for the model.
+     */
+    private function sizesExtractionPrompt(): string
+    {
+        return <<<'PROMPT'
+You extract window / door measurements from a photo or screenshot for a
+window-blind trader's quotation builder in Bangladesh. The source is usually
+a site technician's handwritten note, a hand-drawn sketch with numbers on
+it, a WhatsApp message, or a simple table.
+
+Return ONLY the JSON object described by the response schema: a "sizes"
+array, one entry per distinct window/door, each with width, height and pcs.
+
+UNITS
+- All measurements are in inches unless the source explicitly writes cm, ft,
+  m, or মিটার/ফুট. Convert those to inches (1 ft = 12 in, 1 m = 39.37 in,
+  1 cm = 0.3937 in) before returning the number.
+- Convert Bengali digits ০১২৩৪৫৬৭৮৯ to English digits everywhere.
+- A pair written as "60x80", "60*80", "60 by 80", "60/80", or on two
+  adjacent lines is one row: width then height, in that order — the first
+  number is always width, the second is always height.
+
+PCS / QUANTITY
+- "pcs", "qty", "x2", "×2", or a repeated identical size written twice both
+  mean a repeat count. Fold repeats of the exact same width+height into one
+  row with pcs = the count.
+- If no quantity is written for a size, pcs = 1.
+
+MULTIPLE ROWS
+- A photo may show many sizes (a table, a list, several sketched windows).
+  Return one array entry per distinct size — a numbered list or table row is
+  one entry each.
+- Ignore anything that is not a width/height pair: room names, floor
+  numbers, prices, dates, and other annotations are not sizes.
+
+NEVER INVENT
+- Only extract a pair where both a width and a height are actually written
+  or clearly implied by a labelled sketch. Do not guess a missing second
+  number from the first.
+- If the image contains no readable size at all, return an empty sizes
+  array — do not fabricate an example size.
+
+CONFIDENCE
+Set confidence between 0 and 1 for how reliable this reading is overall.
+Lower it for messy handwriting, a blurry photo, or any row you are unsure
+about — the salesman reviews every row before it is used, so a low score
+here is not a failure, it is useful information for that review.
 PROMPT;
     }
 

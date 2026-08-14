@@ -11,6 +11,7 @@ import { formatCurrency, formatDate } from '../utils/format';
 import CustomerModal from '../components/CustomerModal';
 import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
+import AISizeScanModal from '../components/AISizeScanModal';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -53,6 +54,9 @@ const Orders = () => {
   // Excel Paste Modal States
   const [excelPasteTargetBlock, setExcelPasteTargetBlock] = useState(null);
   const [excelPasteText, setExcelPasteText] = useState('');
+
+  // AI Size Scan Modal State
+  const [aiScanTargetBlock, setAiScanTargetBlock] = useState(null);
 
   // Edit Mode States
   const [isEditMode, setIsEditMode] = useState(false);
@@ -580,6 +584,67 @@ const Orders = () => {
 
     setExcelPasteTargetBlock(null);
     setExcelPasteText('');
+  };
+
+  /**
+   * Applies AI Size Scan rows the same way handleImportExcelSizes() applies
+   * pasted Excel rows — same PVC-slats-aware billed_sqft/line_total formula,
+   * appended after the block's existing valid sizes — because it is the same
+   * size grid, just filled from a photo instead of a paste.
+   */
+  const handleApplyAiSizes = (parsedRows) => {
+    if (!aiScanTargetBlock || !parsedRows || parsedRows.length === 0) return;
+    const { sectionId, blockId } = aiScanTargetBlock;
+
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== sectionId) return sec;
+      return {
+        ...sec,
+        blocks: sec.blocks.map(block => {
+          if (block.id !== blockId) return block;
+
+          const unitPrice = parseFloat(block.unit_price) || 0;
+          const minSqft = parseFloat(block.min_billing_sqft) || 0;
+
+          const calculatedRows = parsedRows.map(row => {
+            const w = parseFloat(row.width) || 0;
+            const h = parseFloat(row.height) || 0;
+            const pcs = parseInt(row.pcs) || 1;
+            const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
+            let totalBilledSqft = 0;
+            const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
+            if (isPvc) {
+              const slatSize = parseFloat(block.product_size) || 8;
+              const slats = Math.ceil(w / 5.85);
+              const calcWidth = slats * slatSize;
+              totalBilledSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
+            } else {
+              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
+              totalBilledSqft = Math.round((sqftPerPiece * pcs) * 100) / 100;
+            }
+            const lineTotal = Math.round((totalBilledSqft * unitPrice) * 100) / 100;
+
+            return {
+              id: Date.now() + Math.random(),
+              width: w,
+              height: h,
+              pcs: pcs,
+              actual_sqft: singlePieceSqft,
+              billed_sqft: totalBilledSqft,
+              line_total: lineTotal
+            };
+          });
+
+          const existingValidSizes = block.sizes.filter(s => parseFloat(s.width) > 0 && parseFloat(s.height) > 0);
+          return {
+            ...block,
+            sizes: [...existingValidSizes, ...calculatedRows]
+          };
+        })
+      };
+    }));
+
+    setAiScanTargetBlock(null);
   };
 
   const handleSizeChange = (sectionId, blockId, sizeId, field, value) => {
@@ -2134,26 +2199,45 @@ const Orders = () => {
                                              🗑️
                                            </button>
                                            {sIdx === 0 && (
-                                             <button
-                                               type="button"
-                                               onClick={() => {
-                                                 setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
-                                                 setExcelPasteText('');
-                                               }}
-                                               style={{
-                                                 background: '#059669',
-                                                 color: '#ffffff',
-                                                 border: 'none',
-                                                 borderRadius: '6px',
-                                                 padding: '4px 7px',
-                                                 fontSize: '11px',
-                                                 fontWeight: 'bold',
-                                                 cursor: 'pointer'
-                                               }}
-                                               title="Paste Width, Height, Pcs from Excel"
-                                             >
-                                               📋 Excel
-                                             </button>
+                                             <>
+                                               <button
+                                                 type="button"
+                                                 onClick={() => {
+                                                   setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                                   setExcelPasteText('');
+                                                 }}
+                                                 style={{
+                                                   background: '#059669',
+                                                   color: '#ffffff',
+                                                   border: 'none',
+                                                   borderRadius: '6px',
+                                                   padding: '4px 7px',
+                                                   fontSize: '11px',
+                                                   fontWeight: 'bold',
+                                                   cursor: 'pointer'
+                                                 }}
+                                                 title="Paste Width, Height, Pcs from Excel"
+                                               >
+                                                 📋 Excel
+                                               </button>
+                                               <button
+                                                 type="button"
+                                                 onClick={() => setAiScanTargetBlock({ sectionId: sec.id, blockId: block.id })}
+                                                 style={{
+                                                   background: '#0891b2',
+                                                   color: '#ffffff',
+                                                   border: 'none',
+                                                   borderRadius: '6px',
+                                                   padding: '4px 7px',
+                                                   fontSize: '11px',
+                                                   fontWeight: 'bold',
+                                                   cursor: 'pointer'
+                                                 }}
+                                                 title="Scan handwritten sizes with AI"
+                                               >
+                                                 🪄 AI Scan
+                                               </button>
+                                             </>
                                            )}
                                          </div>
                                        </td>
@@ -2432,6 +2516,12 @@ const Orders = () => {
           </div>
         </div>
       )}
+
+      <AISizeScanModal
+        isOpen={!!aiScanTargetBlock}
+        onClose={() => setAiScanTargetBlock(null)}
+        onApply={handleApplyAiSizes}
+      />
     </div>
   );
 };
