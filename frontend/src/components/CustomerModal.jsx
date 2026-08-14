@@ -60,7 +60,6 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     email: setEmail,
     address: setAddress,
     address2: setAddress2,
-    notes: setNotes,
   };
 
   /** Clears a field's AI badge as soon as the user types in it (criterion 9). */
@@ -78,7 +77,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     // state, including fields the user had already typed (criterion 10).
     setAiSnapshot({
       companyName, name, phone, secondContactNumber, thirdContactNumber,
-      email, address, address2, notes,
+      email, address, address2,
     });
 
     Object.entries(patch).forEach(([key, value]) => FORM_SETTERS[key]?.(value));
@@ -502,10 +501,10 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
             )}
           </div>
 
-          {/* Section 3: Address & Notes (Always Visible) */}
+          {/* Section 3: Address */}
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '6px', marginBottom: '16px' }}>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              📍 Address &amp; Additional Remarks
+              📍 Address
             </div>
 
             <div className="custom-form-grid">
@@ -539,28 +538,34 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                   disabled={loading}
                 />
               </div>
-
-              <div className="custom-form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="custom-form-label">
-                  Notes &amp; Remarks
-                  {aiFields.notes && <AiBadge />}
-                </label>
-                {/* A textarea, not an input: AI Assist uses notes as the
-                    overflow field (designation, website, TIN, extra phone
-                    numbers) and writes one item per line — a single-line input
-                    ran them all together into one unreadable string. */}
-                <textarea
-                  rows={3}
-                  className="custom-form-input"
-                  style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
-                  placeholder="Special instructions or notes"
-                  value={notes}
-                  onChange={(e) => { setNotes(e.target.value); touch('notes'); }}
-                  disabled={loading}
-                />
-              </div>
             </div>
           </div>
+
+          {/* Section 4: Notes & Remarks — Edit only.
+              This is a note about the customer's account, not something to
+              collect while opening it, and it's the one field AI Assist can
+              never fill (AI Assist only runs on the New Customer form). It
+              only appears once the customer has an ID, on the Edit form. */}
+          {initialData?.id && (
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '6px', marginBottom: '16px' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📝 Notes &amp; Remarks
+              </div>
+              <div className="custom-form-grid">
+                <div className="custom-form-group" style={{ gridColumn: '1 / -1' }}>
+                  <textarea
+                    rows={3}
+                    className="custom-form-input"
+                    style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                    placeholder="Internal notes about this customer"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Footer Buttons */}
           <div className="custom-modal-footer">

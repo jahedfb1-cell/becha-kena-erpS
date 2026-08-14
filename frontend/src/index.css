@@ -2014,6 +2014,7 @@ body {
 @media (max-width: 640px) {
   .custom-form-grid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
   .hide-on-mobile {
     display: none !important;
@@ -2024,6 +2025,12 @@ body {
   }
   .custom-modal-form {
     padding: 5px;
+  }
+  .custom-modal-header {
+    padding: 15px 10px;
+  }
+  .custom-modal-title {
+    font-size: 15px;
   }
 }
 

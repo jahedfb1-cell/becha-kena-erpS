@@ -266,11 +266,11 @@ const ChallanPrintPage = () => {
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
                           <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
-                          {firstItem.product?.details && (
+                          {(firstItem.notes || firstItem.product?.details) ? (
                             <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                              {firstItem.product.details}
+                              {firstItem.notes || firstItem.product.details}
                             </div>
-                          )}
+                          ) : null}
                         </td>
                       )}
                       {isFirst && (

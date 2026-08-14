@@ -59,6 +59,8 @@ class CompanyProfileController extends Controller
             ];
         }
 
+        $data['browser_title'] = $data['browser_title'] ?? 'Dhaka Blinds - ERP & IMS Portal';
+
         $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
         $data['receipt_logo_url'] = $this->getLogoUrl($data['receipt_logo'] ?? null);
@@ -149,6 +151,7 @@ class CompanyProfileController extends Controller
             'invoice_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'receipt_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
             'favicon'         => 'nullable|file|mimes:jpg,jpeg,png,ico|max:2048',
+            'browser_title'   => 'nullable|string|max:200',
         ]);
 
         // Load existing data
@@ -167,6 +170,7 @@ class CompanyProfileController extends Controller
             'company_facebook' => $request->company_facebook,
             'vat_reg_no'       => $request->vat_reg_no,
             'terms_conditions' => $request->terms_conditions,
+            'browser_title'    => $request->browser_title ?? 'Dhaka Blinds - ERP & IMS Portal',
             'company_logo'     => $existing['company_logo'] ?? null,
             'invoice_logo'     => $existing['invoice_logo'] ?? null,
             'receipt_logo'     => $existing['receipt_logo'] ?? null,

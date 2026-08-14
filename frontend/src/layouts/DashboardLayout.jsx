@@ -25,6 +25,9 @@ const DashboardLayout = () => {
           if (res.data.data.company_name) {
             setCompanyName(res.data.data.company_name);
           }
+          if (res.data.data.browser_title) {
+            document.title = res.data.data.browser_title;
+          }
         }
       })
       .catch(() => {});

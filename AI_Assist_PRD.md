@@ -11,6 +11,15 @@
 
 ---
 
+> **Amendment — August 14, 2026:** `notes` was removed from AI Assist's output entirely, and the
+> Notes & Remarks field was removed from the New Customer form. Notes now only exists on the
+> Edit Customer form, once a customer has a `customer_id` — it is never part of customer
+> creation. Every reference to `notes` below (the response schema, the "overflow field" rules
+> in §6.4, the writable-fields list) reflects the original design and is superseded by this
+> change; the current 9 extractable fields are the 10 originally listed minus `notes`.
+
+---
+
 ## 1. Objective / উদ্দেশ্য
 
 **EN —** Reduce manual data entry when creating a B2B customer account. A salesman photographs a visiting card, pastes a WhatsApp message, or speaks in Bengali; the form fields fill automatically. The human always reviews before saving.

@@ -32,6 +32,12 @@ class AiAssistController extends Controller
      * independent layers; this schema is layer 2 (the API contract). They are
      * not listed as forbidden — they are simply absent, so the model has no
      * slot to write them into even if a prompt change asked for them.
+     *
+     * `notes` is absent for the same reason, but for a different rule: the
+     * Notes & Remarks field only exists on the Edit Customer form, once a
+     * customer has an ID — never on the New Customer form AI Assist operates
+     * on. There is nowhere for an AI-produced note to be applied, so it is
+     * not extracted (see the amendment at the top of AI_Assist_PRD.md).
      */
     private const RESPONSE_SCHEMA = [
         'type'       => 'OBJECT',
@@ -44,13 +50,12 @@ class AiAssistController extends Controller
             'email'               => ['type' => 'STRING'],
             'address_line_1'      => ['type' => 'STRING'],
             'address_line_2'      => ['type' => 'STRING'],
-            'notes'               => ['type' => 'STRING'],
             'confidence'          => ['type' => 'NUMBER'],
         ],
         'required' => [
             'company_name', 'contact_person_name',
             'contact_number_1', 'contact_number_2', 'contact_number_3',
-            'email', 'address_line_1', 'address_line_2', 'notes', 'confidence',
+            'email', 'address_line_1', 'address_line_2', 'confidence',
         ],
     ];
 
@@ -58,7 +63,7 @@ class AiAssistController extends Controller
     private const OUTPUT_KEYS = [
         'company_name', 'contact_person_name',
         'contact_number_1', 'contact_number_2', 'contact_number_3',
-        'email', 'address_line_1', 'address_line_2', 'notes',
+        'email', 'address_line_1', 'address_line_2',
     ];
 
     public function __construct(protected GeminiService $gemini)
@@ -252,7 +257,7 @@ COMPANY vs PERSON
 - If the source has only a person's name and no firm, put that same name in
   BOTH company_name and contact_person_name.
 - A designation (Director, Proprietor, Managing Director, Manager) is not a
-  name — put it in notes.
+  name and has no field of its own — leave it out.
 
 PHONE NUMBERS
 - Convert Bengali digits ০১২৩৪৫৬৭৮৯ to English digits 0123456789 everywhere.
@@ -261,8 +266,9 @@ PHONE NUMBERS
 - Fill in the order found: first -> contact_number_1, second ->
   contact_number_2, third -> contact_number_3.
 - Landline or office numbers: keep them as printed and place them after the
-  mobile numbers.
-- If more than three numbers appear, put the extras in notes. Never drop them.
+  mobile numbers, using whichever of the three slots is still empty.
+- There is no field for a fourth number or later — leave any beyond the third
+  out rather than overwriting one of the three slots.
 
 ADDRESS
 - address_line_1 holds the specific location: house, road, plot, floor,
@@ -272,11 +278,11 @@ ADDRESS
   leave address_line_2 empty.
 - Never invent a district or area that is not written in the source.
 
-NOTES — the overflow field
-Put anything readable that has no dedicated field here, one item per line:
-designation, website, BIN / TIN / trade licence number, product lines printed
-on the card, fourth and later phone numbers, and any other relevant detail.
-No readable information may be discarded.
+OUT OF SCOPE
+Website, BIN/TIN/trade licence number, product lines, and any other detail
+that has no dedicated field above are not extracted — there is nowhere to put
+them. Do not fold them into company_name, contact_person_name, or the address
+fields.
 
 NEVER INVENT
 - If a field is not present in the source, return an empty string "".

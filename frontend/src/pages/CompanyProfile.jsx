@@ -16,6 +16,7 @@ const CompanyProfile = () => {
     company_facebook: '',
     vat_reg_no: '',
     terms_conditions: '',
+    browser_title: '',
   });
 
   const [companyLogoFile, setCompanyLogoFile] = useState(null);
@@ -51,7 +52,11 @@ const CompanyProfile = () => {
           company_facebook: d.company_facebook || '',
           vat_reg_no:       d.vat_reg_no       || '',
           terms_conditions: d.terms_conditions || '',
+          browser_title:    d.browser_title    || '',
         });
+        if (d.browser_title) {
+          document.title = d.browser_title;
+        }
         setCompanyLogoPreview(d.company_logo_url || '/logo-demo.svg');
         setInvoiceLogoPreview(d.invoice_logo_url || '/logo-demo.svg');
         setReceiptLogoPreview(d.receipt_logo_url || '/logo-demo.svg');
@@ -120,6 +125,9 @@ const CompanyProfile = () => {
           document.getElementsByTagName('head')[0].appendChild(link);
         }
         link.href = d.favicon_url;
+      }
+      if (d.browser_title) {
+        document.title = d.browser_title;
       }
       setCompanyLogoFile(null);
       setInvoiceLogoFile(null);
@@ -382,7 +390,7 @@ const CompanyProfile = () => {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '8px' }}>
                 Facebook Page / Social URL
@@ -416,6 +424,24 @@ const CompanyProfile = () => {
                 value={form.vat_reg_no}
                 onChange={handleChange}
                 placeholder="e.g. 123456789"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '8px' }}>
+                Browser Tab Title
+              </label>
+              <input
+                name="browser_title"
+                style={{
+                  width: '100%', minHeight: '44px', padding: '10px 14px',
+                  fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px',
+                  background: 'var(--bg-card)', color: 'var(--text-heading)',
+                  boxSizing: 'border-box', outline: 'none'
+                }}
+                value={form.browser_title || ''}
+                onChange={handleChange}
+                placeholder="e.g. Dhaka Blinds - ERP & IMS Portal"
               />
             </div>
           </div>

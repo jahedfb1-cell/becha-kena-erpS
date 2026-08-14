@@ -426,16 +426,11 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                                 <strong style={{ fontSize: '13px', color: '#111' }}>
                                   {item.product?.name || 'Blind Item'}
                                 </strong>
-                                {item.product?.details && (
+                                {(item.notes || item.product?.details) ? (
                                   <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                    {item.product.details}
+                                    {item.notes || item.product.details}
                                   </div>
-                                )}
-                                {item.notes && item.notes.trim() !== (item.product?.details || '').trim() && (
-                                  <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#555', marginTop: '2px' }}>
-                                    Note: {item.notes}
-                                  </div>
-                                )}
+                                ) : null}
                               </td>
                             )}
 

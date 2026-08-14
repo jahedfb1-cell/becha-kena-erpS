@@ -16,6 +16,10 @@ import { customersQueryOptions } from '../hooks/useMasterData';
  * applyDraft() writes only these keys into form state. `opening_balance` and
  * `customer_category` are absent by design: even if a future prompt change or
  * a model update returns them, they are dropped before touching the form.
+ *
+ * `notes` is absent too, for a different reason: Notes & Remarks only exists
+ * on the Edit Customer form, once a customer has an ID — AI Assist only runs
+ * on the New Customer form, so there is no field for it to write into.
  */
 export const AI_WRITABLE_FIELDS = [
   'company_name',
@@ -26,7 +30,6 @@ export const AI_WRITABLE_FIELDS = [
   'email',
   'address_line_1',
   'address_line_2',
-  'notes',
 ];
 
 /** AI field name -> CustomerModal state key. */
@@ -39,7 +42,6 @@ export const FIELD_TO_FORM = {
   email: 'email',
   address_line_1: 'address',
   address_line_2: 'address2',
-  notes: 'notes',
 };
 
 /** Human labels for the review screen (PRD §7.6). */
@@ -52,7 +54,6 @@ export const FIELD_LABELS = {
   email: 'Email',
   address_line_1: 'Address Line 1',
   address_line_2: 'Address Line 2',
-  notes: 'Notes',
 };
 
 /**

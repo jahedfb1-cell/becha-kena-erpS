@@ -554,16 +554,11 @@ const QuotationPrintPage = () => {
                                 {item.product?.name || 'Blind Item'}
                               </strong>
                             </div>
-                            {item.product?.details && (
+                            {(item.notes || item.product?.details) ? (
                               <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                {item.product.details}
+                                {item.notes || item.product.details}
                               </div>
-                            )}
-                            {item.notes && item.notes.trim() !== (item.product?.details || '').trim() && (
-                              <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#555', marginTop: '2px' }}>
-                                Note: {item.notes}
-                              </div>
-                            )}
+                            ) : null}
                             <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>
                               Per Blinds Minimum Quantity (MOQ): {(parseFloat(item.min_billing_sqft) || 10).toFixed(2)} Sft
                             </div>
