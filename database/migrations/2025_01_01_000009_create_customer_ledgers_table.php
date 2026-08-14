@@ -47,7 +47,7 @@ return new class extends Migration
                   ->nullable()
                   ->constrained('users')
                   ->nullOnDelete();
-            $table->enum('transaction_type', ['invoice', 'payment', 'discount', 'adjustment']);
+            $table->enum('transaction_type', ['invoice', 'payment', 'discount', 'adjustment', 'opening_balance']);
             // Polymorphic reference
             $table->string('reference_type')->comment('Invoice / Payment / Voucher — morphTo type');
             $table->unsignedBigInteger('reference_id')->comment('morphTo id — points to the source record');

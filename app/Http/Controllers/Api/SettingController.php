@@ -64,6 +64,18 @@ class SettingController extends Controller
     // ------------------------------------------------------------------------
     public function getUnits(): JsonResponse
     {
+        // Ensure default PVC sq.ft exists in units table
+        $hasPvc = DB::table('units')->where('code', 'PVC sq.ft')->orWhere('name', 'PVC sq.ft')->exists();
+        if (!$hasPvc) {
+            DB::table('units')->insert([
+                'name' => 'PVC sq.ft',
+                'code' => 'PVC sq.ft',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         $units = DB::table('units')->orderBy('id', 'asc')->get();
         return $this->successResponse($units, 'Units retrieved.');
     }
@@ -84,6 +96,22 @@ class SettingController extends Controller
         ]);
 
         return $this->createdResponse(DB::table('units')->find($id), 'Unit created successfully.');
+    }
+
+    public function updateUnit(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'name' => 'required|string|max:100',
+            'code' => 'required|string|max:20|unique:units,code,' . $id,
+        ]);
+
+        DB::table('units')->where('id', $id)->update([
+            'name' => $request->name,
+            'code' => $request->code,
+            'updated_at' => now(),
+        ]);
+
+        return $this->successResponse(DB::table('units')->find($id), 'Unit updated successfully.');
     }
 
     public function deleteUnit(int $id): JsonResponse

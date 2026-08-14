@@ -26,7 +26,7 @@ return new class extends Migration
             $table->foreignId('supplier_id')
                   ->constrained('suppliers')
                   ->restrictOnDelete();
-            $table->enum('transaction_type', ['purchase', 'payment', 'adjustment']);
+            $table->enum('transaction_type', ['purchase', 'payment', 'adjustment', 'opening_balance']);
             // Polymorphic reference
             $table->string('reference_type')->comment('PurchaseOrder / Voucher / Adjustment — morphTo type');
             $table->unsignedBigInteger('reference_id')->comment('morphTo id');

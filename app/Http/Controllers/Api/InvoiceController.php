@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\DeliveryChallan;
 use App\Models\Invoice;
 use App\Models\Quotation;
+use App\Services\DeliveryChallanService;
 use App\Services\InvoiceService;
 use App\Services\NotificationService;
 use App\Traits\ApiResponse;
@@ -19,11 +21,16 @@ class InvoiceController extends Controller
 
     protected InvoiceService $invoiceService;
     protected NotificationService $notificationService;
+    protected DeliveryChallanService $challanService;
 
-    public function __construct(InvoiceService $invoiceService, NotificationService $notificationService)
-    {
+    public function __construct(
+        InvoiceService $invoiceService,
+        NotificationService $notificationService,
+        DeliveryChallanService $challanService
+    ) {
         $this->invoiceService = $invoiceService;
         $this->notificationService = $notificationService;
+        $this->challanService = $challanService;
     }
 
     public function index(Request $request): JsonResponse
@@ -87,8 +94,11 @@ class InvoiceController extends Controller
 
         $user = $request->user();
         $poNumber = $request->input('po_number');
+        // The Sales step generates the Delivery Challan alongside the invoice
+        // in one action; pass with_challan=false to create the invoice only.
+        $withChallan = $request->boolean('with_challan', true);
 
-        return DB::transaction(function () use ($quotation, $user, $poNumber) {
+        return DB::transaction(function () use ($quotation, $user, $poNumber, $withChallan) {
             $invoice = $this->invoiceService->generate($quotation, $user->id, $poNumber);
 
             $quotation->update(['status' => 'invoiced']);
@@ -107,10 +117,37 @@ class InvoiceController extends Controller
             // Trigger Notification Event: Invoice Generated -> Notify Customer
             $this->notificationService->notifyInvoiceGenerated($invoice);
 
-            return $this->createdResponse(
-                $invoice->load(['customer', 'salesman']),
-                "Invoice {$invoice->invoice_number} generated successfully."
-            );
+            $challan = null;
+            if ($withChallan) {
+                // Guard against duplicates in case a challan already exists.
+                $challan = DeliveryChallan::where('invoice_id', $invoice->id)
+                    ->where('is_archived', false)
+                    ->first();
+
+                if (!$challan) {
+                    $challan = $this->challanService->generate($invoice, $user->id);
+
+                    AuditLog::record(
+                        $user->id,
+                        $user->name,
+                        'generate',
+                        DeliveryChallan::class,
+                        $challan->id,
+                        null,
+                        $challan->toArray(),
+                        "Generated delivery challan {$challan->challan_number} for invoice {$invoice->invoice_number}"
+                    );
+                }
+            }
+
+            $message = $challan
+                ? "Invoice {$invoice->invoice_number} and Delivery Challan {$challan->challan_number} generated successfully."
+                : "Invoice {$invoice->invoice_number} generated successfully.";
+
+            return $this->createdResponse([
+                'invoice' => $invoice->load(['customer', 'salesman']),
+                'challan' => $challan,
+            ], $message);
         });
     }
 

@@ -30,6 +30,7 @@ return new class extends Migration
                 ['name' => 'Meter', 'code' => 'Meter', 'created_at' => now(), 'updated_at' => now()],
                 ['name' => 'Inch', 'code' => 'Inch', 'created_at' => now(), 'updated_at' => now()],
                 ['name' => 'Box / Set', 'code' => 'Box', 'created_at' => now(), 'updated_at' => now()],
+                ['name' => 'PVC sq.ft', 'code' => 'PVC sq.ft', 'created_at' => now(), 'updated_at' => now()],
             ]);
         }
 

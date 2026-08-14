@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
+import { useCustomers, masterDataKeys } from '../hooks/useMasterData';
 import { formatCurrency, formatDate } from '../utils/format';
 import CustomerModal from '../components/CustomerModal';
 import PhoneContactField from '../components/PhoneContactField';
@@ -9,9 +11,12 @@ import PhoneContactField from '../components/PhoneContactField';
 const Customers = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const queryClient = useQueryClient();
   const [view, setView] = useState('list'); // 'list', 'detail', or 'edit'
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(false);
+
+  // Same role-scoped `/customers` list the rest of the app shares.
+  const { data: customers, isLoading: loading, error: customersError } = useCustomers();
+
   const [error, setError] = useState('');
   
   // Selected customer details
@@ -31,21 +36,15 @@ const Customers = () => {
     }
   }, [searchParams]);
 
-  const fetchCustomers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await api.get('/customers');
-      setCustomers(response.data.data || []);
-    } catch (err) {
-      setError('Failed to retrieve customer list.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Re-reads the shared customer cache after a create/edit/archive.
+  const fetchCustomers = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: masterDataKeys.customers(false) });
+    queryClient.invalidateQueries({ queryKey: masterDataKeys.customers(true) });
+  }, [queryClient]);
 
   useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+    if (customersError) setError('Failed to retrieve customer list.');
+  }, [customersError]);
 
   const loadCustomerDetails = async (id) => {
     try {
@@ -58,7 +57,10 @@ const Customers = () => {
   };
 
   const handleCustomerCreated = (newCustomer) => {
-    setCustomers(prev => [newCustomer, ...prev]);
+    // Prepend into both cached variants so the new customer shows instantly
+    // here and in the quotation/order forms.
+    queryClient.setQueryData(masterDataKeys.customers(false), (prev) => [newCustomer, ...(prev ?? [])]);
+    queryClient.setQueryData(masterDataKeys.customers(true), (prev) => [newCustomer, ...(prev ?? [])]);
     alert('Customer created successfully.');
   };
 

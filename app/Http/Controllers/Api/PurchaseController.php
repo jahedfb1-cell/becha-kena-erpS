@@ -220,4 +220,72 @@ class PurchaseController extends Controller
             ], "Supplier payment of ৳{$amount} recorded successfully.");
         });
     }
+
+    /**
+     * POST /api/purchases/mark-received
+     *
+     * Marks a group of purchase entries as received (purchase completed).
+     * The Purchases screen groups entries per order, so the client sends the
+     * ids of every entry in the group it is completing.
+     *
+     * This only advances the fulfilment status — it never touches cost,
+     * ledger or payable amounts, which are already written at order approval.
+     */
+    public function markReceived(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer|exists:purchase_entries,id',
+        ]);
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($validated, $user) {
+            $entries = PurchaseEntry::whereIn('id', $validated['ids'])
+                ->where('is_archived', false)
+                ->where('is_reversed', false)
+                ->get();
+
+            if ($entries->isEmpty()) {
+                return $this->errorResponse('No active purchase entries found to complete.', 422);
+            }
+
+            $alreadyReceived = $entries->where('status', 'received');
+            $pending = $entries->where('status', '!=', 'received');
+
+            if ($pending->isEmpty()) {
+                return $this->errorResponse('This purchase is already marked as completed.', 422);
+            }
+
+            $now = now();
+            foreach ($pending as $entry) {
+                $entry->update([
+                    'status'      => 'received',
+                    'received_at' => $now,
+                    'received_by' => $user->id,
+                ]);
+            }
+
+            $orderNo = $pending->first()->quotation?->quotation_number
+                ?? $pending->first()->purchase_number;
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'update',
+                PurchaseEntry::class,
+                $pending->first()->id,
+                ['status' => 'pending'],
+                ['status' => 'received', 'entry_ids' => $pending->pluck('id')->all()],
+                "Marked purchase completed for order {$orderNo} ({$pending->count()} entries)"
+            );
+
+            return $this->successResponse([
+                'completed_count' => $pending->count(),
+                'skipped_count'   => $alreadyReceived->count(),
+                'quotation_id'    => $pending->first()->quotation_id,
+                'order_number'    => $orderNo,
+            ], "Purchase completed for order {$orderNo}.");
+        });
+    }
 }

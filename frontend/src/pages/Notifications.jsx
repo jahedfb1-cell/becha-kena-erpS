@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
+import { invalidateOrders } from '../api/invalidate';
 import { formatDate } from '../utils/format';
 
 const Notifications = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -138,6 +141,9 @@ const Notifications = () => {
       console.error('Approval error:', err);
     } finally {
       setActionLoading(null);
+      // Approving changes the quotation/order status, so refresh that feed
+      // before landing on the destination page.
+      invalidateOrders(queryClient);
       if (notif.reference_type === 'Invoice' || notif.type === 'invoice') {
         navigate(`/invoices?search=${encodeURIComponent(searchQuery)}`);
       } else {
@@ -159,6 +165,7 @@ const Notifications = () => {
       await api.post(`/quotations/${notif.reference_id}/reject`, { rejection_reason: reason });
       await api.post(`/notifications/${notif.id}/read`);
       fetchNotifications(currentPage);
+      invalidateOrders(queryClient);
       alert('Order rejected.');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to reject order.');

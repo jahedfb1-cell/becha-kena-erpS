@@ -85,6 +85,13 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
     return groups;
   };
 
+  const hasPvc = items.some(i => {
+    const u = (i.product?.unit || i.unit || '').trim().toLowerCase();
+    const cat = (i.product?.category?.name || i.category_name || '').toLowerCase();
+    const pName = (i.product?.name || i.product_name || '').toLowerCase();
+    return u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
+  });
+
   const isDetailed = activePrintType === 'detailed' || activePrintType === 'pad-detailed';
   const isPad = activePrintType === 'pad-detailed' || activePrintType === 'pad-simplified';
 
@@ -153,12 +160,12 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                 type="button"
                 onClick={() => setActivePrintType('pad-simplified')}
                 style={{
-                  background: activePrintType === 'pad-simplified' ? '#ec4899' : 'transparent',
+                  background: activePrintType === 'pad-simplified' ? '#6366f1' : 'transparent',
                   color: '#fff', border: 'none', padding: '5px 12px', fontSize: '11px',
                   borderRadius: '4px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s'
                 }}
               >
-                📝 Pad Invoice
+                📝 Pad Invoice (Totals Only)
               </button>
             </div>
           </div>
@@ -168,20 +175,20 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
               type="button"
               onClick={handlePrint}
               style={{
-                background: '#ff7b00',
+                background: '#28a745',
                 color: '#fff',
                 border: 'none',
-                padding: '6px 16px',
+                padding: '6px 14px',
                 borderRadius: '4px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 fontSize: '13px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '4px'
               }}
             >
-              <span>🖨️</span> Print PDF
+              🖨️ Print PDF
             </button>
             <button
               type="button"
@@ -208,11 +215,11 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
             
             {/* ── HEADER ── */}
             {!isPad ? (
-              <div className="print-header" style={{ display: 'block', paddingBottom: '4px', marginBottom: '12px' }}>
-                <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+              <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
+                <div style={{ textAlign: 'center', marginBottom: '4px' }}>
                   <img
                     src={logoSrc}
-                    alt="Invoice & Print Header Logo"
+                    alt="Invoice Header Logo"
                     style={{
                       width: '100%',
                       maxWidth: '100%',
@@ -220,48 +227,99 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                       maxHeight: '140px',
                       objectFit: 'contain',
                       display: 'block',
-                      margin: '0 auto 6px auto'
+                      margin: '0 auto'
                     }}
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
-                  <div style={{ fontSize: '11px', color: '#222', lineHeight: '1.6' }}>
+                </div>
+                <div style={{
+                  fontSize: '9.5px',
+                  color: '#222',
+                  textAlign: 'center',
+                  fontWeight: '600',
+                  paddingBottom: '4px',
+                  borderBottom: '1.5px solid #dc2626',
+                  marginBottom: '12px'
+                }}>
+                  Fashionable Curtains, Vertical, Horizontal Venetian, Roller blinds, Zebra/Combi Double Layer Shade, Remote Control Roller Curtains &amp; PVC Air Strip Door Curtains Importer &amp; Govt. Supplier
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
+                  <div>
                     <strong>{companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh.'}</strong><br/>
-                    Mobile : {companyProfile?.mobile || '01629000200'} &nbsp;|&nbsp; Email : {companyProfile?.email || 'dhakablinds@gmail.com'} &nbsp;|&nbsp; Web : {companyProfile?.company_web || 'www.dhakablinds.com'}
-                    {companyProfile?.vat_reg_no && <span> &nbsp;|&nbsp; VAT Reg No : {companyProfile.vat_reg_no}</span>}
+                    Mobile : {companyProfile?.mobile || '01629000200'}<br/>
+                    Email : {companyProfile?.email || 'dhakablinds@gmail.com'}<br/>
+                    Web : {companyProfile?.company_web || 'www.dhakablinds.com'}
+                    {companyProfile?.vat_reg_no && <div>VAT Reg No : {companyProfile.vat_reg_no}</div>}
                   </div>
-                </div>
 
-                <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#1a2f5a', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
-                  Invoice
-                </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px' }}>
+                      INVOICE
+                    </div>
+                  </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#111', fontWeight: 600, padding: '4px 0' }}>
-                  <div>Invoice No: <strong style={{ color: '#000' }}>{invoice.invoice_number}</strong> &nbsp;|&nbsp; Challan: <strong>{challanNo}</strong> &nbsp;|&nbsp; PO No: <strong>{poNo}</strong></div>
-                  <div>Date: <strong style={{ color: '#000' }}>{formatDate(invoice.invoice_date || invoice.created_at || new Date())}</strong></div>
+                  <div style={{ textAlign: 'right', fontSize: '12px' }}>
+                    <div>Date : <strong>{formatDate(invoice.invoice_date || invoice.created_at || new Date())}</strong></div>
+                    <div>Invoice No : <strong>{invoice.invoice_number}</strong></div>
+                    <div>Challan No : <strong>{challanNo}</strong></div>
+                  </div>
                 </div>
               </div>
             ) : (
-              /* Spacer and Metadata only for pre-printed Pad paper */
               <div style={{ display: 'block', marginBottom: '16px' }}>
                 <div style={{ height: '36mm' }} className="pad-print-spacer"></div>
-                <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#1a2f5a', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
-                  Invoice
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#111', fontWeight: 600, padding: '4px 0' }}>
-                  <div>Invoice No: <strong style={{ color: '#000' }}>{invoice.invoice_number}</strong> &nbsp;|&nbsp; Challan: <strong>{challanNo}</strong> &nbsp;|&nbsp; PO No: <strong>{poNo}</strong></div>
-                  <div>Date: <strong style={{ color: '#000' }}>{formatDate(invoice.invoice_date || invoice.created_at || new Date())}</strong></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center' }}>
+                  <div></div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', textAlign: 'center' }}>INVOICE</div>
+                  <div style={{ textAlign: 'right', fontSize: '12px' }}>
+                    <div>Date : <strong>{formatDate(invoice.invoice_date || invoice.created_at || new Date())}</strong></div>
+                    <div>Invoice No : <strong>{invoice.invoice_number}</strong></div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Bill To Box (Left Aligned Bordered Box matching reference) */}
-            <div style={{ width: '280px', border: '1.5px solid #000', padding: '8px 12px', marginBottom: '16px', borderRadius: '2px', background: '#fff' }}>
-              <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline' }}>Bill To:</div>
-              <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
-              {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
-                <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
-              )}
+            {/* ── 2-COLUMN METADATA HEADER BOX ── */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ flex: 1.2 }}>
+                <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>
+                  Invoice To:
+                </div>
+                <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff', height: 'calc(100% - 22px)' }}>
+                  <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+                  <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
+                  {customer?.address_2 && (
+                    <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+                  )}
+                  {quotation.delivery_address && quotation.delivery_address !== customer?.address && quotation.delivery_address !== customer?.address_2 && (
+                    <div style={{ fontSize: '12px', color: '#15803d', fontWeight: 600, marginTop: '2px' }}>
+                      Delivery Address: {quotation.delivery_address}
+                    </div>
+                  )}
+                  {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                    <div style={{ fontSize: '12px', color: '#333' }}>Mobile: {customer.phone}</div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ flex: 0.8, border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline' }}>
+                  Reference Info:
+                </div>
+                <div style={{ fontSize: '12px', color: '#333', marginBottom: '3px' }}>
+                  Quotation / PO Ref : <strong>{poNo}</strong>
+                </div>
+                <div style={{ fontSize: '12px', color: '#333', marginBottom: '3px' }}>
+                  Challan No : <strong>{challanNo}</strong>
+                </div>
+                <div style={{ fontSize: '12px', color: '#333', marginBottom: '3px' }}>
+                  Sales Representative : <strong>{quotation.salesman?.name || quotation.salesman_name || 'Marketing Dept'}</strong>
+                </div>
+                <div style={{ fontSize: '12px', color: '#333' }}>
+                  Payment Status : <strong style={{ textTransform: 'uppercase', color: invoice.payment_status === 'paid' ? '#16a34a' : '#d97706' }}>{invoice.payment_status || 'unpaid'}</strong>
+                </div>
+              </div>
             </div>
 
             {/* Item Table */}
@@ -273,13 +331,14 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                       <th rowSpan={2} style={{ width: '45px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Sl No.</th>
                       <th rowSpan={2} style={{ textAlign: 'left', verticalAlign: 'middle', paddingLeft: '12px', background: '#d1d5db', color: '#000' }}>Description of Goods</th>
                       <th rowSpan={2} style={{ width: '75px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Colors</th>
-                      <th colSpan={3} style={{ textAlign: 'center', background: '#d1d5db', color: '#000' }}>Size</th>
+                      <th colSpan={hasPvc ? 4 : 3} style={{ textAlign: 'center', background: '#d1d5db', color: '#000' }}>Size</th>
                       <th rowSpan={2} style={{ width: '95px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Quantity/Sq.ft</th>
                       <th rowSpan={2} style={{ width: '80px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Rate Tk.</th>
                       <th rowSpan={2} style={{ width: '100px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Amount Tk.</th>
                     </tr>
                     <tr>
                       <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000' }}>Width</th>
+                      {hasPvc && <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000' }}>T. Width</th>}
                       <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000' }}>Height</th>
                       <th style={{ width: '35px', textAlign: 'center', background: '#d1d5db', color: '#000' }}>Pcs</th>
                     </tr>
@@ -318,12 +377,14 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                     return sum + lineTotal;
                   }, 0);
 
+                  const colSpanVal = isDetailed ? (hasPvc ? 10 : 9) : 6;
+
                   return (
                     <React.Fragment key={`grp_${groupIdx}`}>
                       {optionLabel && (
                         <tr className="option-header-row">
                           <td
-                            colSpan={isDetailed ? 9 : 6}
+                            colSpan={colSpanVal}
                             style={{
                               textAlign: 'center',
                               padding: '8px 12px',
@@ -384,13 +445,31 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                               </td>
                             )}
 
-                            {isDetailed && (
-                              <>
-                                <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{width}</td>
-                                <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{height}</td>
-                                <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{pcs}</td>
-                              </>
-                            )}
+                            {isDetailed && (() => {
+                              const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
+                              const cat = (item.product?.category?.name || item.category_name || '').toLowerCase();
+                              const pName = (item.product?.name || item.product_name || '').toLowerCase();
+                              const isPvc = u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
+                              const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
+
+                              let tWidthVal = '-';
+                              if (isPvc && width > 0) {
+                                const slatSize = parseFloat(item.product?.product_size || item.product_size) || 8;
+                                const slatsCount = item.slats !== undefined && item.slats !== null && item.slats !== '' ? parseInt(item.slats) : Math.ceil(width / 5.85);
+                                tWidthVal = slatsCount * slatSize;
+                              }
+
+                              return (
+                                <>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{isPcs ? '—' : width}</td>
+                                  {hasPvc && (
+                                    <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{isPcs ? '—' : (isPvc ? tWidthVal : width)}</td>
+                                  )}
+                                  <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{isPcs ? '—' : height}</td>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{pcs}</td>
+                                </>
+                              );
+                            })()}
 
                             {isFirst && (
                               <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px' }}>

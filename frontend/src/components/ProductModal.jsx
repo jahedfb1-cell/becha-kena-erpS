@@ -9,11 +9,11 @@ const S = {
     backdropFilter: 'blur(8px)',
     WebkitBackdropFilter: 'blur(8px)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    zIndex: 1060, padding: '12px',
+    zIndex: 1060, padding: '8px',
   },
   modal: {
     background: '#ffffff',
-    borderRadius: '20px',
+    borderRadius: '3px',
     boxShadow: '0 32px 80px rgba(0,0,0,0.28), 0 0 0 1px rgba(255,255,255,0.1)',
     width: '100%', maxWidth: '780px',
     maxHeight: '92vh',
@@ -67,9 +67,9 @@ const S = {
   },
   section: {
     background: '#fff',
-    borderRadius: '14px',
+    borderRadius: '8px',
     border: '1px solid #e8ecf0',
-    padding: '20px',
+    padding: '6px',
     marginBottom: '16px',
     boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
   },
@@ -84,7 +84,7 @@ const S = {
   },
   label: {
     display: 'block', fontSize: '12px', fontWeight: 700,
-    color: '#374151', marginBottom: '6px', letterSpacing: '0.3px',
+    color: '#374151', marginBottom: '2px', letterSpacing: '0.3px',
   },
   input: {
     width: '100%', padding: '10px 14px',
@@ -170,6 +170,7 @@ const SkeletonLine = ({ w = '100%', h = '38px', r = '10px' }) => (
 
 let cachedCategories = null;
 let cachedSuppliers = null;
+let cachedUnits = null;
 
 const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isViewOnly = false }) => {
   const [productCode, setProductCode] = useState('');
@@ -182,9 +183,10 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
 
   const [categories, setCategories]       = useState(cachedCategories || []);
   const [suppliers, setSuppliers]         = useState(cachedSuppliers || []);
+  const [unitsList, setUnitsList]         = useState(cachedUnits || []);
   const [supplierLinks, setSupplierLinks] = useState([]);
 
-  const [loadingData, setLoadingData] = useState(!cachedCategories || !cachedSuppliers);
+  const [loadingData, setLoadingData] = useState(!cachedCategories || !cachedSuppliers || !cachedUnits);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState('');
   const [focusedField, setFocusedField] = useState(null);
@@ -195,9 +197,10 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
     if (!isOpen) return;
     setError('');
 
-    const populateFormData = (cats, sups) => {
+    const populateFormData = (cats, sups, uList) => {
       setCategories(cats);
       setSuppliers(sups);
+      setUnitsList(uList);
       if (initialData) {
         setProductCode(initialData.product_code || '');
         setName(initialData.name || '');
@@ -225,8 +228,8 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
       }
     };
 
-    if (cachedCategories && cachedSuppliers) {
-      populateFormData(cachedCategories, cachedSuppliers);
+    if (cachedCategories && cachedSuppliers && cachedUnits) {
+      populateFormData(cachedCategories, cachedSuppliers, cachedUnits);
       setLoadingData(false);
       setTimeout(() => firstRef.current?.focus(), 50);
       return;
@@ -235,15 +238,18 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
     setLoadingData(true);
     const fetchData = async () => {
       try {
-        const [catRes, supRes] = await Promise.all([
+        const [catRes, supRes, unitRes] = await Promise.all([
           api.get('/master/product-categories'),
           api.get('/suppliers'),
+          api.get('/settings/units').catch(() => ({ data: { data: [] } })),
         ]);
         const cats = catRes.data.data || [];
         const sups = supRes.data.data || [];
+        const uList = unitRes.data.data || [];
         cachedCategories = cats;
         cachedSuppliers = sups;
-        populateFormData(cats, sups);
+        cachedUnits = uList;
+        populateFormData(cats, sups, uList);
       } catch (err) {
         setError('Failed to load form data. Please try again.');
       } finally {
@@ -513,12 +519,29 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                       onBlur={() => setFocusedField(null)}
                       disabled={loading || isViewOnly}
                     >
-                      <option value="Square feet">Square Feet (Sq.Ft)</option>
-                      <option value="Pcs">Pieces (Pcs)</option>
-                      <option value="Meter">Meter</option>
-                      <option value="Yard">Yard</option>
-                      <option value="Box">Box</option>
-                      <option value="PVC sq.ft">PVC sq.ft</option>
+                      {(() => {
+                        const baseUnits = [
+                          { name: 'Square Feet (Sq.Ft)', value: 'Square feet' },
+                          { name: 'Pieces (Pcs)', value: 'Pcs' },
+                          { name: 'Meter', value: 'Meter' },
+                          { name: 'Yard', value: 'Yard' },
+                          { name: 'Box', value: 'Box' },
+                          { name: 'PVC sq.ft', value: 'PVC sq.ft' },
+                        ];
+                        const list = Array.isArray(unitsList) ? unitsList : [];
+                        list.forEach(u => {
+                          const val = u.code || u.name;
+                          const label = u.name ? (u.code ? `${u.name} (${u.code})` : u.name) : val;
+                          if (val && !baseUnits.some(b => b.value.toLowerCase() === val.toLowerCase())) {
+                            baseUnits.push({ name: label, value: val });
+                          }
+                        });
+                        return baseUnits.map((u, idx) => (
+                          <option key={u.value + idx} value={u.value}>
+                            {u.name}
+                          </option>
+                        ));
+                      })()}
                     </select>
                   </div>
                 </div>

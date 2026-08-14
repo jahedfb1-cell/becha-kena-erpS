@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../store/AuthContext';
 import api from '../api/axios';
+import { invalidateOrders } from '../api/invalidate';
 import NotificationSettingsModal from './NotificationSettingsModal';
 
 const NotificationBell = () => {
+  const queryClient = useQueryClient();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -106,6 +109,7 @@ const NotificationBell = () => {
       console.error('Approval error:', err);
     } finally {
       setActionLoading(null);
+      invalidateOrders(queryClient);
       if (notif.reference_type === 'Invoice' || notif.type === 'invoice') {
         navigate(`/invoices?search=${encodeURIComponent(searchQuery)}`);
       } else {
@@ -123,6 +127,7 @@ const NotificationBell = () => {
       await api.post(`/quotations/${notif.reference_id}/reject`, { rejection_reason: reason });
       await api.post(`/notifications/${notif.id}/read`);
       fetchNotifications();
+      invalidateOrders(queryClient);
       alert('Order rejected.');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to reject order.');

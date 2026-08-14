@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { useCustomers, useProducts, masterDataKeys, productsQueryOptions } from '../hooks/useMasterData';
+import { useOrdersList } from '../hooks/useListData';
+import { invalidateOrders, invalidateInvoices } from '../api/invalidate';
 import { formatCurrency, formatDate } from '../utils/format';
 import CustomerModal from '../components/CustomerModal';
 import ProductModal from '../components/ProductModal';
@@ -12,11 +16,22 @@ const Orders = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { can } = usePermission();
+  const queryClient = useQueryClient();
   const [view, setView] = useState('list'); // 'list', 'detail', 'form'
-  const [orders, setOrders] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
+
+  // Confirmed orders come from the shared quotations cache (filtered).
+  const { data: orders, isLoading: listLoading, error: ordersError } = useOrdersList();
+
+  // Shared master-data cache — fetched once for the whole app rather than
+  // on every form open.
+  const { data: customers } = useCustomers({ all: true, enabled: view === 'form' });
+  const { data: products } = useProducts({ enabled: view === 'form' });
+
+  // Separate from the list query: covers opening a single order's detail
+  // view or loading one into the edit form.
+  const [actionLoading, setActionLoading] = useState(false);
+  const loading = listLoading || actionLoading;
+
   const [error, setError] = useState('');
   
   // Selected Order for details view
@@ -87,46 +102,14 @@ const Orders = () => {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
   // Fetch orders list fast
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await api.get('/quotations?all=1');
-      const allItems = response.data?.data?.data || response.data?.data || [];
-      const confirmedOrders = allItems.filter(q => q && q.status !== 'quotation');
-      setOrders(confirmedOrders);
-    } catch (err) {
-      setError('Failed to retrieve orders list.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch customers & basic data for order form fast
-  const loadBasicData = useCallback(async () => {
-    try {
-      const custRes = await api.get('/customers?all=1');
-      const custsData = custRes.data?.data?.data || custRes.data?.data || [];
-      setCustomers(Array.isArray(custsData) ? custsData : []);
-    } catch (err) {
-      console.warn('Error loading customers for order form:', err);
-    }
-  }, []);
-
-  // Lazy load products when user enters form view
-  const loadProducts = useCallback(async () => {
-    if (products.length > 0) return;
-    try {
-      const prodRes = await api.get('/products');
-      const prodsData = prodRes.data?.data?.data || prodRes.data?.data || [];
-      setProducts(Array.isArray(prodsData) ? prodsData : []);
-    } catch (err) {
-      console.warn('Products lazy load error:', err);
-    }
-  }, [products.length]);
+  // Refreshes the shared quotations cache after approve/reject/invoice.
+  const fetchOrders = useCallback(() => {
+    invalidateOrders(queryClient);
+  }, [queryClient]);
 
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    if (ordersError) setError('Failed to retrieve orders list.');
+  }, [ordersError]);
 
   useEffect(() => {
     if (openActionsId === null) return;
@@ -154,17 +137,16 @@ const Orders = () => {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    if (view === 'form') {
-      loadBasicData();
-      loadProducts();
-    }
-  }, [view, loadBasicData, loadProducts]);
 
   const handleGenerateInvoice = async (orderId, orderNo) => {
-    if (!confirm(`Generate Sales Invoice for Order ${orderNo}?`)) return;
+    if (!confirm(`Generate Sales Invoice + Delivery Challan for Order ${orderNo}?`)) return;
     try {
-      await api.post(`/invoices/generate/${orderId}`, {});
+      const res = await api.post(`/invoices/generate/${orderId}`, {});
+      alert(res.data?.message || 'Invoice and Delivery Challan generated successfully.');
+      // The order moves to 'invoiced' and a new invoice exists, so both
+      // cached lists are now out of date.
+      fetchOrders();
+      invalidateInvoices(queryClient);
       navigate(`/invoices?search=${encodeURIComponent(orderNo)}`);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to generate invoice.');
@@ -173,14 +155,14 @@ const Orders = () => {
 
   const loadOrderDetails = async (id) => {
     try {
-      setLoading(true);
+      setActionLoading(true);
       const response = await api.get(`/quotations/${id}`);
       setSelectedOrder(response.data?.data || response.data);
       setView('detail');
     } catch (err) {
       alert('Failed to retrieve order details.');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -236,6 +218,8 @@ const Orders = () => {
     try {
       const res = await api.post(`/invoices/generate/${id}`);
       alert(res.data?.message || 'Invoice generated successfully.');
+      fetchOrders();
+      invalidateInvoices(queryClient);
       navigate('/invoices');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to generate invoice.');
@@ -795,7 +779,7 @@ const Orders = () => {
 
   const handleEditClick = async (o) => {
     try {
-      setLoading(true);
+      setActionLoading(true);
       let fullQ = o;
       try {
         const res = await api.get(`/quotations/${o.id}`);
@@ -820,7 +804,11 @@ const Orders = () => {
       setDiscountValue(parseFloat(fullQ.discount_value) || 0);
       setRemark(fullQ.note || '');
 
-      await loadProducts();
+      // Products must be resolved before items can be mapped. ensureQueryData
+      // returns the cached list, or fetches it once if it isn't loaded yet,
+      // and hands back the array directly — the previous code awaited a
+      // setState and then read a stale `products` closure.
+      const loadedProducts = await queryClient.ensureQueryData(productsQueryOptions()).catch(() => []);
 
       const sectionMap = new Map();
       (fullQ.items || []).forEach(item => {
@@ -832,7 +820,7 @@ const Orders = () => {
         const optGrpId = item.option_group_id || null;
         const key = `${optGrpId}_${item.product_id}_${item.unit_price}_${item.notes || ''}`;
 
-        const prod = products.find(p => p.id === item.product_id) || item.product;
+        const prod = loadedProducts.find(p => p.id === item.product_id) || item.product;
         const width = parseFloat(item.width) || 0;
         const height = parseFloat(item.height) || 0;
         const pcs = parseInt(item.pcs) || 1;
@@ -919,7 +907,7 @@ const Orders = () => {
       console.error('Error loading order for edit:', err);
       alert('Could not load order details for editing.');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
@@ -1221,7 +1209,7 @@ const Orders = () => {
                               type="button"
                               className="btn-action-circle"
                               onClick={() => handleGenerateInvoice(o.id, o.quotation_number)}
-                              title="Generate Sales / Invoice"
+                              title="Sales — Generate Invoice + Delivery Challan"
                               style={{ marginRight: '4px', background: '#bbf7d0', border: '1px solid #86efac' }}
                             >
                               🧾
@@ -1678,7 +1666,7 @@ const Orders = () => {
                 </div>
 
                 {/* DELIVERY ADDRESS SECTION MATCHING QUOTATIONS */}
-                <div className="form-card-section" style={{ padding: '16px 20px' }}>
+                <div className="form-card-section" style={{ padding: '6px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', margin: 0 }}>Delivery Address</label>
                     <label className="hide-mobile-text" style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
@@ -1723,7 +1711,7 @@ const Orders = () => {
 
                 {/* DYNAMIC SECTIONS & PRODUCT BLOCKS */}
                 {sections.map((sec) => (
-                  <div key={sec.id} className="form-card-section mobile-simple-section" style={{ marginBottom: '24px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+                  <div key={sec.id} className="form-card-section mobile-simple-section" style={{ marginBottom: '24px', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '6px' }}>
                     <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '2px solid #f1f5f9', paddingBottom: '10px' }}>
                       <input
                         type="text"
@@ -1906,7 +1894,7 @@ const Orders = () => {
                                     </td>
                                   </tr>
                                   {block.sizes.map((sizeRow, sIdx) => (
-                                    <tr key={sizeRow.id}>
+                                    <tr key={sizeRow.id} className={sIdx > 0 ? 'mobile-subsequent-row' : ''}>
                                       {sIdx === 0 && (
                                         <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
                                            {productChangeBlockId === block.id ? (
@@ -2119,7 +2107,7 @@ const Orders = () => {
                                         </td>
                                       )}
 
-                                      <td className="cell-action" style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                      <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                                            <button
                                              type="button"
@@ -2360,7 +2348,7 @@ const Orders = () => {
         isOpen={isCustomerModalOpen} 
         onClose={() => setIsCustomerModalOpen(false)} 
         onCustomerCreated={(newCust) => {
-          setCustomers(prev => [newCust, ...prev]);
+          queryClient.setQueryData(masterDataKeys.customers(true), (prev) => [newCust, ...(prev ?? [])]);
           setSelectedCustomerId(newCust.id);
           setCustomerSearchQuery(newCust.company_name || newCust.name);
           if (sameAsCustomerAddress) {
@@ -2373,7 +2361,7 @@ const Orders = () => {
         isOpen={isProductModalOpen} 
         onClose={() => setIsProductModalOpen(false)} 
         onProductSaved={(newProd) => {
-          setProducts(prev => [newProd, ...prev]);
+          queryClient.setQueryData(masterDataKeys.products(), (prev) => [newProd, ...(prev ?? [])]);
           if (newProd && newProd.id && sections.length > 0) {
             addProductBlockToSection(sections[0].id, newProd.id);
           }

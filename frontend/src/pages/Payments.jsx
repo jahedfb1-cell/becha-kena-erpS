@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { invalidateAfterPayment } from '../api/invalidate';
 import { formatCurrency, formatDate } from '../utils/format';
 
 const Payments = () => {
   const { user } = useAuth();
   const { can } = usePermission();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +67,8 @@ const Payments = () => {
         setIsDetailModalOpen(false);
       }
       fetchPayments();
+      // Voiding restores the invoice's outstanding balance.
+      invalidateAfterPayment(queryClient);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to void payment.');
     }

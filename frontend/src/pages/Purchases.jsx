@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { invalidateAfterPurchaseCompleted } from '../api/invalidate';
 import { formatCurrency, formatDate } from '../utils/format';
 
 const Purchases = () => {
   const { user } = useAuth();
   const { can } = usePermission();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Purchase entry id currently being marked as completed
+  const [completingKey, setCompletingKey] = useState(null);
 
   const [purchases, setPurchases] = useState([]);
   const [suppliersList, setSuppliersList] = useState([]);
@@ -77,6 +84,34 @@ const Purchases = () => {
     fetchPurchases();
   };
 
+  /**
+   * Marks every purchase entry of this order as received, then returns the
+   * user to the Orders page filtered to that order so the next step
+   * (Sales -> Invoice + Challan) can continue straight away.
+   */
+  const handleCompletePurchase = async (group) => {
+    const ids = group.rawEntries.map((e) => e.id);
+    if (ids.length === 0) return;
+
+    if (!window.confirm(
+      `Mark purchase completed for order ${group.orderNo}?\n\n` +
+      `Supplier: ${group.supplierCompName}\n` +
+      `Total: ${formatCurrency(group.totalCost)}\n\n` +
+      `You will be returned to the Orders page to create the Sales Invoice.`
+    )) return;
+
+    setCompletingKey(group.groupKey);
+    try {
+      await api.post('/purchases/mark-received', { ids });
+      // Refresh before navigating so the Orders page we land on is current.
+      invalidateAfterPurchaseCompleted(queryClient);
+      navigate(`/orders?search=${encodeURIComponent(group.orderNo)}`);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to mark purchase as completed.');
+      setCompletingKey(null);
+    }
+  };
+
   // Group purchase entries order-wise (1 row per Order / Invoice)
   const groupedPurchases = useMemo(() => {
     const map = new Map();
@@ -130,7 +165,12 @@ const Purchases = () => {
       group.totalCost += parseFloat(item.total_cost) || 0;
     });
 
-    return Array.from(map.values());
+    // A grouped order counts as purchased only when every entry in it is received
+    return Array.from(map.values()).map((group) => ({
+      ...group,
+      isCompleted: group.rawEntries.length > 0 && group.rawEntries.every((e) => e.status === 'received'),
+      receivedAt: group.rawEntries.find((e) => e.received_at)?.received_at || null,
+    }));
   }, [purchases]);
 
   // Local table search filtering on grouped order rows
@@ -345,13 +385,14 @@ const Purchases = () => {
                 <th style={{ textAlign: 'right' }}>TOTAL TK (total invoice value)</th>
                 <th style={{ textAlign: 'right' }}>PAID</th>
                 <th style={{ textAlign: 'right' }}>DUE</th>
-                <th style={{ textAlign: 'center', width: '100px' }}>ACTION</th>
+                <th style={{ textAlign: 'center' }}>STATUS</th>
+                <th style={{ textAlign: 'center', width: '140px' }}>ACTION</th>
               </tr>
             </thead>
             <tbody>
               {paginatedPurchases.length === 0 ? (
                 <tr>
-                  <td colSpan="12" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                  <td colSpan="13" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                     No purchase entry records found matching selected criteria.
                   </td>
                 </tr>
@@ -428,7 +469,42 @@ const Purchases = () => {
                         {formatCurrency(ledger.due_balance !== undefined ? ledger.due_balance : Math.max(0, group.totalCost - (ledger.total_paid || 0)))}
                       </td>
                       <td style={{ textAlign: 'center' }}>
+                        {group.isCompleted ? (
+                          <>
+                            <span className="badge badge-success" style={{ whiteSpace: 'nowrap' }}>✅ Purchased</span>
+                            {group.receivedAt && (
+                              <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                                {formatDate(group.receivedAt)}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="badge badge-warning" style={{ whiteSpace: 'nowrap' }}>⏳ Pending</span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          {!group.isCompleted && (
+                            <button
+                              type="button"
+                              onClick={() => handleCompletePurchase(group)}
+                              disabled={completingKey === group.groupKey}
+                              style={{
+                                backgroundColor: completingKey === group.groupKey ? '#94a3b8' : '#16a34a',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                cursor: completingKey === group.groupKey ? 'not-allowed' : 'pointer',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                              }}
+                              title="Mark purchase completed and return to Order"
+                            >
+                              {completingKey === group.groupKey ? '⏳' : '✅ Complete'}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => { setSelectedPurchase(group); setIsDetailModalOpen(true); }}

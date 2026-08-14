@@ -157,7 +157,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
           className="no-print"
           style={{
             display: 'flex',
-            justify: 'space-between',
+            justifyContent: 'space-between',
             alignItems: 'center',
             padding: '10px 20px',
             background: '#1a202c',
@@ -354,6 +354,8 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                       <span>Email: <strong>{companyProfile?.email || 'dhakablinds@gmail.com'}</strong></span>
                       <span>Web: <strong>{companyProfile?.company_web || 'www.dhakablinds.com'}</strong></span>
                     </div>
+                  </div>
+                )}
                 {/* 3-Column Info Header: Address / Spacer (Left) | Document Title (Center) | Date & Order No (Right) */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
                   <div>
@@ -379,8 +381,6 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                     <div>{documentNoLabel} : <strong>{quotation.quotation_number}</strong></div>
                   </div>
                 </div>
-              </div>
-                )}
               </div>
             ) : (
               /* Spacer for pre-printed Pad paper */
@@ -460,12 +460,13 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                       <th rowSpan={2} style={{ width: '45px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Sl No.</th>
                       <th rowSpan={2} style={{ width: isOrder ? '220px' : 'auto', textAlign: 'left', verticalAlign: 'middle', paddingLeft: '12px', background: '#d1d5db', color: '#000' }}>Description of Goods</th>
                       <th rowSpan={2} style={{ width: isOrder ? '90px' : '75px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Colors</th>
-                      <th colSpan={4} style={{ textAlign: 'center', background: '#d1d5db', color: '#000', fontSize: '13px', fontWeight: 'bold' }}>Size</th>
+                      <th colSpan={hasPvc ? 5 : 4} style={{ textAlign: 'center', background: '#d1d5db', color: '#000', fontSize: '13px', fontWeight: 'bold' }}>Size</th>
                       {!hidePrices && <th rowSpan={2} style={{ width: '80px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Rate Tk.</th>}
                       {!hidePrices && <th rowSpan={2} style={{ width: '100px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000' }}>Amount Tk.</th>}
                     </tr>
                     <tr>
                       <th style={{ width: isOrder ? '95px' : '45px', textAlign: 'center', background: '#d1d5db', color: '#000', fontSize: isOrder ? '12px' : '11px' }}>Width</th>
+                      {hasPvc && <th style={{ width: isOrder ? '95px' : '45px', textAlign: 'center', background: '#d1d5db', color: '#000', fontSize: isOrder ? '12px' : '11px' }}>T. Width</th>}
                       <th style={{ width: isOrder ? '95px' : '45px', textAlign: 'center', background: '#d1d5db', color: '#000', fontSize: isOrder ? '12px' : '11px' }}>Height</th>
                       <th style={{ width: isOrder ? '65px' : '35px', textAlign: 'center', background: '#d1d5db', color: '#000', fontSize: isOrder ? '12px' : '11px' }}>Pcs</th>
                       <th style={{ width: isOrder ? '115px' : '95px', textAlign: 'center', background: '#d1d5db', color: '#000', fontSize: isOrder ? '12px' : '11px' }}>Quantity / Sq.ft</th>
@@ -505,7 +506,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                     return sum + lineTotal;
                   }, 0);
 
-                  const colSpanVal = isDetailed ? (hidePrices ? 7 : 9) : (hidePrices ? 4 : 6);
+                  const colSpanVal = isDetailed ? (hidePrices ? (hasPvc ? 8 : 7) : (hasPvc ? 10 : 9)) : (hidePrices ? 4 : 6);
 
                   return (
                     <React.Fragment key={`grp_${groupIdx}`}>
@@ -582,16 +583,34 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                               </td>
                             )}
 
-                            {isDetailed && (
-                              <>
-                                <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{width}</td>
-                                <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{height}</td>
-                                <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{pcs}</td>
-                                <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '14px' : '12px', fontWeight: 700, color: '#000' }}>
-                                  {(parseFloat(item.billed_sqft) || (Math.round(((width * height) / 144) * 100) / 100 * pcs)).toFixed(2)}
-                                </td>
-                              </>
-                            )}
+                            {isDetailed && (() => {
+                              const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
+                              const cat = (item.product?.category?.name || item.category_name || '').toLowerCase();
+                              const pName = (item.product?.name || item.product_name || '').toLowerCase();
+                              const isPvc = u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
+                              const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
+
+                              let tWidthVal = '-';
+                              if (isPvc && width > 0) {
+                                const slatSize = parseFloat(item.product?.product_size || item.product_size) || 8;
+                                const slatsCount = item.slats !== undefined && item.slats !== null && item.slats !== '' ? parseInt(item.slats) : Math.ceil(width / 5.85);
+                                tWidthVal = slatsCount * slatSize;
+                              }
+
+                              return (
+                                <>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{isPcs ? '—' : width}</td>
+                                  {hasPvc && (
+                                    <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{isPcs ? '—' : (isPvc ? tWidthVal : width)}</td>
+                                  )}
+                                  <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{isPcs ? '—' : height}</td>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{pcs}</td>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '14px' : '12px', fontWeight: 700, color: '#000' }}>
+                                    {isPcs ? `${pcs} pcs` : (parseFloat(item.billed_sqft) || (Math.round(((width * height) / 144) * 100) / 100 * pcs)).toFixed(2)}
+                                  </td>
+                                </>
+                              );
+                            })()}
 
                             {!isDetailed && isFirst && (
                               <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px' }}>

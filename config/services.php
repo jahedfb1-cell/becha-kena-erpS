@@ -35,4 +35,35 @@ return [
         ],
     ],
 
+    /*
+     | Google Gemini — powers AI Assist on the New Customer Account form.
+     |
+     | The model name is deliberately configurable, never hardcoded: Google
+     | retires models on a schedule, and a hardcoded name turns that into an
+     | outage. Swapping providers later means changing these values only.
+     */
+    'gemini' => [
+        'key'     => env('GEMINI_API_KEY'),
+        'model'   => env('GEMINI_MODEL', 'gemini-flash-latest'),
+
+        /*
+         | Used when the primary model is out of free-tier quota (429) or
+         | overloaded (503). A lite model has a far more generous free tier and
+         | handles card extraction well, so a busy minute degrades quality
+         | slightly instead of failing outright.
+         */
+        'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite'),
+
+        'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
+        'timeout' => (int) env('GEMINI_TIMEOUT', 45),
+
+        /*
+         | Gemini 3 models think before answering, which for a card extraction
+         | costs 60+ seconds and adds nothing — the task is transcription, not
+         | reasoning. "low" brings the same result back in about 4 seconds.
+         | Set to an empty string for models that reject thinkingConfig.
+         */
+        'thinking_level' => env('GEMINI_THINKING_LEVEL', 'low'),
+    ],
+
 ];

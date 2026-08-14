@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
+import { invalidateProducts } from '../api/invalidate';
 import ProductModal from '../components/ProductModal';
 
 const Products = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const queryClient = useQueryClient();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -73,6 +76,7 @@ const Products = () => {
         data: { archive_reason: 'Archived via Admin interface' },
       });
       fetchProducts();
+      invalidateProducts(queryClient);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to archive product.');
     }
@@ -80,6 +84,9 @@ const Products = () => {
 
   const handleProductSaved = () => {
     fetchProducts();
+    // Critical: the quotation/order builders price line items from the
+    // shared product cache, so an edited price must not linger there.
+    invalidateProducts(queryClient);
   };
 
   // Preferred supplier link (priority_rank === 1, else first link)

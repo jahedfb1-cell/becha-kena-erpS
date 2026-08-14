@@ -77,8 +77,8 @@ class InvoiceChallanPaymentApiTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.grand_total', 1050)
-            ->assertJsonPath('data.payment_status', 'unpaid');
+            ->assertJsonPath('data.invoice.grand_total', 1050)
+            ->assertJsonPath('data.invoice.payment_status', 'unpaid');
 
         // Quotation status should now be invoiced (locked)
         $this->assertEquals('invoiced', $this->approvedQuotation->fresh()->status);

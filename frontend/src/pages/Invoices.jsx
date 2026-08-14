@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useInvoicesList, invoicesQueryOptions } from '../hooks/useListData';
+import { invalidateInvoices, invalidateOrders } from '../api/invalidate';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -12,9 +15,11 @@ const Invoices = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { can } = usePermission();
+  const queryClient = useQueryClient();
   const [view, setView] = useState('list'); // 'list' or 'detail'
-  const [invoices, setInvoices] = useState([]);
-  const [loading, setLoading] = useState(false);
+
+  const { data: invoices, isLoading: loading, error: invoicesError } = useInvoicesList();
+
   const [error, setError] = useState('');
   
   // Selected Invoice for details view
@@ -62,21 +67,14 @@ const Invoices = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openActionsId]);
 
-  const fetchInvoices = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await api.get('/invoices?all=1');
-      setInvoices(response.data.data.data || response.data.data || []);
-    } catch (err) {
-      setError('Failed to retrieve invoices.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Refreshes the shared invoice cache after payments/challans/archives.
+  const fetchInvoices = useCallback(() => {
+    invalidateInvoices(queryClient);
+  }, [queryClient]);
 
   useEffect(() => {
-    fetchInvoices();
-  }, [fetchInvoices]);
+    if (invoicesError) setError('Failed to retrieve invoices.');
+  }, [invoicesError]);
 
   const [searchParams] = useSearchParams();
 
@@ -117,6 +115,9 @@ const Invoices = () => {
       alert('Invoice archived successfully.');
       setView('list');
       fetchInvoices();
+      // Archiving rolls the source quotation back out of 'invoiced', so the
+      // cached orders list is stale too.
+      invalidateOrders(queryClient);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to archive invoice.');
     }
@@ -172,10 +173,10 @@ const Invoices = () => {
     setTransferInvoiceId('');
     setTransferReason('');
     setTransferError('');
-    // Fetch all non-paid invoices for the dropdown
+    // Non-paid invoices for the dropdown — served from the shared cache,
+    // fetched only if it isn't loaded yet.
     try {
-      const res = await api.get('/invoices?all=1');
-      const list = res.data.data.data || res.data.data || [];
+      const list = await queryClient.ensureQueryData(invoicesQueryOptions());
       setAllInvoicesForTransfer(list.filter(inv => inv.payment_status !== 'paid' && inv.id !== payment.invoice_id));
     } catch {
       setAllInvoicesForTransfer([]);

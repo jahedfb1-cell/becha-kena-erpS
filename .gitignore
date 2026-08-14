@@ -29,3 +29,14 @@ frontend/src/pages/Quotations.backup.jsx
 # Standalone Android WebView app project — local deliverable only,
 # never commit/push/deploy this (user's explicit instruction).
 /webview-apk-app
+
+# Frontend build output copied into public/ by the deploy step — regenerated
+# on every build, never committed.
+/public/index.html
+/public/assets
+/public/sw.js
+/public/workbox-*.js
+/public/manifest.webmanifest
+/public/registerSW.js
+/public/apple-touch-icon.png
+/public/pwa-*.png

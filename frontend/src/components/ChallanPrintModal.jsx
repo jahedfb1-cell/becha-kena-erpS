@@ -8,14 +8,66 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
     window.print();
   };
 
-  const customer = challan.customer || challan.invoice?.customer || {};
-  const invoice = challan.invoice || {};
-  const items = invoice.quotation?.items || [];
+  const [challanItems, setChallanItems] = React.useState([]);
+
+  React.useEffect(() => {
+    if (challan) {
+      const initItems = challan.items || challan.invoice?.quotation?.items || [];
+      setChallanItems(initItems.map(i => ({ ...i, id: i.id || Date.now() + Math.random() })));
+    }
+  }, [challan]);
+
+  const handleAddItemRow = () => {
+    setChallanItems([
+      ...challanItems,
+      {
+        id: Date.now() + Math.random(),
+        product: { product_code: 'NEW', name: 'Custom Item' },
+        width: 0,
+        height: 0,
+        pcs: 1,
+        billed_sqft: 0,
+        notes: ''
+      }
+    ]);
+  };
+
+  const handleRemoveItemRow = (id) => {
+    if (challanItems.length <= 1) return;
+    setChallanItems(challanItems.filter(item => item.id !== id));
+  };
+
+  const handleItemChange = (id, field, value) => {
+    setChallanItems(challanItems.map(item => {
+      if (item.id !== id) return item;
+      const updated = { ...item, [field]: value };
+      if (field === 'width' || field === 'height' || field === 'pcs') {
+        const w = parseFloat(field === 'width' ? value : updated.width) || 0;
+        const h = parseFloat(field === 'height' ? value : updated.height) || 0;
+        const pcs = parseInt(field === 'pcs' ? value : updated.pcs) || 1;
+        const u = (updated.product?.unit || updated.unit || '').trim().toLowerCase();
+        const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
+        if (isPcs) {
+          updated.billed_sqft = pcs;
+        } else if (w > 0 && h > 0) {
+          updated.billed_sqft = Math.round(((w * h) / 144 * pcs) * 100) / 100;
+        }
+      }
+      return updated;
+    }));
+  };
+
+  const hasPvc = challanItems.some(item => {
+    const u = (item.product?.unit || item.unit || '').toLowerCase();
+    const c = (item.product?.category?.name || item.category_name || '').toLowerCase();
+    const p = (item.product?.name || item.product_name || '').toLowerCase();
+    return u.includes('pvc') || c.includes('pvc') || p.includes('pvc') || p.includes('clear water');
+  });
 
   return (
     <>
       <div className="custom-modal-overlay no-print" onClick={(e) => e.target === e.currentTarget && onClose()}>
-        <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '820px', maxHeight: '92vh' }}>
+        <div className="custom-modal-container animate-fade-in" style={{ maxWidth: '880px', maxHeight: '92vh' }}>
           
           {/* Header Action Bar */}
           <div className="custom-modal-header no-print" style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
@@ -23,6 +75,14 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
               🚚 Delivery Challan ({challan.challan_number})
             </h2>
             <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="secondary-btn no-print"
+                onClick={handleAddItemRow}
+                style={{ padding: '6px 12px', fontSize: '12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                ➕ Add Line Item
+              </button>
               <button
                 type="button"
                 className="primary-btn"
@@ -101,37 +161,109 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px' }}>
               <thead>
                 <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
-                  <th style={{ padding: '10px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#334155' }}>SN</th>
+                  <th style={{ padding: '10px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#334155', width: '45px' }}>SN</th>
                   <th style={{ padding: '10px', textAlign: 'left', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Product / Color Code</th>
-                  <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Dimensions (W &times; H)</th>
-                  <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Pcs</th>
-                  <th style={{ padding: '10px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#334155' }}>Billed Sq.Ft</th>
+                  <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155', width: '75px' }}>Width</th>
+                  {hasPvc && <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155', width: '80px' }}>T. Width</th>}
+                  <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155', width: '75px' }}>Height</th>
+                  <th style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155', width: '65px' }}>Pcs</th>
+                  <th style={{ padding: '10px', textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#334155', width: '95px' }}>Billing Qty</th>
+                  <th className="no-print" style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#334155', width: '50px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {items.length === 0 ? (
+                {challanItems.length === 0 ? (
                   <tr>
-                    <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>No line items found.</td>
+                    <td colSpan={hasPvc ? 8 : 7} style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>No line items found.</td>
                   </tr>
                 ) : (
-                  items.map((item, idx) => (
-                    <tr key={item.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '10px', fontSize: '13px', fontWeight: 600 }}>{idx + 1}</td>
-                      <td style={{ padding: '10px', fontSize: '13px' }}>
-                        <strong>{item.product?.product_code || 'PROD'}</strong> - {item.product?.name}
-                        {item.notes && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Note: {item.notes}</div>}
-                      </td>
-                      <td style={{ padding: '10px', textAlign: 'center', fontSize: '13px' }}>
-                        {item.width} &times; {item.height} in
-                      </td>
-                      <td style={{ padding: '10px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
-                        {item.pcs}
-                      </td>
-                      <td style={{ padding: '10px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
-                        {item.billed_sqft} sqft
-                      </td>
-                    </tr>
-                  ))
+                  challanItems.map((item, idx) => {
+                    const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
+                    const cat = (item.product?.category?.name || item.category_name || '').toLowerCase();
+                    const pName = (item.product?.name || item.product_name || '').toLowerCase();
+                    const isPvc = u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
+                    const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
+                    const width = parseFloat(item.width) || 0;
+
+                    let tWidthVal = '-';
+                    if (isPvc && width > 0) {
+                      const slatSize = parseFloat(item.product?.product_size || item.product_size) || 8;
+                      const slats = Math.ceil(width / 5.85);
+                      tWidthVal = slats * slatSize;
+                    }
+
+                    return (
+                      <tr key={item.id || idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '8px 10px', fontSize: '13px', fontWeight: 600 }}>{idx + 1}</td>
+                        <td style={{ padding: '8px 10px', fontSize: '13px' }}>
+                          <span className="print-only">
+                            <strong>{item.product?.product_code || item.product_code || 'ITEM'}</strong> - {item.product?.name || item.name || 'Custom Line Item'}
+                          </span>
+                          <input
+                            type="text"
+                            className="no-print modern-form-control"
+                            value={item.name || item.product?.name || 'Custom Item'}
+                            onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
+                            placeholder="Product / Item Description"
+                            style={{ width: '100%', fontSize: '12px', padding: '4px 6px', fontWeight: 600 }}
+                          />
+                          {item.notes && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Note: {item.notes}</div>}
+                        </td>
+                        <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '13px' }}>
+                          <span className="print-only">{isPcs ? '—' : (item.width || '—')}</span>
+                          <input
+                            type="number"
+                            className="no-print modern-form-control"
+                            value={isPcs ? '' : item.width}
+                            disabled={isPcs}
+                            placeholder={isPcs ? '—' : 'W'}
+                            onChange={(e) => handleItemChange(item.id, 'width', e.target.value)}
+                            style={{ width: '60px', textAlign: 'center', padding: '4px', fontSize: '12px' }}
+                          />
+                        </td>
+                        {hasPvc && (
+                          <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
+                            {isPcs ? '—' : (isPvc ? tWidthVal : (item.width || '—'))}
+                          </td>
+                        )}
+                        <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '13px' }}>
+                          <span className="print-only">{isPcs ? '—' : (item.height || '—')}</span>
+                          <input
+                            type="number"
+                            className="no-print modern-form-control"
+                            value={isPcs ? '' : item.height}
+                            disabled={isPcs}
+                            placeholder={isPcs ? '—' : 'H'}
+                            onChange={(e) => handleItemChange(item.id, 'height', e.target.value)}
+                            style={{ width: '60px', textAlign: 'center', padding: '4px', fontSize: '12px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
+                          <span className="print-only">{item.pcs || 1}</span>
+                          <input
+                            type="number"
+                            className="no-print modern-form-control"
+                            value={item.pcs || 1}
+                            onChange={(e) => handleItemChange(item.id, 'pcs', e.target.value)}
+                            style={{ width: '50px', textAlign: 'center', padding: '4px', fontSize: '12px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                          {isPcs ? `${item.pcs || 1} pcs` : `${item.billed_sqft || 0} sqft`}
+                        </td>
+                        <td className="no-print" style={{ padding: '8px 6px', textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemRow(item.id)}
+                            style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '4px', width: '24px', height: '24px', fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                            title="Remove row (-)"
+                          >
+                            −
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

@@ -112,10 +112,13 @@ class QuotationService
             if ($slatSize <= 0) {
                 $slatSize = 8;
             }
-            $slats = (int) ceil($width / 5.85);
+            $slats = isset($item['slats']) && $item['slats'] !== null && $item['slats'] !== '' 
+                ? (int) $item['slats'] 
+                : (int) ceil($width / 5.85);
             $calcWidth = $slats * $slatSize;
             $actualSqft = round(($width * $height) / 144, 2);
             $billedSqft = round((($calcWidth * $height) / 144) * $pcs, 2);
+            $approxSlats = number_format($width / 5.85, 2, '.', '');
         } else {
             // actual_sqft = (width × height) / 144
             $actualSqft = round(($width * $height) / 144, 2);
@@ -135,6 +138,8 @@ class QuotationService
         $lineTotal = round($billedSqft * $unitPrice, 2);
 
         return [
+            'slats'            => $slats ?? null,
+            'approx_slats'     => $approxSlats ?? null,
             'actual_sqft'      => $actualSqft,
             'min_billing_sqft' => $minBillingSqft,
             'billed_sqft'      => $billedSqft,
@@ -192,6 +197,12 @@ class QuotationService
                 $table->boolean('is_enabled_for_print')->default(true)->after('is_selected');
             });
         }
+        if (!\Illuminate\Support\Facades\Schema::hasColumn('quotation_items', 'slats')) {
+            \Illuminate\Support\Facades\Schema::table('quotation_items', function (\Illuminate\Database\Schema\Blueprint $table) {
+                $table->integer('slats')->nullable()->after('pcs');
+                $table->string('approx_slats', 20)->nullable()->after('slats');
+            });
+        }
 
         // Delete existing items (for update scenario)
         $quotation->items()->delete();
@@ -242,6 +253,8 @@ class QuotationService
                 'width'                  => $itemData['width'] ?? 0,
                 'height'                 => $itemData['height'] ?? 0,
                 'pcs'                    => $itemData['pcs'] ?? 1,
+                'slats'                  => $calc['slats'] ?? ($itemData['slats'] ?? null),
+                'approx_slats'           => $calc['approx_slats'] ?? ($itemData['approx_slats'] ?? null),
                 'actual_sqft'            => $calc['actual_sqft'],
                 'min_billing_sqft'       => $calc['min_billing_sqft'],
                 'billed_sqft'            => $calc['billed_sqft'],
@@ -262,58 +275,68 @@ class QuotationService
     }
 
     /**
-     * Create Purchase Entries for each quotation item (on approval).
-     * Also creates Supplier Ledger credit entries (payable).
+     * Create Purchase Entries for a quotation (on approval).
+     *
+     * One Purchase Order per SUPPLIER, not per line item. Every line item
+     * still gets its own row (so each window size stays visible in detail),
+     * but all rows belonging to the same supplier share a single
+     * purchase_number and produce exactly ONE supplier ledger credit for
+     * the consolidated amount. If an order has items from two suppliers,
+     * two separate POs are created — payables must stay per supplier.
      */
     public function createPurchaseEntries(Quotation $quotation, int $userId): void
     {
         $quotation->load('items');
 
-        foreach ($quotation->items as $item) {
-            if (!$item->supplier_id) {
-                continue;
-            }
+        $eligibleItems = $quotation->items->filter(function ($item) {
+            // Skip items with no supplier, or that were deselected/disabled
+            return $item->supplier_id && $item->is_selected && $item->is_enabled_for_print;
+        });
 
-            if (!$item->is_selected || !$item->is_enabled_for_print) {
-                continue; // Skip items that were deselected or disabled
-            }
-
+        foreach ($eligibleItems->groupBy('supplier_id') as $supplierId => $items) {
             $purchaseNumber = $this->generatePurchaseNumber();
-            $totalCost = round((float) $item->cost_price * (float) $item->billed_sqft, 2);
+            $groupTotalCost = 0;
 
-            $pe = PurchaseEntry::create([
-                'purchase_number'    => $purchaseNumber,
-                'quotation_id'       => $quotation->id,
-                'quotation_item_id'  => $item->id,
-                'supplier_id'        => $item->supplier_id,
-                'product_id'         => $item->product_id,
-                'product_variant_id' => $item->product_variant_id,
-                'width'              => $item->width,
-                'height'             => $item->height,
-                'pcs'                => $item->pcs,
-                'billed_sqft'        => $item->billed_sqft,
-                'cost_price'         => $item->cost_price,
-                'total_cost'         => $totalCost,
-                'purchase_date'      => now()->toDateString(),
-                'status'             => 'pending',
-                'created_by'         => $userId,
-            ]);
+            foreach ($items as $item) {
+                $totalCost = round((float) $item->cost_price * (float) $item->billed_sqft, 2);
+                $groupTotalCost += $totalCost;
 
-            // Supplier Ledger credit (payable increases)
-            $lastLedger = SupplierLedger::where('supplier_id', $item->supplier_id)
+                PurchaseEntry::create([
+                    'purchase_number'    => $purchaseNumber,
+                    'quotation_id'       => $quotation->id,
+                    'quotation_item_id'  => $item->id,
+                    'supplier_id'        => $item->supplier_id,
+                    'product_id'         => $item->product_id,
+                    'product_variant_id' => $item->product_variant_id,
+                    'width'              => $item->width,
+                    'height'             => $item->height,
+                    'pcs'                => $item->pcs,
+                    'billed_sqft'        => $item->billed_sqft,
+                    'cost_price'         => $item->cost_price,
+                    'total_cost'         => $totalCost,
+                    'purchase_date'      => now()->toDateString(),
+                    'status'             => 'pending',
+                    'created_by'         => $userId,
+                ]);
+            }
+
+            $groupTotalCost = round($groupTotalCost, 2);
+
+            // ONE consolidated Supplier Ledger credit for the whole PO
+            $lastLedger = SupplierLedger::where('supplier_id', $supplierId)
                 ->orderBy('id', 'desc')
                 ->first();
             $previousBalance = $lastLedger ? (float) $lastLedger->balance : 0;
 
             SupplierLedger::create([
-                'supplier_id'      => $item->supplier_id,
+                'supplier_id'      => $supplierId,
                 'transaction_type' => 'purchase',
                 'reference_type'   => PurchaseEntry::class,
-                'reference_id'     => $pe->id,
+                'reference_id'     => $items->first()->id,
                 'description'      => "Purchase order {$purchaseNumber} for quotation {$quotation->quotation_number}",
                 'debit'            => 0,
-                'credit'           => $totalCost,
-                'balance'          => $previousBalance + $totalCost,
+                'credit'           => $groupTotalCost,
+                'balance'          => $previousBalance + $groupTotalCost,
                 'transaction_date' => now()->toDateString(),
                 'created_by'       => $userId,
             ]);
@@ -328,25 +351,36 @@ class QuotationService
         $pes = PurchaseEntry::where('quotation_id', $quotation->id)
             ->where('is_reversed', false)
             ->get();
-            
-        foreach ($pes as $pe) {
-            $pe->update(['is_reversed' => true, 'status' => 'cancelled']);
-            
+
+        // Reverse one ledger line per Purchase Order, mirroring how the credit
+        // was written. Grouping by purchase_number also keeps older records
+        // correct, where every row still carries its own PO number.
+        foreach ($pes->groupBy('purchase_number') as $purchaseNumber => $group) {
+            $groupTotalCost = 0;
+
+            foreach ($group as $pe) {
+                $pe->update(['is_reversed' => true, 'status' => 'cancelled']);
+                $groupTotalCost += (float) $pe->total_cost;
+            }
+
+            $groupTotalCost = round($groupTotalCost, 2);
+            $first = $group->first();
+
             // Reverse Supplier Ledger
-            $lastLedger = SupplierLedger::where('supplier_id', $pe->supplier_id)
+            $lastLedger = SupplierLedger::where('supplier_id', $first->supplier_id)
                 ->orderBy('id', 'desc')
                 ->first();
             $previousBalance = $lastLedger ? (float) $lastLedger->balance : 0;
-            
+
             SupplierLedger::create([
-                'supplier_id'      => $pe->supplier_id,
+                'supplier_id'      => $first->supplier_id,
                 'transaction_type' => 'adjustment',
                 'reference_type'   => PurchaseEntry::class,
-                'reference_id'     => $pe->id,
-                'description'      => "Cancelled purchase {$pe->purchase_number} - reverse entry",
-                'debit'            => $pe->total_cost,
+                'reference_id'     => $first->id,
+                'description'      => "Cancelled purchase {$purchaseNumber} - reverse entry",
+                'debit'            => $groupTotalCost,
                 'credit'           => 0,
-                'balance'          => $previousBalance - $pe->total_cost,
+                'balance'          => $previousBalance - $groupTotalCost,
                 'transaction_date' => now()->toDateString(),
                 'created_by'       => $userId,
             ]);
@@ -361,25 +395,34 @@ class QuotationService
         $pes = PurchaseEntry::where('quotation_id', $quotation->id)
             ->where('is_reversed', true)
             ->get();
-            
-        foreach ($pes as $pe) {
-            $pe->update(['is_reversed' => false, 'status' => 'pending']);
-            
+
+        // Re-credit one ledger line per Purchase Order (see reversePurchaseEntries)
+        foreach ($pes->groupBy('purchase_number') as $purchaseNumber => $group) {
+            $groupTotalCost = 0;
+
+            foreach ($group as $pe) {
+                $pe->update(['is_reversed' => false, 'status' => 'pending']);
+                $groupTotalCost += (float) $pe->total_cost;
+            }
+
+            $groupTotalCost = round($groupTotalCost, 2);
+            $first = $group->first();
+
             // Re-credit Supplier Ledger
-            $lastLedger = SupplierLedger::where('supplier_id', $pe->supplier_id)
+            $lastLedger = SupplierLedger::where('supplier_id', $first->supplier_id)
                 ->orderBy('id', 'desc')
                 ->first();
             $previousBalance = $lastLedger ? (float) $lastLedger->balance : 0;
-            
+
             SupplierLedger::create([
-                'supplier_id'      => $pe->supplier_id,
+                'supplier_id'      => $first->supplier_id,
                 'transaction_type' => 'purchase',
                 'reference_type'   => PurchaseEntry::class,
-                'reference_id'     => $pe->id,
-                'description'      => "Restored purchase {$pe->purchase_number}",
+                'reference_id'     => $first->id,
+                'description'      => "Restored purchase {$purchaseNumber}",
                 'debit'            => 0,
-                'credit'           => $pe->total_cost,
-                'balance'          => $previousBalance + $pe->total_cost,
+                'credit'           => $groupTotalCost,
+                'balance'          => $previousBalance + $groupTotalCost,
                 'transaction_date' => now()->toDateString(),
                 'created_by'       => $userId,
             ]);

@@ -28,6 +28,7 @@ const Settings = () => {
 
   // Form Inputs State
   const [formInput, setFormInput] = useState({});
+  const [editingUnit, setEditingUnit] = useState(null);
 
   const fetchSummary = useCallback(async () => {
     setLoading(true);
@@ -51,6 +52,7 @@ const Settings = () => {
   const handleOpenModal = async (type) => {
     setActiveModal(type);
     setFormInput({});
+    setEditingUnit(null);
     setModalError('');
     setModalSuccess('');
     setModalLoading(true);
@@ -119,25 +121,42 @@ const Settings = () => {
     }
   };
 
-  // Unit Form Submit
-  const handleAddUnit = async (e) => {
+  // Unit Form Submit (Add or Edit)
+  const handleSaveUnit = async (e) => {
     e.preventDefault();
     setModalError('');
     try {
-      await api.post('/settings/units', formInput);
-      setModalSuccess('Unit added successfully!');
+      if (editingUnit) {
+        await api.put(`/settings/units/${editingUnit.id}`, formInput);
+        setModalSuccess('Unit updated successfully!');
+      } else {
+        await api.post('/settings/units', formInput);
+        setModalSuccess('Unit added successfully!');
+      }
       setFormInput({});
+      setEditingUnit(null);
       handleOpenModal('unit');
       fetchSummary();
     } catch (err) {
-      setModalError(err.response?.data?.message || 'Failed to add unit.');
+      setModalError(err.response?.data?.message || `Failed to ${editingUnit ? 'update' : 'add'} unit.`);
     }
+  };
+
+  const handleStartEditUnit = (unitItem) => {
+    setEditingUnit(unitItem);
+    setFormInput({ name: unitItem.name, code: unitItem.code });
+    setModalError('');
+    setModalSuccess('');
   };
 
   const handleDeleteUnit = async (id) => {
     if (!window.confirm('Delete this unit?')) return;
     try {
       await api.delete(`/settings/units/${id}`);
+      if (editingUnit && editingUnit.id === id) {
+        setEditingUnit(null);
+        setFormInput({});
+      }
       handleOpenModal('unit');
       fetchSummary();
     } catch (err) {
@@ -532,7 +551,7 @@ const Settings = () => {
             {modalSuccess && <div style={{ background: '#def7ec', color: '#03543f', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', fontSize: '13px' }}>{modalSuccess}</div>}
             {modalError && <div style={{ background: '#fde8e8', color: '#9b1c1c', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', fontSize: '13px' }}>{modalError}</div>}
 
-            <form onSubmit={handleAddUnit} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <form onSubmit={handleSaveUnit} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
               <input 
                 type="text" 
                 placeholder="Unit Name (e.g. Square Feet)" 
@@ -550,7 +569,19 @@ const Settings = () => {
                 className="modern-form-control" 
                 style={{ width: '140px' }}
               />
-              <button type="submit" className="primary-btn" style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>+ Add Unit</button>
+              <button type="submit" className="primary-btn" style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
+                {editingUnit ? '✏️ Update Unit' : '+ Add Unit'}
+              </button>
+              {editingUnit && (
+                <button 
+                  type="button" 
+                  className="secondary-btn" 
+                  onClick={() => { setEditingUnit(null); setFormInput({}); }}
+                  style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}
+                >
+                  Cancel
+                </button>
+              )}
             </form>
 
             <table className="data-table">
@@ -563,10 +594,11 @@ const Settings = () => {
               </thead>
               <tbody>
                 {modalData.map(u => (
-                  <tr key={u.id}>
+                  <tr key={u.id} style={{ background: editingUnit?.id === u.id ? 'rgba(59, 130, 246, 0.08)' : 'transparent' }}>
                     <td><strong>{u.name}</strong></td>
                     <td><span className="badge badge-outline">{u.code}</span></td>
                     <td>
+                      <button type="button" className="text-btn" onClick={() => handleStartEditUnit(u)} style={{ color: '#3b82f6', marginRight: '10px', fontWeight: 700 }}>Edit</button>
                       <button type="button" className="text-btn" onClick={() => handleDeleteUnit(u.id)} style={{ color: 'var(--danger)' }}>Delete</button>
                     </td>
                   </tr>

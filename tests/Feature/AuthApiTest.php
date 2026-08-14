@@ -29,6 +29,7 @@ class AuthApiTest extends TestCase
             'password'  => Hash::make('password123'),
             'role'      => 'salesman',
             'is_active' => true,
+            'phone'     => '01711223344',
         ]);
         $user->assignRole('salesman');
 
@@ -69,9 +70,7 @@ class AuthApiTest extends TestCase
 
     public function test_login_validation_errors()
     {
-        $response = $this->postJson('/api/auth/login', [
-            'email' => 'invalid-email',
-        ]);
+        $response = $this->postJson('/api/auth/login', []);
 
         $response->assertStatus(422)
             ->assertJsonStructure([
@@ -97,6 +96,7 @@ class AuthApiTest extends TestCase
             'password'  => Hash::make('password123'),
             'role'      => 'salesman',
             'is_active' => true,
+            'phone'     => '01711223344',
         ]);
         $user->assignRole('salesman');
 
@@ -125,6 +125,7 @@ class AuthApiTest extends TestCase
             'password'  => Hash::make('oldpassword123'),
             'role'      => 'salesman',
             'is_active' => true,
+            'phone'     => '01711223344',
         ]);
         $user->assignRole('salesman');
 

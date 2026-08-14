@@ -237,6 +237,8 @@ const Reports = () => {
       else if (Array.isArray(reportData.quotations)) listToExport = reportData.quotations;
       else if (Array.isArray(reportData.details)) listToExport = reportData.details;
       else if (Array.isArray(reportData.payments)) listToExport = reportData.payments;
+      else if (Array.isArray(reportData.expenses)) listToExport = reportData.expenses;
+      else if (Array.isArray(reportData.vouchers)) listToExport = reportData.vouchers;
     }
 
     if (activeReport === 'purchase-report' && reportData?.purchases && Array.isArray(reportData.purchases)) {
@@ -853,12 +855,12 @@ const Reports = () => {
                       <th>Customer</th>
                       <th>Salesperson</th>
                       <th>Date</th>
-                      <th>Subtotal</th>
-                      <th>Discount</th>
-                      <th>VAT</th>
-                      <th>Grand Total</th>
-                      <th>Paid</th>
-                      <th>Due</th>
+                      <th style={{ textAlign: 'right' }}>Subtotal</th>
+                      <th style={{ textAlign: 'right' }}>Discount</th>
+                      <th style={{ textAlign: 'right' }}>VAT</th>
+                      <th style={{ textAlign: 'right' }}>Grand Total</th>
+                      <th style={{ textAlign: 'right' }}>Paid</th>
+                      <th style={{ textAlign: 'right' }}>Due</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -868,15 +870,28 @@ const Reports = () => {
                         <td>{inv.customer?.name || 'N/A'}</td>
                         <td>{inv.salesman?.name || 'N/A'}</td>
                         <td>{formatDate(inv.invoice_date)}</td>
-                        <td>{formatCurrency(inv.subtotal)}</td>
-                        <td>{formatCurrency(inv.discount_amount)}</td>
-                        <td>{formatCurrency(inv.vat_amount)}</td>
-                        <td><strong>{formatCurrency(inv.grand_total)}</strong></td>
-                        <td style={{ color: '#28a745', fontWeight: 700 }}>{formatCurrency(inv.paid_amount)}</td>
-                        <td style={{ color: inv.due_amount > 0 ? '#dc3545' : 'inherit', fontWeight: inv.due_amount > 0 ? 700 : 'normal' }}>{formatCurrency(inv.due_amount)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(inv.subtotal)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(inv.discount_amount)}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(inv.vat_amount)}</td>
+                        <td style={{ textAlign: 'right' }}><strong>{formatCurrency(inv.grand_total)}</strong></td>
+                        <td style={{ textAlign: 'right', color: '#28a745', fontWeight: 700 }}>{formatCurrency(inv.paid_amount)}</td>
+                        <td style={{ textAlign: 'right', color: inv.due_amount > 0 ? '#dc3545' : 'inherit', fontWeight: inv.due_amount > 0 ? 700 : 'normal' }}>{formatCurrency(inv.due_amount)}</td>
                       </tr>
                     ))}
                   </tbody>
+                  {reportData.summary && (
+                    <tfoot>
+                      <tr style={{ background: '#f1f5f9', fontWeight: 800, borderTop: '2px solid #cbd5e1' }}>
+                        <td colSpan={4} style={{ textAlign: 'right' }}>TOTAL ({reportData.invoices.length} invoices)</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(reportData.invoices.reduce((s, i) => s + (parseFloat(i.subtotal) || 0), 0))}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(reportData.invoices.reduce((s, i) => s + (parseFloat(i.discount_amount) || 0), 0))}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(reportData.invoices.reduce((s, i) => s + (parseFloat(i.vat_amount) || 0), 0))}</td>
+                        <td style={{ textAlign: 'right' }}>{formatCurrency(reportData.summary.grand_total)}</td>
+                        <td style={{ textAlign: 'right', color: '#28a745' }}>{formatCurrency(reportData.summary.paid_total)}</td>
+                        <td style={{ textAlign: 'right', color: '#dc3545' }}>{formatCurrency(reportData.summary.due_total)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             )}
@@ -1322,12 +1337,14 @@ const Reports = () => {
                     <th>Acc / Txn ID</th>
                     <th>Description</th>
                     <th>Type</th>
-                    <th>Amount</th>
-                    <th>Balance</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                    <th style={{ textAlign: 'right' }}>Balance</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.map((m, idx) => (
+                  {reportData.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-main)', fontStyle: 'italic' }}>No mobile banking entries found for the selected period.</td></tr>
+                  ) : reportData.map((m, idx) => (
                     <tr key={m.id || idx}>
                       <td>{formatDate(m.entry_date)}</td>
                       <td><span className="badge badge-outline" style={{ textTransform: 'uppercase', fontWeight: 700 }}>{m.provider || 'bKash'}</span></td>
@@ -1338,10 +1355,10 @@ const Reports = () => {
                           {m.entry_type === 'in' ? '➕ IN' : '➖ OUT'}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 700, color: m.entry_type === 'in' ? 'var(--success)' : 'var(--danger)' }}>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: m.entry_type === 'in' ? 'var(--success)' : 'var(--danger)' }}>
                         {formatCurrency(m.amount)}
                       </td>
-                      <td style={{ fontWeight: 700 }}>{formatCurrency(m.balance)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(m.balance)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1358,12 +1375,14 @@ const Reports = () => {
                     <th>Cheque / Ref No</th>
                     <th>Description</th>
                     <th>Type</th>
-                    <th>Amount</th>
-                    <th>Balance</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                    <th style={{ textAlign: 'right' }}>Balance</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.map((b, idx) => (
+                  {reportData.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-main)', fontStyle: 'italic' }}>No bank transactions found for the selected period.</td></tr>
+                  ) : reportData.map((b, idx) => (
                     <tr key={b.id || idx}>
                       <td>{formatDate(b.entry_date)}</td>
                       <td><strong>{b.bank_name || 'Bank'}</strong></td>
@@ -1374,10 +1393,10 @@ const Reports = () => {
                           {b.entry_type === 'in' ? '➕ IN' : '➖ OUT'}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 700, color: b.entry_type === 'in' ? 'var(--success)' : 'var(--danger)' }}>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: b.entry_type === 'in' ? 'var(--success)' : 'var(--danger)' }}>
                         {formatCurrency(b.amount)}
                       </td>
-                      <td style={{ fontWeight: 700 }}>{formatCurrency(b.balance)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(b.balance)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1393,12 +1412,14 @@ const Reports = () => {
                     <th>Description</th>
                     <th>Reference</th>
                     <th>Type</th>
-                    <th>Amount</th>
-                    <th>Balance</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                    <th style={{ textAlign: 'right' }}>Balance</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.map((c, idx) => (
+                  {reportData.length === 0 ? (
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-main)', fontStyle: 'italic' }}>No cash transactions found for the selected period.</td></tr>
+                  ) : reportData.map((c, idx) => (
                     <tr key={c.id || idx}>
                       <td>{formatDate(c.entry_date)}</td>
                       <td>{c.description}</td>
@@ -1408,42 +1429,128 @@ const Reports = () => {
                           {c.entry_type === 'in' ? '➕ IN' : '➖ OUT'}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 700, color: c.entry_type === 'in' ? 'var(--success)' : 'var(--danger)' }}>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: c.entry_type === 'in' ? 'var(--success)' : 'var(--danger)' }}>
                         {formatCurrency(c.amount)}
                       </td>
-                      <td style={{ fontWeight: 700 }}>{formatCurrency(c.balance)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(c.balance)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
 
-            {/* 12. Voucher & Expense Statements */}
-            {['voucher-report', 'expense-report', 'vouchers-expenses'].includes(activeReport) && Array.isArray(reportData) && (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Ref / Voucher #</th>
-                    <th>Category</th>
-                    <th>Payment Method</th>
-                    <th>Amount</th>
-                    <th>Notes / Remarks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportData.map((e, idx) => (
-                    <tr key={e.id || idx}>
-                      <td>{formatDate(e.expense_date || e.created_at)}</td>
-                      <td><strong>{e.voucher_number || e.expense_number || `#${e.id}`}</strong></td>
-                      <td><span className="badge badge-outline">{e.category?.name || e.category || 'General Expense'}</span></td>
-                      <td><span className="badge badge-info" style={{ textTransform: 'uppercase' }}>{e.payment_method || 'Cash'}</span></td>
-                      <td style={{ fontWeight: 700, color: 'var(--danger)' }}>{formatCurrency(e.amount)}</td>
-                      <td>{e.notes || e.description || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* 12. Voucher & Expense Statements — the API returns a combined
+                 object ({ expenses, vouchers, category_summary, totals }),
+                 not a flat array, so this renders each section explicitly. */}
+            {['voucher-report', 'expense-report', 'vouchers-expenses'].includes(activeReport) && reportData && !Array.isArray(reportData) && (
+              <div>
+                {/* Summary strip */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '8px', padding: '12px 16px' }}>
+                    <div style={{ fontSize: '12px', color: '#721c24', fontWeight: 700, textTransform: 'uppercase' }}>Total Expenses</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#dc3545' }}>{formatCurrency(reportData.total_expenses || 0)}</div>
+                  </div>
+                  <div style={{ background: '#d1ecf1', border: '1px solid #bee5eb', borderRadius: '8px', padding: '12px 16px' }}>
+                    <div style={{ fontSize: '12px', color: '#0c5460', fontWeight: 700, textTransform: 'uppercase' }}>Total Vouchers</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#17a2b8' }}>{formatCurrency(reportData.total_vouchers || 0)}</div>
+                  </div>
+                  <div style={{ background: '#e2e3e5', border: '1px solid #d6d8db', borderRadius: '8px', padding: '12px 16px' }}>
+                    <div style={{ fontSize: '12px', color: '#383d41', fontWeight: 700, textTransform: 'uppercase' }}>Grand Total</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#383d41' }}>{formatCurrency((reportData.total_expenses || 0) + (reportData.total_vouchers || 0))}</div>
+                  </div>
+                </div>
+
+                {/* Category breakdown */}
+                {Array.isArray(reportData.category_summary) && reportData.category_summary.length > 0 && (
+                  <>
+                    <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: 'var(--text-heading)' }}>Expense by Category</h4>
+                    <table className="data-table" style={{ marginBottom: '24px' }}>
+                      <thead>
+                        <tr>
+                          <th>Category</th>
+                          <th style={{ textAlign: 'center' }}>Count</th>
+                          <th style={{ textAlign: 'right' }}>Total Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportData.category_summary.map((c, idx) => (
+                          <tr key={idx}>
+                            <td><span className="badge badge-outline">{c.category_name}</span></td>
+                            <td style={{ textAlign: 'center' }}>{c.count}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(c.total_amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                {/* Expense Vouchers */}
+                <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: 'var(--text-heading)' }}>Expense Vouchers</h4>
+                {!Array.isArray(reportData.expenses) || reportData.expenses.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-main)', fontStyle: 'italic', marginBottom: '24px' }}>
+                    No expense records found for the selected period.
+                  </div>
+                ) : (
+                  <table className="data-table" style={{ marginBottom: '24px' }}>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Ref #</th>
+                        <th>Category</th>
+                        <th>Payment Method</th>
+                        <th style={{ textAlign: 'right' }}>Amount</th>
+                        <th>Notes / Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportData.expenses.map((e, idx) => (
+                        <tr key={e.id || idx}>
+                          <td>{formatDate(e.expense_date || e.created_at)}</td>
+                          <td><strong>{e.expense_number || `#${e.id}`}</strong></td>
+                          <td><span className="badge badge-outline">{e.category?.name || 'Uncategorized'}</span></td>
+                          <td><span className="badge badge-info" style={{ textTransform: 'uppercase' }}>{e.payment_method || 'Cash'}</span></td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--danger)' }}>{formatCurrency(e.amount)}</td>
+                          <td>{e.description || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* Payment / Receipt Vouchers */}
+                <h4 style={{ margin: '0 0 10px', fontSize: '14px', color: 'var(--text-heading)' }}>Payment / Receipt Vouchers</h4>
+                {!Array.isArray(reportData.vouchers) || reportData.vouchers.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-main)', fontStyle: 'italic' }}>
+                    No voucher records found for the selected period.
+                  </div>
+                ) : (
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Voucher #</th>
+                        <th>Type</th>
+                        <th>Payment Method</th>
+                        <th style={{ textAlign: 'right' }}>Amount</th>
+                        <th>Notes / Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportData.vouchers.map((v, idx) => (
+                        <tr key={v.id || idx}>
+                          <td>{formatDate(v.date || v.created_at)}</td>
+                          <td><strong>{v.voucher_number || `#${v.id}`}</strong></td>
+                          <td><span className="badge badge-outline" style={{ textTransform: 'capitalize' }}>{v.voucher_type || 'General'}</span></td>
+                          <td><span className="badge badge-info" style={{ textTransform: 'uppercase' }}>{v.payment_method || 'Cash'}</span></td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--info)' }}>{formatCurrency(v.total_amount)}</td>
+                          <td>{v.description || v.note || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             )}
 
             {/* 13. Sales Due Report */}

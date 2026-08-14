@@ -718,7 +718,7 @@ class ReportController extends Controller
      */
     public function supplierDues(Request $request): JsonResponse
     {
-        $suppliers = Supplier::where('status', 'active')->get();
+        $suppliers = Supplier::where('is_archived', false)->get();
 
         $duesList = $suppliers->map(function ($supplier) {
             $ledgers = SupplierLedger::where('supplier_id', $supplier->id)->get();
@@ -1085,20 +1085,20 @@ class ReportController extends Controller
      */
     public function expensesVouchers(Request $request): JsonResponse
     {
-        $expQuery = Expense::with(['category:id,name', 'creator:id,name']);
-        $vchQuery = Voucher::with(['creator:id,name']);
+        $expQuery = Expense::where('is_archived', false)->with(['category:id,name', 'creator:id,name']);
+        $vchQuery = Voucher::where('is_archived', false)->with(['creator:id,name']);
 
         if ($request->filled('from_date')) {
             $expQuery->whereDate('expense_date', '>=', $request->from_date);
-            $vchQuery->whereDate('voucher_date', '>=', $request->from_date);
+            $vchQuery->whereDate('date', '>=', $request->from_date);
         }
         if ($request->filled('to_date')) {
             $expQuery->whereDate('expense_date', '<=', $request->to_date);
-            $vchQuery->whereDate('voucher_date', '<=', $request->to_date);
+            $vchQuery->whereDate('date', '<=', $request->to_date);
         }
 
         $expenses = $expQuery->orderBy('expense_date', 'desc')->get();
-        $vouchers = $vchQuery->orderBy('voucher_date', 'desc')->get();
+        $vouchers = $vchQuery->orderBy('date', 'desc')->get();
 
         $categorySummary = $expenses->groupBy('expense_category_id')->map(function ($group) {
             $category = $group->first()->category;

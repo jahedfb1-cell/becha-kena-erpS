@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import { useCustomers, useProducts, masterDataKeys } from '../hooks/useMasterData';
+import { invalidateOrders } from '../api/invalidate';
 import { formatCurrency, formatDate, formatSqft } from '../utils/format';
 import CustomerModal from '../components/CustomerModal';
 import ProductModal from '../components/ProductModal';
@@ -12,10 +15,15 @@ const Quotations = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { can } = usePermission();
+  const queryClient = useQueryClient();
   const [view, setView] = useState('list'); // 'list' or 'form'
   const [quotations, setQuotations] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [products, setProducts] = useState([]);
+
+  // Customers/products come from the shared master-data cache, so they are
+  // fetched once for the whole app instead of on every form open.
+  const { data: customers } = useCustomers({ all: true });
+  const { data: products } = useProducts({ enabled: view === 'form' });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -102,19 +110,16 @@ const Quotations = () => {
     setLoading(true);
     setError('');
     try {
-      const [quotesRes, custRes, empRes] = await Promise.all([
+      const [quotesRes, empRes] = await Promise.all([
         api.get('/quotations?all=1').catch(err => { console.warn('Quotations load error:', err); return { data: { data: [] } }; }),
-        api.get('/customers?all=1').catch(err => { console.warn('Customers load error:', err); return { data: { data: [] } }; }),
         api.get('/users').catch(err => { console.warn('Users load error:', err); return { data: { data: [] } }; })
       ]);
 
       const quotesData = quotesRes.data?.data?.data || quotesRes.data?.data || [];
-      const custsData = custRes.data?.data?.data || custRes.data?.data || [];
       const empRaw = empRes.data?.data || (Array.isArray(empRes.data) ? empRes.data : []);
       const empData = Array.isArray(empRaw) ? empRaw.filter(u => u.role === 'salesman' || u.role === 'manager' || u.role === 'admin') : [];
 
       setQuotations(Array.isArray(quotesData) ? quotesData : []);
-      setCustomers(Array.isArray(custsData) ? custsData : []);
       setEmployees(empData);
     } catch (err) {
       console.error('Error loading quotation data:', err);
@@ -123,18 +128,6 @@ const Quotations = () => {
       setLoading(false);
     }
   }, []);
-
-  // Lazy load products when opening form
-  const loadProducts = useCallback(async () => {
-    if (products.length > 0) return;
-    try {
-      const prodRes = await api.get('/products');
-      const prodsData = prodRes.data?.data?.data || prodRes.data?.data || [];
-      setProducts(Array.isArray(prodsData) ? prodsData : []);
-    } catch (err) {
-      console.warn('Products lazy load error:', err);
-    }
-  }, [products.length]);
 
   useEffect(() => {
     loadData();
@@ -148,12 +141,6 @@ const Quotations = () => {
       setFilterSearch(decodeURIComponent(q));
     }
   }, [searchParams]);
-
-  useEffect(() => {
-    if (view === 'form') {
-      loadProducts();
-    }
-  }, [view, loadProducts]);
 
   const selectedCustomerObj = useMemo(() => {
     return customers.find(c => c.id === parseInt(selectedCustomerId));
@@ -257,7 +244,9 @@ const Quotations = () => {
   }, [products, productChangeQuery]);
 
   const handleCustomerCreated = (newCustomer) => {
-    setCustomers(prev => [newCustomer, ...prev]);
+    // Push straight into the shared cache so the new customer appears
+    // instantly here and on every other page, with no refetch.
+    queryClient.setQueryData(masterDataKeys.customers(true), (prev) => [newCustomer, ...(prev ?? [])]);
     setSelectedCustomerId(newCustomer.id);
     setCustomerSearchQuery(newCustomer.company_name || newCustomer.name);
     if (sameAsCustomerAddress) {
@@ -266,7 +255,7 @@ const Quotations = () => {
   };
 
   const handleProductCreated = (newProduct) => {
-    setProducts(prev => [newProduct, ...prev]);
+    queryClient.setQueryData(masterDataKeys.products(), (prev) => [newProduct, ...(prev ?? [])]);
     if (newProduct && newProduct.id) {
       // Add to first section by default
       if (sections.length > 0) {
@@ -597,14 +586,23 @@ const Quotations = () => {
             const isPcs = (block.unit || '').trim().toLowerCase() === 'pcs';
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
             let billedSqft = 0;
+            let approxSlats = '';
+            let slatsCount = updatedSize.slats !== undefined && updatedSize.slats !== null ? updatedSize.slats : '';
+
             if (isPcs) {
               billedSqft = pcs;
             } else if (w > 0 && h > 0) {
               const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
               if (isPvc) {
                 const slatSize = parseFloat(block.product_size) || 8;
-                const slats = Math.ceil(w / 5.85);
-                const calcWidth = slats * slatSize;
+                approxSlats = (w / 5.85).toFixed(2);
+                if (field === 'slats') {
+                  slatsCount = value !== '' ? (parseInt(value) || 0) : '';
+                } else if (field === 'width' || slatsCount === '' || slatsCount === 0) {
+                  slatsCount = Math.ceil(w / 5.85);
+                }
+                const actualSlats = parseInt(slatsCount) || 0;
+                const calcWidth = actualSlats * slatSize;
                 billedSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
               } else {
                 const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
@@ -615,6 +613,8 @@ const Quotations = () => {
 
             return {
               ...updatedSize,
+              slats: slatsCount,
+              approx_slats: approxSlats,
               actual_sqft: isPcs ? pcs : singlePieceSqft,
               billed_sqft: billedSqft,
               line_total: lineTotal
@@ -794,6 +794,8 @@ const Quotations = () => {
               width: isPcs ? (w > 0 ? w : 1) : w,
               height: isPcs ? (h > 0 ? h : 1) : h,
               pcs: pcs,
+              slats: s.slats !== undefined && s.slats !== null && s.slats !== '' ? parseInt(s.slats) : (w > 0 ? Math.ceil(w / 5.85) : null),
+              approx_slats: w > 0 ? (w / 5.85).toFixed(2) : null,
               unit_price: parseFloat(block.unit_price) || 0,
               cost_price: block.cost_price || 0,
               min_billing_sqft: block.min_billing_sqft || 0,
@@ -835,6 +837,10 @@ const Quotations = () => {
         await api.post('/quotations', payload);
       }
       
+      // Saving either creates/updates a row in the same /quotations feed the
+      // Orders page caches, so refresh it either way.
+      invalidateOrders(queryClient);
+
       if (statusOverride === 'pending_approval') {
         navigate('/orders?tab=pending');
       } else {
@@ -904,14 +910,18 @@ const Quotations = () => {
         const isPvc = prodUnit.toLowerCase().includes('pvc') || catName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('clear water');
         const isPcs = prodUnit.trim().toLowerCase() === 'pcs';
         const actualSqft = Math.round(((width * height) / 144) * 100) / 100;
+
+        const slatsCount = item.slats !== undefined && item.slats !== null && item.slats !== '' ? parseInt(item.slats) : (width > 0 ? Math.ceil(width / 5.85) : '');
+        const approxSlats = item.approx_slats || (width > 0 ? (width / 5.85).toFixed(2) : '');
+
         let billedSqft = 0;
         if (isPcs) {
           billedSqft = pcs;
         } else if (width > 0 && height > 0) {
           if (isPvc) {
             const slatSize = parseFloat(prod?.product_size || item.product?.product_size) || 8;
-            const slats = Math.ceil(width / 5.85);
-            const calcWidth = slats * slatSize;
+            const actualSlats = parseInt(slatsCount) || Math.ceil(width / 5.85);
+            const calcWidth = actualSlats * slatSize;
             billedSqft = Math.round(((calcWidth * height) / 144 * pcs) * 100) / 100;
           } else {
             billedSqft = Math.round((Math.max(actualSqft, minSqft) * pcs) * 100) / 100;
@@ -924,6 +934,8 @@ const Quotations = () => {
           width: item.width,
           height: item.height,
           pcs: item.pcs,
+          slats: slatsCount,
+          approx_slats: approxSlats,
           actual_sqft: isPcs ? pcs : actualSqft,
           billed_sqft: billedSqft,
           line_total: lineTotal
@@ -1023,6 +1035,7 @@ const Quotations = () => {
     try {
       await api.delete(`/quotations/${id}`);
       loadData();
+      invalidateOrders(queryClient);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to archive quotation.');
     }
@@ -1032,6 +1045,7 @@ const Quotations = () => {
     try {
       await api.post(`/quotations/${id}/restore`);
       loadData();
+      invalidateOrders(queryClient);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to restore quotation.');
     }
@@ -1042,6 +1056,9 @@ const Quotations = () => {
     try {
       await api.post(`/quotations/${convertConfirmTarget.id}/convert-to-order`, {});
       setConvertConfirmTarget(null);
+      // Must run before navigating, otherwise the Orders page renders a
+      // cached list that doesn't contain the order just created.
+      invalidateOrders(queryClient);
       navigate('/orders?tab=pending');
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to convert quotation to order.');
@@ -1054,6 +1071,7 @@ const Quotations = () => {
       await api.post(`/quotations/${approveConfirmTarget.id}/approve`);
       setApproveConfirmTarget(null);
       loadData();
+      invalidateOrders(queryClient);
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to approve quotation.');
     }
@@ -1713,7 +1731,7 @@ const Quotations = () => {
               </div>
 
               {/* DELIVERY ADDRESS SECTION */}
-              <div className="form-card-section" style={{ padding: '16px 20px' }}>
+              <div className="form-card-section" style={{ padding: '6px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <label style={{ fontWeight: '600', fontSize: '13px', margin: 0 }}>Delivery Address</label>
                   <label className="hide-mobile-text" style={{ display: 'flex', alignItems: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '600', cursor: 'pointer' }}>
@@ -1746,7 +1764,7 @@ const Quotations = () => {
                 });
 
                 return (
-                  <div key={sec.id} className="form-card-section mobile-simple-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '12px', padding: '20px', marginBottom: '24px', position: 'relative' }}>
+                  <div key={sec.id} className="form-card-section mobile-simple-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '8px', padding: '6px', marginBottom: '24px', position: 'relative' }}>
                     {/* Section Card Header */}
                     <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: 'var(--bg-subtle, #f8fafc)', padding: '12px 16px', borderRadius: '8px', borderLeft: '4px solid #0284c7' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
@@ -1797,309 +1815,450 @@ const Quotations = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         
                         {/* 1. Normal Standard Items Table */}
-                        {normalBlocks.length > 0 && (
-                          <div style={{ overflowX: 'auto' }}>
-                            <table className="data-table item-builder-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-                              <thead>
-                                <tr>
-                                  <th className="cell-product-th" style={{ width: '250px', minWidth: '220px' }}>Product Code / Name *</th>
-                                  <th style={{ width: '110px', minWidth: '95px' }}>Unit Price</th>
-                                  <th style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>Width</th>
-                                  <th style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>T. Width (in)</th>
-                                  <th style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>Height</th>
-                                  <th style={{ width: '75px', minWidth: '65px', textAlign: 'center' }}>Pcs</th>
-                                  <th style={{ width: '120px', minWidth: '105px', textAlign: 'center' }}>Sq.Ft</th>
-                                  <th className="cell-total-sqft-th" style={{ width: '100px', minWidth: '90px', textAlign: 'center' }}>Total Sq.Ft</th>
-                                  <th style={{ width: '130px', minWidth: '110px', textAlign: 'center' }}>Total Price</th>
-                                  <th style={{ width: '90px', minWidth: '80px', textAlign: 'center' }}>Action</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {normalBlocks.map((block) => {
-                                  const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
-                                  const totalPcs = block.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0);
-                                  const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
+                        {normalBlocks.length > 0 && (() => {
+                          const sectionHasPvc = normalBlocks.some(block => {
+                            const u = (block.unit || '').toLowerCase();
+                            const c = (block.category_name || '').toLowerCase();
+                            const p = (block.product_name || '').toLowerCase();
+                            return u.includes('pvc') || c.includes('pvc') || p.includes('pvc') || p.includes('clear water');
+                          });
 
-                                  return (
-                                    <React.Fragment key={block.id}>
-                                      {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
-                                      <tr className="mobile-size-card-row">
-                                        <td colSpan="10" className="mobile-size-card-cell">
-                                          <div className="mobile-size-card">
-                                            <div className="mobile-size-header-bar">
-                                              <div className="mobile-size-header-item">
-                                                <span className="mobile-size-header-icon icon-width">↔</span>
-                                                <span>WIDTH (INCH)</span>
+                          return (
+                            <div style={{ overflowX: 'auto' }}>
+                              <table className="data-table item-builder-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                                <thead>
+                                  <tr>
+                                    <th className="cell-product-th" style={{ width: '240px', minWidth: '200px' }}>Product Code / Name *</th>
+                                    <th style={{ width: '100px', minWidth: '85px' }}>Unit Price</th>
+                                    <th style={{ width: '85px', minWidth: '75px', textAlign: 'center' }}>Width</th>
+                                    {sectionHasPvc && <th style={{ width: '90px', minWidth: '80px', textAlign: 'center', background: '#e0f2fe', color: '#0369a1' }}>Approx Pcs</th>}
+                                    {sectionHasPvc && <th style={{ width: '95px', minWidth: '85px', textAlign: 'center', background: '#e0f2fe', color: '#0369a1' }}>pcs of Slats</th>}
+                                    {sectionHasPvc && <th style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>T. Width (in)</th>}
+                                    <th style={{ width: '85px', minWidth: '75px', textAlign: 'center' }}>Height</th>
+                                    <th style={{ width: '75px', minWidth: '65px', textAlign: 'center' }}>Pcs / Qty</th>
+                                    <th style={{ width: '115px', minWidth: '100px', textAlign: 'center' }}>Billing Qty</th>
+                                    <th className="cell-total-sqft-th" style={{ width: '95px', minWidth: '85px', textAlign: 'center' }}>Total Billing</th>
+                                    <th style={{ width: '120px', minWidth: '100px', textAlign: 'center' }}>Total Price</th>
+                                    <th style={{ width: '85px', minWidth: '75px', textAlign: 'center' }}>Action</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {normalBlocks.map((block) => {
+                                    const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs' ||
+                                                       (block.unit || '').trim().toLowerCase() === 'pieces' ||
+                                                       (block.unit || '').trim().toLowerCase() === 'piece' ||
+                                                       (block.unit || '').trim().toLowerCase() === 'box' ||
+                                                       (block.unit || '').trim().toLowerCase() === 'set';
+                                    const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
+                                    const totalPcs = block.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0);
+                                    const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
+
+                                    return (
+                                      <React.Fragment key={block.id}>
+                                        {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
+                                        <tr className="mobile-size-card-row">
+                                          <td colSpan={sectionHasPvc ? 12 : 9} className="mobile-size-card-cell">
+                                            <div className="mobile-size-card">
+                                              <div className="mobile-size-header-bar">
+                                                <div className="mobile-size-header-item">
+                                                  <span className="mobile-size-header-icon icon-width">↔</span>
+                                                  <span>WIDTH (INCH)</span>
+                                                </div>
+                                                <div className="mobile-size-header-item">
+                                                  <span className="mobile-size-header-icon icon-height">↕</span>
+                                                  <span>HEIGHT (INCH)</span>
+                                                </div>
+                                                <div className="mobile-size-header-item">
+                                                  <span className="mobile-size-header-icon icon-pcs">📦</span>
+                                                  <span>PCS/NOS</span>
+                                                </div>
                                               </div>
-                                              <div className="mobile-size-header-item">
-                                                <span className="mobile-size-header-icon icon-height">↕</span>
-                                                <span>HEIGHT (INCH)</span>
-                                              </div>
-                                              <div className="mobile-size-header-item">
-                                                <span className="mobile-size-header-icon icon-pcs">📦</span>
-                                                <span>PCS/NOS</span>
-                                              </div>
-                                            </div>
-                                            <div className="mobile-size-rows">
-                                              {block.sizes.map((sz, szIdx) => (
-                                                <div className="mobile-size-row" key={sz.id}>
-                                                  <input
-                                                    type="number"
-                                                    inputMode="decimal"
-                                                    className="mobile-size-box"
-                                                    value={sz.width}
-                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'width', e.target.value)}
-                                                  />
-                                                  <input
-                                                    type="number"
-                                                    inputMode="decimal"
-                                                    className="mobile-size-box"
-                                                    value={sz.height}
-                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'height', e.target.value)}
-                                                  />
-                                                  <input
-                                                    type="number"
-                                                    inputMode="numeric"
-                                                    className="mobile-size-box"
-                                                    value={sz.pcs}
-                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'pcs', e.target.value)}
-                                                  />
-                                                  {szIdx === block.sizes.length - 1 && (
+                                              <div className="mobile-size-rows">
+                                                {block.sizes.map((sz, szIdx) => (
+                                                  <div className="mobile-size-row" key={sz.id}>
+                                                    <input
+                                                      type="number"
+                                                      inputMode="decimal"
+                                                      className="mobile-size-box"
+                                                      value={isPcsBlock ? '' : sz.width}
+                                                      disabled={isPcsBlock}
+                                                      placeholder={isPcsBlock ? '—' : 'Width'}
+                                                      onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'width', e.target.value)}
+                                                    />
+                                                    <input
+                                                      type="number"
+                                                      inputMode="decimal"
+                                                      className="mobile-size-box"
+                                                      value={isPcsBlock ? '' : sz.height}
+                                                      disabled={isPcsBlock}
+                                                      placeholder={isPcsBlock ? '—' : 'Height'}
+                                                      onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'height', e.target.value)}
+                                                    />
+                                                    <input
+                                                      type="number"
+                                                      inputMode="numeric"
+                                                      className="mobile-size-box"
+                                                      value={sz.pcs}
+                                                      onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'pcs', e.target.value)}
+                                                    />
+                                                    {szIdx === block.sizes.length - 1 && (
+                                                      <button
+                                                        type="button"
+                                                        className="mobile-size-add-btn"
+                                                        onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                                        title="Add Row"
+                                                      >
+                                                        +
+                                                      </button>
+                                                    )}
                                                     <button
                                                       type="button"
-                                                      className="mobile-size-add-btn"
-                                                      onClick={() => addSizeRowToBlock(sec.id, block.id)}
-                                                      title="Add Row"
+                                                      className="mobile-size-del-btn"
+                                                      onClick={() => removeSizeRowFromBlock(sec.id, block.id, sz.id)}
+                                                      disabled={block.sizes.length <= 1}
+                                                      title="Remove Row"
                                                     >
-                                                      +
+                                                      −
                                                     </button>
-                                                  )}
-                                                  <button
-                                                    type="button"
-                                                    className="mobile-size-del-btn"
-                                                    onClick={() => removeSizeRowFromBlock(sec.id, block.id, sz.id)}
-                                                    disabled={block.sizes.length <= 1}
-                                                    title="Remove Row"
-                                                  >
-                                                    −
-                                                  </button>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                              <div className="mobile-size-totals-bar">
+                                                <div className="mobile-size-total-pill">
+                                                  <span className="mobile-size-total-icon">▦</span>
+                                                  <span className="mobile-size-total-text">
+                                                    <span className="mobile-size-total-label">Total Pcs</span>
+                                                    <span className="mobile-size-total-value">{totalPcs}</span>
+                                                  </span>
                                                 </div>
-                                              ))}
-                                            </div>
-                                            <div className="mobile-size-totals-bar">
-                                              <div className="mobile-size-total-pill">
-                                                <span className="mobile-size-total-icon">▦</span>
-                                                <span className="mobile-size-total-text">
-                                                  <span className="mobile-size-total-label">Total Pcs</span>
-                                                  <span className="mobile-size-total-value">{totalPcs}</span>
-                                                </span>
-                                              </div>
-                                              <div className="mobile-size-total-pill">
-                                                <span className="mobile-size-total-icon">▦</span>
-                                                <span className="mobile-size-total-text">
-                                                  <span className="mobile-size-total-label">Total Sqft</span>
-                                                  <span className="mobile-size-total-value">{totalBilledSqft.toFixed(1)} sqft</span>
-                                                </span>
+                                                <div className="mobile-size-total-pill">
+                                                  <span className="mobile-size-total-icon">▦</span>
+                                                  <span className="mobile-size-total-text">
+                                                    <span className="mobile-size-total-label">Total Billing</span>
+                                                    <span className="mobile-size-total-value">{isPcsBlock ? `${totalPcs} pcs` : `${totalBilledSqft.toFixed(1)} sqft`}</span>
+                                                  </span>
+                                                </div>
                                               </div>
                                             </div>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                      {block.sizes.map((sizeRow, sIdx) => (
-                                        <tr key={sizeRow.id} style={{ background: '#fff' }}>
+                                          </td>
+                                        </tr>
+                                        {block.sizes.map((sizeRow, sIdx) => (
+                                          <tr key={sizeRow.id} className={sIdx > 0 ? 'mobile-subsequent-row' : ''} style={{ background: '#fff' }}>
 
-                                          {/* Product Code / Selection */}
-                                          {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 10px' }}>
-                                              {productChangeBlockId === block.id ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px' }}>
-                                                  <select
-                                                    value={block.product_id || ''}
-                                                    onChange={(e) => {
-                                                      if (e.target.value) {
-                                                        handleBlockChange(sec.id, block.id, 'product_id', e.target.value);
-                                                        setProductChangeBlockId(null);
-                                                        setProductChangeQuery('');
-                                                      }
-                                                    }}
-                                                    className="modern-form-control"
-                                                    style={{ fontWeight: '600', fontSize: '12px', padding: '6px' }}
-                                                  >
-                                                    <option value="">-- Choose Product --</option>
-                                                    {products.map(p => (
-                                                      <option key={p.id} value={p.id}>
-                                                        {p.name} {p.product_code ? `(${p.product_code.toUpperCase()})` : ''}
-                                                      </option>
-                                                    ))}
-                                                  </select>
-                                                  <div style={{ position: 'relative' }}>
-                                                    <input
-                                                      type="text"
-                                                      placeholder="Or search by name/code..."
-                                                      value={productChangeQuery}
-                                                      onChange={(e) => setProductChangeQuery(e.target.value)}
+                                            {/* Product Code / Selection */}
+                                            {sIdx === 0 && (
+                                              <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 10px' }}>
+                                                {productChangeBlockId === block.id ? (
+                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px' }}>
+                                                    <select
+                                                      value={block.product_id || ''}
+                                                      onChange={(e) => {
+                                                        if (e.target.value) {
+                                                          handleBlockChange(sec.id, block.id, 'product_id', e.target.value);
+                                                          setProductChangeBlockId(null);
+                                                          setProductChangeQuery('');
+                                                        }
+                                                      }}
                                                       className="modern-form-control"
-                                                      style={{ fontSize: '11px', padding: '5px 8px' }}
-                                                    />
-                                                    {productChangeQuery.trim() !== '' && (
-                                                      <div className="search-dropdown-list" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', maxHeight: '200px', overflowY: 'auto' }}>
-                                                        {filteredProductsForChange.length === 0 ? (
-                                                          <div className="dropdown-item empty" style={{ padding: '8px', fontSize: '12px', color: '#94a3b8' }}>No matching products</div>
-                                                        ) : (
-                                                          filteredProductsForChange.map(p => (
-                                                            <div
-                                                              key={p.id}
-                                                              className="dropdown-item"
-                                                              onMouseDown={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                handleBlockChange(sec.id, block.id, 'product_id', p.id);
-                                                                setProductChangeBlockId(null);
-                                                                setProductChangeQuery('');
-                                                              }}
-                                                              style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
-                                                            >
-                                                              <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{p.name}</div>
-                                                              <div style={{ fontSize: '10px', color: '#64748b' }}>Code: {p.product_code || 'N/A'} {p.unit ? `| ${p.unit}` : ''}</div>
-                                                            </div>
-                                                          ))
-                                                        )}
-                                                      </div>
-                                                    )}
+                                                      style={{ fontWeight: '600', fontSize: '12px', padding: '6px' }}
+                                                    >
+                                                      <option value="">-- Choose Product --</option>
+                                                      {products.map(p => (
+                                                        <option key={p.id} value={p.id}>
+                                                          {p.name} {p.product_code ? `(${p.product_code.toUpperCase()})` : ''}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                    <div style={{ position: 'relative' }}>
+                                                      <input
+                                                        type="text"
+                                                        placeholder="Or search by name/code..."
+                                                        value={productChangeQuery}
+                                                        onChange={(e) => setProductChangeQuery(e.target.value)}
+                                                        className="modern-form-control"
+                                                        style={{ fontSize: '11px', padding: '5px 8px' }}
+                                                      />
+                                                      {productChangeQuery.trim() !== '' && (
+                                                        <div className="search-dropdown-list" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', maxHeight: '200px', overflowY: 'auto' }}>
+                                                          {filteredProductsForChange.length === 0 ? (
+                                                            <div className="dropdown-item empty" style={{ padding: '8px', fontSize: '12px', color: '#94a3b8' }}>No matching products</div>
+                                                          ) : (
+                                                            filteredProductsForChange.map(p => (
+                                                              <div
+                                                                key={p.id}
+                                                                className="dropdown-item"
+                                                                onMouseDown={(e) => {
+                                                                  e.preventDefault();
+                                                                  e.stopPropagation();
+                                                                  handleBlockChange(sec.id, block.id, 'product_id', p.id);
+                                                                  setProductChangeBlockId(null);
+                                                                  setProductChangeQuery('');
+                                                                }}
+                                                                style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                                                              >
+                                                                <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{p.name}</div>
+                                                                <div style={{ fontSize: '10px', color: '#64748b' }}>Code: {p.product_code || 'N/A'} {p.unit ? `| ${p.unit}` : ''}</div>
+                                                              </div>
+                                                            ))
+                                                          )}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => setProductChangeBlockId(null)}
+                                                      style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', alignSelf: 'flex-start' }}
+                                                    >
+                                                      Cancel
+                                                    </button>
                                                   </div>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setProductChangeBlockId(null)}
-                                                    style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', alignSelf: 'flex-start' }}
-                                                  >
-                                                    Cancel
-                                                  </button>
-                                                </div>
-                                              ) : (
-                                                <div style={{ padding: '4px 0' }}>
-                                                  <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a', lineHeight: '1.3' }}>
-                                                    {block.product_name || '—'}
+                                                ) : (
+                                                  <div style={{ padding: '4px 0' }}>
+                                                    <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a', lineHeight: '1.3' }}>
+                                                      {block.product_name || '—'}
+                                                    </div>
+                                                    <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                                      <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
+                                                        {block.product_code ? block.product_code.toUpperCase() : 'NO CODE'}
+                                                      </span>
+                                                      {block.unit && <span style={{ color: '#059669', fontWeight: '600' }}>({block.unit})</span>}
+                                                    </div>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
+                                                      style={{ marginTop: '6px', fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '3px 9px', cursor: 'pointer', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                      title="Click to change to another product"
+                                                    >
+                                                      🔄 Change Product
+                                                    </button>
                                                   </div>
-                                                  <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                                                    <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
-                                                      {block.product_code ? block.product_code.toUpperCase() : 'NO CODE'}
-                                                    </span>
-                                                    {block.unit && <span style={{ color: '#059669', fontWeight: '600' }}>({block.unit})</span>}
-                                                  </div>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
-                                                    style={{ marginTop: '6px', fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '3px 9px', cursor: 'pointer', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                    title="Click to change to another product"
-                                                  >
-                                                    🔄 Change Product
-                                                  </button>
-                                                </div>
-                                              )}
-                                            </td>
-                                          )}
+                                                )}
+                                              </td>
+                                            )}
 
-                                          {/* Unit Price */}
-                                          {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                            {/* Unit Price */}
+                                            {sIdx === 0 && (
+                                              <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                                <input
+                                                  type="number"
+                                                  value={block.unit_price}
+                                                  onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)}
+                                                  className="modern-form-control"
+                                                  style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px' }}
+                                                />
+                                              </td>
+                                            )}
+
+                                            {/* Width */}
+                                            <td className="cell-size" style={{ padding: '6px' }}>
                                               <input
                                                 type="number"
-                                                value={block.unit_price}
-                                                onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)}
+                                                inputMode="decimal"
+                                                value={isPcsBlock ? '' : sizeRow.width}
+                                                disabled={isPcsBlock}
+                                                onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
+                                                placeholder={isPcsBlock ? '—' : 'Width'}
                                                 className="modern-form-control"
-                                                style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px' }}
+                                                style={isPcsBlock ? { background: '#f1f5f9', cursor: 'not-allowed', textAlign: 'center' } : {}}
                                               />
                                             </td>
-                                          )}
 
-                                          {/* Length */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
-                                            <input
-                                              type="number"
-                                              inputMode="decimal"
-                                              value={sizeRow.width}
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
-                                              placeholder="Width"
-                                              className="modern-form-control"
-                                            />
-                                          </td>
-
-                                          {/* T. Width (in) */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
-                                            <input
-                                              type="text"
-                                              value={(() => {
-                                                const w = parseFloat(sizeRow.width) || 0;
-                                                if (w <= 0) return '';
-                                                const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
-                                                if (isPvc) {
-                                                  const slatSize = parseFloat(block.product_size) || 8;
-                                                  const slats = Math.ceil(w / 5.85);
-                                                  return slats * slatSize;
-                                                }
-                                                return w;
-                                              })()}
-                                              readOnly
-                                              placeholder="T. Width"
-                                              className="modern-form-control"
-                                              style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '600' }}
-                                            />
-                                          </td>
-
-                                          {/* Height */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
-                                            <input
-                                              type="number"
-                                              inputMode="decimal"
-                                              value={sizeRow.height}
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
-                                              placeholder="Height"
-                                              className="modern-form-control"
-                                            />
-                                          </td>
-
-                                          {/* Pcs */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
-                                            <input
-                                              type="number"
-                                              inputMode="numeric"
-                                              value={sizeRow.pcs}
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
-                                              placeholder="Pcs"
-                                              className="modern-form-control"
-                                              style={{ textAlign: 'center' }}
-                                            />
-                                          </td>
-
-                                          {/* Sq.Ft */}
-                                          <td className="cell-sqft" style={{ padding: '6px' }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                            {/* Approx Pcs - ONLY if sectionHasPvc */}
+                                            {sectionHasPvc && (
+                                              <td className="cell-size" style={{ padding: '6px' }}>
                                                 <input
                                                   type="text"
-                                                  value={sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0'}
+                                                  value={(() => {
+                                                    if (isPcsBlock) return '—';
+                                                    const w = parseFloat(sizeRow.width) || 0;
+                                                    return w > 0 ? (w / 5.85).toFixed(2) : '';
+                                                  })()}
+                                                  readOnly
+                                                  placeholder="Approx"
+                                                  className="modern-form-control"
+                                                  style={{ backgroundColor: '#f0f9ff', color: '#0284c7', textAlign: 'center', fontWeight: '700', fontSize: '12px', border: '1px solid #bae6fd' }}
+                                                />
+                                              </td>
+                                            )}
+
+                                            {/* pcs of Slats - ONLY if sectionHasPvc */}
+                                            {sectionHasPvc && (
+                                              <td className="cell-size" style={{ padding: '6px' }}>
+                                                <input
+                                                  type="number"
+                                                  inputMode="numeric"
+                                                  value={(() => {
+                                                    if (isPcsBlock) return '';
+                                                    const w = parseFloat(sizeRow.width) || 0;
+                                                    if (w <= 0) return '';
+                                                    if (sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '') {
+                                                      return sizeRow.slats;
+                                                    }
+                                                    return Math.ceil(w / 5.85);
+                                                  })()}
+                                                  disabled={isPcsBlock}
+                                                  onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'slats', e.target.value)}
+                                                  placeholder="Slats"
+                                                  className="modern-form-control"
+                                                  style={{ textAlign: 'center', fontWeight: '700', border: '1.5px solid #0ea5e9', color: '#0369a1' }}
+                                                />
+                                              </td>
+                                            )}
+
+                                            {/* T. Width (in) - ONLY if sectionHasPvc */}
+                                            {sectionHasPvc && (
+                                              <td className="cell-size" style={{ padding: '6px' }}>
+                                                <input
+                                                  type="text"
+                                                  value={(() => {
+                                                    if (isPcsBlock) return '—';
+                                                    const w = parseFloat(sizeRow.width) || 0;
+                                                    if (w <= 0) return '';
+                                                    const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
+                                                    if (isPvc) {
+                                                      const slatSize = parseFloat(block.product_size) || 8;
+                                                      const slatsCount = sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '' ? parseInt(sizeRow.slats) : Math.ceil(w / 5.85);
+                                                      return (slatsCount || 0) * slatSize;
+                                                    }
+                                                    return w;
+                                                  })()}
+                                                  readOnly
+                                                  placeholder="T. Width"
+                                                  className="modern-form-control"
+                                                  style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '700', color: '#0f172a' }}
+                                                />
+                                              </td>
+                                            )}
+
+                                            {/* Height */}
+                                            <td className="cell-size" style={{ padding: '6px' }}>
+                                              <input
+                                                type="number"
+                                                inputMode="decimal"
+                                                value={isPcsBlock ? '' : sizeRow.height}
+                                                disabled={isPcsBlock}
+                                                onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                                placeholder={isPcsBlock ? '—' : 'Height'}
+                                                className="modern-form-control"
+                                                style={isPcsBlock ? { background: '#f1f5f9', cursor: 'not-allowed', textAlign: 'center' } : {}}
+                                              />
+                                            </td>
+
+                                            {/* Pcs */}
+                                            <td className="cell-size" style={{ padding: '6px' }}>
+                                              <input
+                                                type="number"
+                                                inputMode="numeric"
+                                                value={sizeRow.pcs}
+                                                onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                                placeholder="Pcs"
+                                                className="modern-form-control"
+                                                style={{ textAlign: 'center' }}
+                                              />
+                                            </td>
+
+                                            {/* Sq.Ft / Billing Qty */}
+                                            <td className="cell-sqft" style={{ padding: '6px' }}>
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                  <input
+                                                    type="text"
+                                                    value={isPcsBlock ? `${sizeRow.pcs || 1} pcs` : (sizeRow.billed_sqft ? sizeRow.billed_sqft.toFixed(2) : '0')}
+                                                    readOnly
+                                                    className="modern-form-control"
+                                                    style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '9px 4px', minWidth: 0 }}
+                                                  />
+                                                  {block.sizes.length > 1 && (
+                                                    <button 
+                                                      type="button" 
+                                                      onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
+                                                      className="btn-action-circle btn-action-delete"
+                                                      style={{ padding: '4px 6px', fontSize: '12px' }}
+                                                    >
+                                                      🗑️
+                                                    </button>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </td>
+
+                                            {/* Total Billing (desktop-only) */}
+                                            {sIdx === 0 && (
+                                              <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '6px' }}>
+                                                <input
+                                                  type="text"
+                                                  value={isPcsBlock ? `${totalPcs} pcs` : totalBilledSqft.toFixed(2)}
                                                   readOnly
                                                   className="modern-form-control"
-                                                  style={{ backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center', padding: '9px 4px', minWidth: 0 }}
+                                                  style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
                                                 />
-                                                {block.sizes.length > 1 && (
-                                                  <button 
-                                                    type="button" 
-                                                    onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
-                                                    className="btn-action-circle btn-action-delete"
-                                                    style={{ padding: '4px 6px', fontSize: '12px' }}
+                                              </td>
+                                            )}
+
+                                            {/* Total Price */}
+                                            {sIdx === 0 && (
+                                              <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                                <input
+                                                  type="text"
+                                                  value={totalPrice.toFixed(2)}
+                                                  readOnly
+                                                  className="modern-form-control"
+                                                  style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '13px' }}
+                                                />
+                                              </td>
+                                            )}
+
+                                            {/* Block Actions */}
+                                            <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                                <button 
+                                                  type="button" 
+                                                  onClick={() => addSizeRowToBlock(sec.id, block.id)} 
+                                                  className="btn-action-circle btn-action-add"
+                                                  title="Add Size Row"
+                                                  style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                                >
+                                                  ➕
+                                                </button>
+                                                <button 
+                                                  type="button" 
+                                                  onClick={() => {
+                                                    if (block.sizes.length > 1) {
+                                                      removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
+                                                    } else {
+                                                      removeProductBlock(sec.id, block.id);
+                                                    }
+                                                  }} 
+                                                  className="btn-action-circle btn-action-delete"
+                                                  title={block.sizes.length > 1 ? "Delete Size Row" : "Delete Product Block"}
+                                                  style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                                >
+                                                  🗑️
+                                                </button>
+                                                {sIdx === 0 && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                                      setExcelPasteText('');
+                                                    }}
+                                                    style={{
+                                                      background: '#059669',
+                                                      color: '#ffffff',
+                                                      border: 'none',
+                                                      borderRadius: '6px',
+                                                      padding: '4px 7px',
+                                                      fontSize: '11px',
+                                                      fontWeight: 'bold',
+                                                      cursor: 'pointer'
+                                                    }}
+                                                    title="Paste Width, Height, Pcs from Excel"
                                                   >
-                                                    🗑️
+                                                    📋 Excel
                                                   </button>
                                                 )}
                                               </div>
-                                              {parseFloat(sizeRow.width) > 0 && parseFloat(sizeRow.height) > 0 && (
-                                                <div style={{ fontSize: '10px', fontWeight: '700', color: '#0284c7', textAlign: 'center', marginTop: '2px' }}>
-                                                  📏 Row #{sIdx + 1}: {sizeRow.width}" W × {sizeRow.height}" H
-                                                </div>
-                                              )}
-                                            </div>
-                                          </td>
+                                            </td>
 
                                           {/* Total Sq.Ft (block total, desktop-only - hidden on mobile via .cell-total-sqft CSS) */}
                                           {sIdx === 0 && (
@@ -2128,7 +2287,7 @@ const Quotations = () => {
                                           )}
 
                                           {/* Block Actions */}
-                                          <td className="cell-action" style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                          <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
                                               <button 
                                                 type="button" 
@@ -2210,7 +2369,8 @@ const Quotations = () => {
                               </tbody>
                             </table>
                           </div>
-                        )}
+                          );
+                        })()}
 
                         {/* 2. Option Groups Cards (Variations Selector) */}
                         {Object.keys(optionGroups).map((ogId, ogIdx) => {

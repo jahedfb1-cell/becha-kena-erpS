@@ -1,8 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import PhoneContactField from './PhoneContactField';
+import AIAssistModal from './AIAssistModal';
+import { toFormPatch, findCustomerByPhone } from '../api/aiAssist';
+import { useAuth } from '../store/AuthContext';
+
+
+/**
+ * Marks a field the AI filled but the user has not yet confirmed
+ * (AI_Assist_PRD.md §10 criterion 9). It disappears the moment the user types
+ * in that field, so a badge left standing means "nobody has looked at this".
+ */
+const AiBadge = () => (
+  <span
+    title="AI দিয়ে পূরণ — মিলিয়ে নিন"
+    style={{
+      marginLeft: '6px', fontSize: '9px', fontWeight: 800, letterSpacing: '0.4px',
+      background: 'rgba(139,92,246,0.18)', border: '1px solid rgba(139,92,246,0.45)',
+      color: '#c4b5fd', borderRadius: '4px', padding: '1px 5px', verticalAlign: 'middle',
+    }}
+  >
+    ✨ AI
+  </span>
+);
 
 const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, initialData = null }) => {
+  const { user } = useAuth();
+  const showOpeningBalance = isAdmin && user?.role === 'admin';
   const [companyName, setCompanyName] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -19,6 +43,70 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showAdditional, setShowAdditional] = useState(false);
+
+  // --- AI Assist (AI_Assist_PRD.md) ---
+  const [showAI, setShowAI] = useState(false);
+  const [aiFields, setAiFields] = useState({});      // form key -> true while unconfirmed
+  const [aiSnapshot, setAiSnapshot] = useState(null); // exact pre-apply state, for undo
+  const [duplicate, setDuplicate] = useState(null);   // existing customer with the same number
+
+  /** Setter for each AI-writable form key, so applyDraft can write generically. */
+  const FORM_SETTERS = {
+    companyName: setCompanyName,
+    name: setName,
+    phone: setPhone,
+    secondContactNumber: setSecondContactNumber,
+    thirdContactNumber: setThirdContactNumber,
+    email: setEmail,
+    address: setAddress,
+    address2: setAddress2,
+    notes: setNotes,
+  };
+
+  /** Clears a field's AI badge as soon as the user types in it (criterion 9). */
+  const touch = (formKey) => setAiFields((prev) => {
+    if (!prev[formKey]) return prev;
+    const next = { ...prev };
+    delete next[formKey];
+    return next;
+  });
+
+  const handleAiApply = async (draft) => {
+    const patch = toFormPatch(draft);
+
+    // Snapshot before writing anything — undo must restore the exact prior
+    // state, including fields the user had already typed (criterion 10).
+    setAiSnapshot({
+      companyName, name, phone, secondContactNumber, thirdContactNumber,
+      email, address, address2, notes,
+    });
+
+    Object.entries(patch).forEach(([key, value]) => FORM_SETTERS[key]?.(value));
+    setAiFields(Object.fromEntries(Object.keys(patch).map((k) => [k, true])));
+
+    // Reveal the collapsed section if AI filled anything inside it, otherwise
+    // those values would be applied but invisible.
+    if (patch.secondContactNumber || patch.thirdContactNumber || patch.email) {
+      setShowAdditional(true);
+    }
+
+    setShowAI(false);
+    setError('');
+    setDuplicate(null);
+
+    if (patch.phone) {
+      const existing = await findCustomerByPhone(patch.phone);
+      if (existing) setDuplicate(existing);
+    }
+  };
+
+  const handleAiUndo = () => {
+    if (!aiSnapshot) return;
+    Object.entries(aiSnapshot).forEach(([key, value]) => FORM_SETTERS[key]?.(value));
+    setAiSnapshot(null);
+    setAiFields({});
+    setDuplicate(null);
+  };
 
   // Fetch categories when modal opens
   useEffect(() => {
@@ -108,7 +196,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
         customer_category_id:   finalCategoryId || 1,
       };
 
-      if (isAdmin && openingBalance !== '') {
+      if (showOpeningBalance && openingBalance !== '') {
         payload.opening_balance = parseFloat(openingBalance) || 0;
       }
 
@@ -150,6 +238,10 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     setOpeningBalance('');
     setError('');
     setShowAdditional(false);
+    setShowAI(false);
+    setAiFields({});
+    setAiSnapshot(null);
+    setDuplicate(null);
     onClose();
   };
 
@@ -175,9 +267,64 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
             </div>
           )}
 
+          {/* AI Assist entry point — new customers only. Editing an existing
+              record is a correction task; re-extracting into it would fight
+              the values already verified by a human. */}
+          {!initialData && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: '10px', flexWrap: 'wrap', marginBottom: '14px', padding: '10px 14px',
+              borderRadius: '10px', border: '1px solid rgba(139,92,246,0.35)',
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.16), rgba(139,92,246,0.16))',
+            }}>
+              <div style={{ fontSize: '12.5px', color: '#ddd6fe', fontWeight: 600 }}>
+                ✨ ভিজিটিং কার্ড, টেক্সট বা ভয়েস থেকে অটো-ফিল করুন
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {aiSnapshot && (
+                  <button
+                    type="button"
+                    onClick={handleAiUndo}
+                    disabled={loading}
+                    style={{
+                      padding: '7px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+                      border: '1px solid rgba(255,255,255,0.2)', background: 'transparent',
+                      color: '#e2e8f0', cursor: 'pointer',
+                    }}
+                  >
+                    ↩ Undo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAI(true)}
+                  disabled={loading}
+                  style={{
+                    padding: '7px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 800,
+                    border: 'none', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+                    color: '#fff', cursor: 'pointer',
+                  }}
+                >
+                  AI Assist
+                </button>
+              </div>
+            </div>
+          )}
+
+          {duplicate && (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.5)',
+              color: '#fcd34d', padding: '10px 14px', borderRadius: '10px',
+              fontSize: '12.5px', marginBottom: '14px',
+            }}>
+              ⚠️ এই নম্বরটি আগে থেকেই আছে — <strong>{duplicate.company_name || duplicate.name}</strong>
+              {duplicate.customer_code ? ` (${duplicate.customer_code})` : ''}। ডুপ্লিকেট না হলে সেভ করতে পারেন।
+            </div>
+          )}
+
           {/* Section 1: Basic Information */}
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px', marginBottom: '16px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '6px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               🏢 Primary Information
             </div>
             
@@ -185,26 +332,30 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
               <div className="custom-form-group">
                 <label className="custom-form-label">
                   Company Name <span style={{ color: '#ef4444' }}>*</span>
+                  {aiFields.companyName && <AiBadge />}
                 </label>
                 <input
                   type="text"
                   className="custom-form-input"
                   placeholder="e.g. Dhaka Blinds Ltd"
                   value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
+                  onChange={(e) => { setCompanyName(e.target.value); touch('companyName'); }}
                   disabled={loading}
                   required
                 />
               </div>
 
               <div className="custom-form-group">
-                <label className="custom-form-label">Contact Person Name</label>
+                <label className="custom-form-label">
+                  Contact Person Name
+                  {aiFields.name && <AiBadge />}
+                </label>
                 <input
                   type="text"
                   className="custom-form-input"
                   placeholder="e.g. Mr. Rafiq Islam"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { setName(e.target.value); touch('name'); }}
                   disabled={loading}
                 />
               </div>
@@ -212,13 +363,15 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
               <div className="custom-form-group">
                 <label className="custom-form-label">
                   1st Contact Number <span style={{ color: '#ef4444' }}>*</span>
+                  {aiFields.phone && <AiBadge />}
                 </label>
                 <PhoneContactField
                   placeholder="e.g. 01700000000"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => { setPhone(e.target.value); touch('phone'); }}
                   onPick={(contact) => {
                     setPhone(contact.phone);
+                    touch('phone');
                     if (contact.name && !name) setName(contact.name);
                   }}
                   disabled={loading}
@@ -259,7 +412,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
             marginBottom: '16px',
             background: 'rgba(255,255,255,0.02)',
             border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: '14px',
+            borderRadius: '8px',
             overflow: 'hidden',
             flexShrink: 0
           }}>
@@ -269,7 +422,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                 fontSize: '14px',
                 fontWeight: 700,
                 color: '#38bdf8',
-                padding: '14px 18px',
+                padding: '6px 10px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -287,42 +440,51 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
             </div>
 
             {showAdditional && (
-              <div className="custom-form-grid animate-fade-in" style={{ padding: '18px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="custom-form-grid animate-fade-in" style={{ padding: '6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="custom-form-group">
-                  <label className="custom-form-label">2nd Contact Number</label>
+                  <label className="custom-form-label">
+                    2nd Contact Number
+                    {aiFields.secondContactNumber && <AiBadge />}
+                  </label>
                   <PhoneContactField
                     placeholder="Optional Mobile"
                     value={secondContactNumber}
-                    onChange={(e) => setSecondContactNumber(e.target.value)}
-                    onPick={(contact) => setSecondContactNumber(contact.phone)}
+                    onChange={(e) => { setSecondContactNumber(e.target.value); touch('secondContactNumber'); }}
+                    onPick={(contact) => { setSecondContactNumber(contact.phone); touch('secondContactNumber'); }}
                     disabled={loading}
                   />
                 </div>
 
                 <div className="custom-form-group">
-                  <label className="custom-form-label">3rd Contact Number</label>
+                  <label className="custom-form-label">
+                    3rd Contact Number
+                    {aiFields.thirdContactNumber && <AiBadge />}
+                  </label>
                   <PhoneContactField
                     placeholder="Optional Mobile"
                     value={thirdContactNumber}
-                    onChange={(e) => setThirdContactNumber(e.target.value)}
-                    onPick={(contact) => setThirdContactNumber(contact.phone)}
+                    onChange={(e) => { setThirdContactNumber(e.target.value); touch('thirdContactNumber'); }}
+                    onPick={(contact) => { setThirdContactNumber(contact.phone); touch('thirdContactNumber'); }}
                     disabled={loading}
                   />
                 </div>
 
                 <div className="custom-form-group">
-                  <label className="custom-form-label">Email ID (Optional)</label>
+                  <label className="custom-form-label">
+                    Email ID (Optional)
+                    {aiFields.email && <AiBadge />}
+                  </label>
                   <input
                     type="email"
                     className="custom-form-input"
                     placeholder="client@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); touch('email'); }}
                     disabled={loading}
                   />
                 </div>
 
-                {isAdmin && (
+                {showOpeningBalance && (
                   <div className="custom-form-group">
                     <label className="custom-form-label">Opening Balance (Tk)</label>
                     <input
@@ -341,8 +503,8 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
           </div>
 
           {/* Section 3: Address & Notes (Always Visible) */}
-          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', padding: '18px', marginBottom: '16px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '6px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#38bdf8', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               📍 Address &amp; Additional Remarks
             </div>
 
@@ -350,38 +512,50 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
               <div className="custom-form-group">
                 <label className="custom-form-label">
                   Address Line 1 <span style={{ color: '#ef4444' }}>*</span>
+                  {aiFields.address && <AiBadge />}
                 </label>
                 <input
                   type="text"
                   className="custom-form-input"
                   placeholder="Primary Address"
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={(e) => { setAddress(e.target.value); touch('address'); }}
                   disabled={loading}
                   required
                 />
               </div>
 
               <div className="custom-form-group">
-                <label className="custom-form-label">Address Line 2</label>
+                <label className="custom-form-label">
+                  Address Line 2
+                  {aiFields.address2 && <AiBadge />}
+                </label>
                 <input
                   type="text"
                   className="custom-form-input"
                   placeholder="Secondary Address / Site Area"
                   value={address2}
-                  onChange={(e) => setAddress2(e.target.value)}
+                  onChange={(e) => { setAddress2(e.target.value); touch('address2'); }}
                   disabled={loading}
                 />
               </div>
 
               <div className="custom-form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="custom-form-label">Notes &amp; Remarks</label>
-                <input
-                  type="text"
+                <label className="custom-form-label">
+                  Notes &amp; Remarks
+                  {aiFields.notes && <AiBadge />}
+                </label>
+                {/* A textarea, not an input: AI Assist uses notes as the
+                    overflow field (designation, website, TIN, extra phone
+                    numbers) and writes one item per line — a single-line input
+                    ran them all together into one unreadable string. */}
+                <textarea
+                  rows={3}
                   className="custom-form-input"
+                  style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
                   placeholder="Special instructions or notes"
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={(e) => { setNotes(e.target.value); touch('notes'); }}
                   disabled={loading}
                 />
               </div>
@@ -409,6 +583,12 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
 
         </form>
       </div>
+
+      <AIAssistModal
+        isOpen={showAI}
+        onClose={() => setShowAI(false)}
+        onApply={handleAiApply}
+      />
     </div>
   );
 };

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AiAssistController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CustomerCategoryController;
 use App\Http\Controllers\Api\CustomerController;
@@ -89,6 +90,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/transfer', [PaymentController::class, 'transferPayment']);
     });
 
+    // AI Assist (New Customer Account) — see AI_Assist_PRD.md
+    // Throttled per user: all salesmen share one Gemini key, and the free
+    // tier's rate limit is per project, so this caps burst usage.
+    Route::prefix('ai')->middleware('throttle:20,1')->group(function () {
+        Route::post('/parse-customer', [AiAssistController::class, 'parseCustomer']);
+        Route::post('/transcribe', [AiAssistController::class, 'transcribe']);
+        Route::post('/log-applied', [AiAssistController::class, 'logApplied']);
+    });
+
     // Audit Logs
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
 
@@ -122,6 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Units
         Route::get('/units', [SettingController::class, 'getUnits']);
         Route::post('/units', [SettingController::class, 'storeUnit']);
+        Route::put('/units/{id}', [SettingController::class, 'updateUnit']);
         Route::delete('/units/{id}', [SettingController::class, 'deleteUnit']);
         
         // Bank Accounts
@@ -149,6 +160,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [PurchaseController::class, 'index']);
         Route::get('/{id}', [PurchaseController::class, 'show']);
         Route::post('/supplier-payment', [PurchaseController::class, 'recordSupplierPayment']);
+        Route::post('/mark-received', [PurchaseController::class, 'markReceived']);
     });
 
     // Expenses & Expense Categories

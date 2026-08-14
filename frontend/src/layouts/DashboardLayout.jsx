@@ -12,6 +12,7 @@ const DashboardLayout = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [companyLogoUrl, setCompanyLogoUrl] = useState(null);
   const [companyName, setCompanyName] = useState('Dhaka Blinds');
+  const [menuSearch, setMenuSearch] = useState('');
   const userMenuRef = useRef(null);
 
   useEffect(() => {
@@ -57,23 +58,23 @@ const DashboardLayout = () => {
     const role = user?.role || 'staff';
 
     const links = [
-      { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'grid' },
-      { path: '/customers', label: 'Customers', roles: ['admin', 'manager', 'salesman'], icon: 'users' },
-      { path: '/quotations', label: 'Quotations', roles: ['admin', 'manager', 'salesman'], icon: 'file-text' },
-      { path: '/orders?tab=pending', label: 'Placed Orders (Pending)', roles: ['admin', 'manager', 'salesman'], icon: 'clock' },
-      { path: '/orders?tab=confirmed', label: role === 'salesman' ? 'My Confirmed Orders' : 'Confirmed Orders', roles: ['admin', 'manager', 'salesman'], icon: 'shopping-cart' },
-      { path: '/invoices', label: 'Invoices & Deliveries', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'invoice' },
-      { path: '/payments', label: 'Payments', roles: ['admin'], icon: 'credit-card' },
-      { path: '/notifications', label: 'Notifications', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'bell' },
-      { path: '/products', label: 'Products & Stock', roles: ['admin', 'manager', 'staff'], icon: 'box' },
-      { path: '/vouchers-expenses', label: 'Vouchers & Expenses', roles: ['admin', 'manager', 'staff'], icon: 'file-text' },
-      { path: '/suppliers', label: 'Suppliers', roles: ['admin', 'manager'], icon: 'truck' },
-      { path: '/purchases', label: 'Purchases', roles: ['admin', 'manager'], icon: 'box' },
-      { path: '/reports', label: role === 'manager' ? 'Reports (Ltd)' : 'Reports', roles: ['admin', 'manager'], icon: 'bar-chart' },
-      { path: '/admin-access', label: 'Admin Access', roles: ['admin'], icon: 'key' },
-      { path: '/audit-logs', label: 'Audit Logs', roles: ['admin'], icon: 'shield' },
-      { path: '/database-backup', label: 'Database Backup', roles: ['admin'], icon: 'database' },
-      { path: '/settings', label: 'Setting', roles: ['admin'], icon: 'cog' },
+      { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'grid', keywords: ['overview', 'home', 'stats'] },
+      { path: '/customers', label: 'Customers', roles: ['admin', 'manager', 'salesman'], icon: 'users', keywords: ['client', 'customer category', 'category'] },
+      { path: '/quotations', label: 'Quotations', roles: ['admin', 'manager', 'salesman'], icon: 'file-text', keywords: ['quote', 'estimate', 'price'] },
+      { path: '/orders?tab=pending', label: 'Placed Orders (Pending)', roles: ['admin', 'manager', 'salesman'], icon: 'clock', keywords: ['order', 'pending'] },
+      { path: '/orders?tab=confirmed', label: role === 'salesman' ? 'My Confirmed Orders' : 'Confirmed Orders', roles: ['admin', 'manager', 'salesman'], icon: 'shopping-cart', keywords: ['order', 'confirmed'] },
+      { path: '/invoices', label: 'Invoices & Deliveries', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'invoice', keywords: ['bill', 'delivery', 'challan'] },
+      { path: '/payments', label: 'Payments', roles: ['admin'], icon: 'credit-card', keywords: ['money', 'transaction', 'receipt'] },
+      { path: '/notifications', label: 'Notifications', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'bell', keywords: ['alert', 'messages'] },
+      { path: '/products', label: 'Products & Stock', roles: ['admin', 'manager', 'staff'], icon: 'box', keywords: ['product', 'stock', 'measurement unit', 'unit', 'variant', 'supplier link', 'product category'] },
+      { path: '/vouchers-expenses', label: 'Vouchers & Expenses', roles: ['admin', 'manager', 'staff'], icon: 'file-text', keywords: ['expense', 'debit', 'credit', 'voucher'] },
+      { path: '/suppliers', label: 'Suppliers', roles: ['admin', 'manager'], icon: 'truck', keywords: ['vendor', 'supplier'] },
+      { path: '/purchases', label: 'Purchases', roles: ['admin', 'manager'], icon: 'box', keywords: ['po', 'purchase order', 'supplier payment'] },
+      { path: '/reports', label: role === 'manager' ? 'Reports (Ltd)' : 'Reports', roles: ['admin', 'manager'], icon: 'bar-chart', keywords: ['report', 'profit', 'loss', 'ledger', 'cash book', 'bank book'] },
+      { path: '/admin-access', label: 'Admin Access', roles: ['admin'], icon: 'key', keywords: ['permission', 'rbac', 'role', 'user'] },
+      { path: '/audit-logs', label: 'Audit Logs', roles: ['admin'], icon: 'shield', keywords: ['logs', 'history', 'audit'] },
+      { path: '/database-backup', label: 'Database Backup', roles: ['admin'], icon: 'database', keywords: ['backup', 'db', 'restore'] },
+      { path: '/settings', label: 'Setting', roles: ['admin'], icon: 'cog', keywords: ['measurement unit', 'unit', 'bank account', 'mobile account', 'department', 'pipeline mode', 'company profile'] },
     ];
 
     return links.filter(link => link.roles.includes(role));
@@ -218,39 +219,115 @@ const DashboardLayout = () => {
           >
             ● {userRole} Access
           </Link>
+
+          {/* Menu Search Bar */}
+          <div style={{ marginTop: '8px', width: '100%', position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Search menu..."
+              value={menuSearch}
+              onChange={(e) => setMenuSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '7px 28px 7px 30px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'rgba(0, 0, 0, 0.3)',
+                color: '#f8fafc',
+                fontSize: '12px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              width="14"
+              height="14"
+              style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#94a3b8',
+                pointerEvents: 'none'
+              }}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {menuSearch && (
+              <button
+                onClick={() => setMenuSearch('')}
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  padding: 0,
+                  lineHeight: 1
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         <nav className="sidebar-nav" style={{ padding: '12px 8px' }}>
-          {getMenuLinks().map((link) => {
-            // For links with query params (like /orders?tab=pending), we need to compare the full path + search
-            const fullPath = location.pathname + location.search;
-            const isActive = location.pathname === link.path || fullPath === link.path || (link.path.includes('?') && location.pathname === link.path.split('?')[0] && fullPath.includes(link.path.split('?')[1]));
-            return (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`nav-item ${isActive ? 'active' : ''}`}
-                onClick={() => setMobileOpen(false)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  color: isActive ? '#fff' : '#94a3b8',
-                  background: isActive ? `linear-gradient(135deg, ${roleColor}aa, ${roleColor}dd)` : 'transparent',
-                  fontWeight: isActive ? 700 : 500,
-                  fontSize: '14px',
-                  marginBottom: '4px',
-                  textDecoration: 'none',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <span className="nav-icon" style={{ opacity: isActive ? 1 : 0.7 }}>{renderIcon(link.icon)}</span>
-                <span className="nav-label">{link.label}</span>
-              </Link>
-            );
-          })}
+          {(() => {
+            const query = menuSearch.trim().toLowerCase();
+            const filteredLinks = getMenuLinks().filter((link) => {
+              if (!query) return true;
+              const matchesLabel = link.label.toLowerCase().includes(query);
+              const matchesKeyword = link.keywords && link.keywords.some((k) => k.toLowerCase().includes(query));
+              return matchesLabel || matchesKeyword;
+            });
+
+            if (filteredLinks.length === 0) {
+              return (
+                <div style={{ padding: '16px 12px', color: '#64748b', fontSize: '12px', textAlign: 'center' }}>
+                  No menu item found
+                </div>
+              );
+            }
+
+            return filteredLinks.map((link) => {
+              const fullPath = location.pathname + location.search;
+              const isActive = location.pathname === link.path || fullPath === link.path || (link.path.includes('?') && location.pathname === link.path.split('?')[0] && fullPath.includes(link.path.split('?')[1]));
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => setMobileOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    color: isActive ? '#fff' : '#94a3b8',
+                    background: isActive ? `linear-gradient(135deg, ${roleColor}aa, ${roleColor}dd)` : 'transparent',
+                    fontWeight: isActive ? 700 : 500,
+                    fontSize: '14px',
+                    marginBottom: '4px',
+                    textDecoration: 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span className="nav-icon" style={{ opacity: isActive ? 1 : 0.7 }}>{renderIcon(link.icon)}</span>
+                  <span className="nav-label">{link.label}</span>
+                </Link>
+              );
+            });
+          })()}
         </nav>
       </aside>
 

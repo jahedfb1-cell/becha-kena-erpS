@@ -33,6 +33,19 @@ class DeliveryChallanController extends Controller
 
         $user = $request->user();
 
+        // A challan is now created automatically alongside the invoice at the
+        // Sales step, so guard against a second one being made by hand here.
+        $existing = DeliveryChallan::where('invoice_id', $invoice->id)
+            ->where('is_archived', false)
+            ->first();
+
+        if ($existing) {
+            return $this->errorResponse(
+                "Delivery Challan {$existing->challan_number} already exists for invoice {$invoice->invoice_number}.",
+                422
+            );
+        }
+
         return DB::transaction(function () use ($invoice, $user) {
             $challan = $this->challanService->generate($invoice, $user->id);
 

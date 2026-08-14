@@ -282,7 +282,7 @@ class QuotationApiTest extends TestCase
         $editResponse->assertStatus(422);
 
         // Attempt archive
-        $deleteResponse = $this->actingAs($this->salesman, 'sanctum')
+        $deleteResponse = $this->actingAs($this->admin, 'sanctum')
             ->deleteJson("/api/quotations/{$quotation->id}");
         $deleteResponse->assertStatus(422);
     }

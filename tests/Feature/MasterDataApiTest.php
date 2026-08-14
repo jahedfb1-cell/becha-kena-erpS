@@ -34,6 +34,7 @@ class MasterDataApiTest extends TestCase
             'password'  => Hash::make('password'),
             'role'      => 'admin',
             'is_active' => true,
+            'phone'     => '01712345678',
         ]);
         $this->admin->assignRole('admin');
         $this->adminToken = $this->admin->createToken('admin_token')->plainTextToken;
@@ -45,6 +46,7 @@ class MasterDataApiTest extends TestCase
             'password'  => Hash::make('password'),
             'role'      => 'salesman',
             'is_active' => true,
+            'phone'     => '01712345679',
         ]);
         $this->salesman->assignRole('salesman');
         $this->salesmanToken = $this->salesman->createToken('salesman_token')->plainTextToken;
@@ -151,7 +153,7 @@ class MasterDataApiTest extends TestCase
                 'phone' => '01800000000',
             ]);
 
-        $res->assertStatus(201)->assertJson(['data' => ['supplier_code' => 'SUP-0001']]);
+        $res->assertStatus(201)->assertJson(['data' => ['supplier_code' => 'S-DHA00001']]);
     }
 
     public function test_product_supplier_link_validations()
