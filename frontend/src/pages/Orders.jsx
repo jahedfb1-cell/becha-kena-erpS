@@ -2275,38 +2275,13 @@ const Orders = () => {
                   </div>
                 ))}
 
-                {/* BOTTOM SUMMARY FIELDS MATCHING QUOTATIONS */}
+                {/* BOTTOM SUMMARY FIELDS — Remarks/Note only. The charge, VAT, discount,
+                    and total/net amount fields used to be repeated here AND in the
+                    Financial Summary sidebar below (same state, two inputs) - on
+                    mobile the sidebar stacks directly under this section, so it read
+                    as the same numbers typed twice on one page. Sidebar is now the
+                    only place to edit them. */}
                 <div className="form-card-section grid-3col" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-                  <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Total Amount *</label>
-                    <input type="text" value={financialSummary.subtotal.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: 'bold' }} />
-                  </div>
-
-                  <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Convence Amount *</label>
-                    <input type="number" value={convenienceCharge} onChange={(e) => setConvenienceCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
-                  </div>
-
-                  <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 150px' }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Other Charge Label</label>
-                    <input type="text" value={otherChargeLabel} onChange={(e) => setOtherChargeLabel(e.target.value)} placeholder="e.g. old blinds serviceing charge" className="modern-form-control" />
-                  </div>
-
-                  <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 150px' }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Others Charge</label>
-                    <input type="number" value={otherCharge} onChange={(e) => setOtherCharge(parseFloat(e.target.value) || 0)} className="modern-form-control" />
-                  </div>
-
-                  <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Vat %</label>
-                    <input type="number" value={vatPercentage} onChange={(e) => setVatPercentage(parseFloat(e.target.value) || 0)} className="modern-form-control" />
-                  </div>
-
-                  <div className="form-group" style={{ margin: 0, flex: '1 1 150px' }}>
-                    <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Net Amount *</label>
-                    <input type="text" value={financialSummary.netAmount.toFixed(2)} readOnly className="modern-form-control" style={{ backgroundColor: 'var(--bg-base)', fontWeight: '800', color: 'var(--primary)', fontSize: '15px' }} />
-                  </div>
-
                   <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 100%' }}>
                     <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Remarks</label>
                     <input type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="If have any note" className="modern-form-control" />
