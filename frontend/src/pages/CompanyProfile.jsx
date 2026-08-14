@@ -57,9 +57,6 @@ const CompanyProfile = () => {
           terms_conditions: d.terms_conditions || '',
           browser_title:    d.browser_title    || '',
         });
-        if (d.browser_title) {
-          document.title = d.browser_title;
-        }
         setCompanyLogoPreview(d.company_logo_url || '/logo-demo.svg');
         setInvoiceLogoPreview(d.invoice_logo_url || '/logo-demo.svg');
         setReceiptLogoPreview(d.receipt_logo_url || '/logo-demo.svg');
@@ -136,9 +133,6 @@ const CompanyProfile = () => {
           document.getElementsByTagName('head')[0].appendChild(link);
         }
         link.href = d.favicon_url;
-      }
-      if (d.browser_title) {
-        document.title = d.browser_title;
       }
       setCompanyLogoFile(null);
       setInvoiceLogoFile(null);
