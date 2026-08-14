@@ -4,6 +4,49 @@ import { useAuth } from '../store/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import axios from '../api/axios';
 
+/**
+ * Tab title per page: "{Company Name} - {Page Name}", e.g.
+ * "Dhaka Blinds - Invoices & Deliveries". Names mirror the sidebar labels in
+ * getMenuLinks() below so the tab always agrees with whatever is highlighted
+ * in the menu; routes with no sidebar entry (Company Profile, My Profile,
+ * Access Setup, a drilled-into report) get their own label here.
+ */
+const getPageTitle = (pathname, search, role) => {
+  const path = pathname.replace(/^\/+|\/+$/g, ''); // trim leading/trailing slashes
+  const params = new URLSearchParams(search);
+
+  if (path === 'orders') {
+    const tab = params.get('tab');
+    if (tab === 'pending') return 'Placed Orders (Pending)';
+    if (tab === 'confirmed') return role === 'salesman' ? 'My Confirmed Orders' : 'Confirmed Orders';
+    return 'Orders';
+  }
+  if (path === 'reports') return role === 'manager' ? 'Reports (Ltd)' : 'Reports';
+  if (path.startsWith('reports/')) return role === 'manager' ? 'Reports (Ltd)' : 'Reports';
+
+  const staticTitles = {
+    'dashboard': 'Dashboard',
+    'customers': 'Customers',
+    'quotations': 'Quotations',
+    'invoices': 'Invoices & Deliveries',
+    'payments': 'Payments',
+    'notifications': 'Notifications',
+    'products': 'Products & Stock',
+    'vouchers-expenses': 'Vouchers & Expenses',
+    'suppliers': 'Suppliers',
+    'purchases': 'Purchases',
+    'admin-access': 'Admin Access',
+    'audit-logs': 'Audit Logs',
+    'database-backup': 'Database Backup',
+    'settings': 'Setting',
+    'access-setup': 'Access Setup',
+    'company-profile': 'Company Profile',
+    'my-profile': 'My Profile',
+  };
+
+  return staticTitles[path] || null;
+};
+
 const DashboardLayout = () => {
   const { user, login, logout } = useAuth();
   const location = useLocation();
@@ -27,9 +70,6 @@ const DashboardLayout = () => {
         if (d.company_name) {
           setCompanyName(d.company_name);
         }
-        if (d.browser_title) {
-          document.title = d.browser_title;
-        }
 
         // The favicon upload in Company Profile only updated the tab of
         // whoever had just clicked Save - index.html's static favicon.svg
@@ -48,6 +88,15 @@ const DashboardLayout = () => {
       })
       .catch(() => {});
   }, []);
+
+  // Tab title follows navigation: "{Company Name} - {Page Name}". Runs on
+  // every route change, and again once the company name finishes loading so
+  // the very first title isn't stuck on the "Dhaka Blinds" default for a
+  // custom-named company.
+  useEffect(() => {
+    const pageTitle = getPageTitle(location.pathname, location.search, user?.role);
+    document.title = pageTitle ? `${companyName} - ${pageTitle}` : companyName;
+  }, [location.pathname, location.search, companyName, user?.role]);
 
   useEffect(() => {
     const handler = (e) => {
