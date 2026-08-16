@@ -40,6 +40,49 @@ const CompanyProfile = () => {
   const receiptLogoRef = useRef(null);
   const faviconRef = useRef(null);
   const appIconRef = useRef(null);
+  const qrTemplateRef = useRef(null);
+
+  // Clickable tokens for the QR template editor below — clicking one inserts
+  // it at the cursor position instead of the user having to type the exact
+  // {token} syntax by hand.
+  const QR_TOKENS = [
+    { token: '{url}', label: 'Verify Link' },
+    { token: '{payment_no}', label: 'Receipt No' },
+    { token: '{invoice_no}', label: 'Invoice No' },
+    { token: '{order_no}', label: 'Order No' },
+    { token: '{customer}', label: 'Customer Name' },
+    { token: '{customer_phone}', label: 'Customer Phone' },
+    { token: '{amount}', label: 'Paid Amount' },
+    { token: '{payment_method}', label: 'Payment Method' },
+    { token: '{due_amount}', label: 'Due Amount' },
+    { token: '{total_amount}', label: 'Total Amount' },
+    { token: '{date}', label: 'Receipt Date' },
+    { token: '{delivery_date}', label: 'Delivery Date' },
+    { token: '{salesman}', label: 'Salesman' },
+    { token: '{company}', label: 'Company Name' },
+  ];
+
+  const insertQrToken = (token) => {
+    const el = qrTemplateRef.current;
+    const current = form.receipt_qr_template || '';
+    if (!el) {
+      setForm(prev => ({ ...prev, receipt_qr_template: current + token }));
+      return;
+    }
+    const start = el.selectionStart ?? current.length;
+    const end = el.selectionEnd ?? current.length;
+    const next = current.slice(0, start) + token + current.slice(end);
+    setForm(prev => ({ ...prev, receipt_qr_template: next }));
+
+    // Restore focus and place the cursor right after the inserted token —
+    // React hasn't repainted the textarea's value yet on this tick, so the
+    // selection has to be set on the next one.
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = start + token.length;
+      el.setSelectionRange(caret, caret);
+    });
+  };
 
   // Load current profile on mount
   useEffect(() => {
@@ -491,40 +534,46 @@ const CompanyProfile = () => {
             <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '8px', lineHeight: '1.4' }}>
               Define the layout of the scanned QR Code data using placeholder tokens. Values that are empty or not generated yet will automatically fall back to empty text in the QR.
             </span>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', alignItems: 'start' }}>
-              <textarea
-                name="receipt_qr_template"
-                rows={5}
-                style={{
-                  width: '100%', padding: '12px 14px',
-                  fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px',
-                  background: 'var(--bg-card)', color: 'var(--text-heading)',
-                  boxSizing: 'border-box', outline: 'none', resize: 'vertical',
-                  lineHeight: '1.5', fontFamily: 'monospace'
-                }}
-                value={form.receipt_qr_template || ''}
-                onChange={handleChange}
-                placeholder="Enter receipt QR template..."
-              />
-              <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--text-main)', lineHeight: '1.6' }}>
-                <strong style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-heading)' }}>Available Tokens:</strong>
-                <ul style={{ margin: 0, paddingLeft: '14px', listStyleType: 'square' }}>
-                  <li><code>{`{url}`}</code> - Digital verification link</li>
-                  <li><code>{`{payment_no}`}</code> - Receipt Voucher No</li>
-                  <li><code>{`{invoice_no}`}</code> - Invoice Reference</li>
-                  <li><code>{`{order_no}`}</code> - Original Order No</li>
-                  <li><code>{`{customer}`}</code> - Customer Name</li>
-                  <li><code>{`{customer_phone}`}</code> - Customer Phone</li>
-                  <li><code>{`{amount}`}</code> - Paid Amount</li>
-                  <li><code>{`{payment_method}`}</code> - Method (Cash/Bank/Mobile)</li>
-                  <li><code>{`{due_amount}`}</code> - Invoice Due Amount</li>
-                  <li><code>{`{total_amount}`}</code> - Invoice Total Amount</li>
-                  <li><code>{`{date}`}</code> - Receipt Date</li>
-                  <li><code>{`{delivery_date}`}</code> - Scheduled Delivery Date</li>
-                  <li><code>{`{salesman}`}</code> - Salesman Name</li>
-                  <li><code>{`{company}`}</code> - Company Name</li>
-                </ul>
-              </div>
+            <textarea
+              ref={qrTemplateRef}
+              name="receipt_qr_template"
+              rows={5}
+              style={{
+                width: '100%', padding: '12px 14px',
+                fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px',
+                background: 'var(--bg-card)', color: 'var(--text-heading)',
+                boxSizing: 'border-box', outline: 'none', resize: 'vertical',
+                lineHeight: '1.5', fontFamily: 'monospace', marginBottom: '10px'
+              }}
+              value={form.receipt_qr_template || ''}
+              onChange={handleChange}
+              placeholder="Enter receipt QR template..."
+            />
+
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Click a field to insert it at the cursor
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {QR_TOKENS.map(({ token, label }) => (
+                <button
+                  key={token}
+                  type="button"
+                  onClick={() => insertQrToken(token)}
+                  title={token}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    padding: '6px 10px', minHeight: '32px',
+                    fontSize: '12px', fontWeight: 600, color: 'var(--primary)',
+                    background: 'var(--bg-app)', border: '1px solid var(--border)',
+                    borderRadius: '999px', cursor: 'pointer', whiteSpace: 'nowrap',
+                    transition: 'background 0.15s ease, border-color 0.15s ease'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-app)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                >
+                  <span>+</span> {label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
