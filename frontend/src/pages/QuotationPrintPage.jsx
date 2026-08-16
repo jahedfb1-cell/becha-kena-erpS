@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
+import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -69,18 +70,17 @@ const QuotationPrintPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [qRes, cRes] = await Promise.all([
-          api.get(`/quotations/${id}`),
-          api.get('/company-profile').catch(() => ({ data: { data: null } }))
-        ]);
-        if (qRes.data && qRes.data.data) {
-          setQuotation(qRes.data.data);
+        const qRes = await api.get(`/quotations/${id}`);
+        const record = qRes.data?.data;
+        if (record) {
+          setQuotation(record);
         } else {
           setError('Quotation not found');
         }
-        if (cRes.data && cRes.data.data) {
-          setCompanyProfile(cRes.data.data);
-        }
+        // Sequential rather than parallel on purpose: the profile to load
+        // depends on the quotation's brand, which is only known once the
+        // quotation itself has come back.
+        setCompanyProfile(await fetchProfileForRecord(api, record));
       } catch (err) {
         console.error('Error loading print quotation:', err);
         setError('Failed to load quotation');
@@ -114,14 +114,17 @@ const QuotationPrintPage = () => {
 
       const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
 
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by Dhaka Blinds`;
+      // The PDF's filename comes from document.title, so it has to name the
+      // brand the quotation was raised under, not the app's default.
+      const brandName = brandFields(companyProfile).footerName;
+      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by ${clean(brandName)}`;
       document.title = customTitle;
 
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
     }
-  }, [quotation, printType]);
+  }, [quotation, printType, companyProfile]);
 
   const handlePrint = () => {
     window.print();
@@ -153,7 +156,8 @@ const QuotationPrintPage = () => {
   const isPad = printType === 'pad' || printType === 'pad-sizes';
   const isDetailed = printType === 'detailed' || printType === 'pad-sizes';
 
-  const logoSrc = companyProfile?.invoice_logo_url || companyProfile?.company_logo_url || '/logo-demo.svg';
+  const brand = brandFields(companyProfile);
+  const logoSrc = brand.logoSrc;
 
   const customer = quotation.customer || {};
   const items = quotation.items || [];
@@ -370,7 +374,7 @@ const QuotationPrintPage = () => {
               textTransform: 'uppercase',
               letterSpacing: '0.3px'
             }}>
-              Office Address : Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215
+              Office Address : {brand.officeAddress}
             </div>
 
             {/* Red Divider Line under Logo */}
@@ -383,10 +387,10 @@ const QuotationPrintPage = () => {
                 {/* 3-Column Info Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
                   <div>
-                    Mobile : {companyProfile?.mobile || '01629000200'}<br/>
-                    Email : {companyProfile?.email || 'dhakablinds@gmail.com'}<br/>
-                    Web : {companyProfile?.company_web || 'www.dhakablinds.com'}
-                    {companyProfile?.vat_reg_no && <div>VAT Reg No : {companyProfile.vat_reg_no}</div>}
+                    Mobile : {brand.mobile}<br/>
+                    Email : {brand.email}<br/>
+                    Web : {brand.web}
+                    {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
@@ -416,7 +420,7 @@ const QuotationPrintPage = () => {
               textTransform: 'uppercase',
               letterSpacing: '0.3px'
             }}>
-              Office Address : Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215
+              Office Address : {brand.officeAddress}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center' }}>
               <div></div>
@@ -729,7 +733,7 @@ const QuotationPrintPage = () => {
           <div style={{ textAlign: 'center' }}>
             <strong style={{ display: 'block', marginBottom: '4px', color: '#111' }}>Authorized Signature</strong>
             <div style={{ height: '24px', border: '1px solid #cbd5e1', background: '#fafafa', borderRadius: '4px', marginBottom: '2px' }}></div>
-            <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>Dhaka Blinds</div>
+            <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>{brand.footerName}</div>
           </div>
         </div>
 
@@ -737,8 +741,8 @@ const QuotationPrintPage = () => {
         <div style={{ margin: '8px 0' }}>
           <strong style={{ fontSize: '11px', color: '#000', display: 'block', marginBottom: '2px' }}>TERMS &amp; CONDITIONS:</strong>
           <div style={{ border: '1px solid #d1d5db', padding: '8px 12px', fontSize: '10.5px', color: '#333', background: '#fafafa', borderRadius: '2px', lineHeight: '1.4' }}>
-            {companyProfile?.terms_conditions || `You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.
-Please make your payment by cash or cheque in favour of "Dhaka Blinds" we hope you'll find ours rates reasonable and place an order with us.`}
+            {brand.termsConditions || `You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.
+Please make your payment by cash or cheque in favour of "${brand.chequeFavourName}" we hope you'll find ours rates reasonable and place an order with us.`}
           </div>
         </div>
 

@@ -22,6 +22,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'brand_id',
         'department_id',
         'manager_id',
         'phone',
@@ -59,6 +60,15 @@ class User extends Authenticatable
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    /**
+     * Relationship: the trade name this user sells under. Drives which logo,
+     * address and footer appear on the documents they create.
+     */
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class, 'brand_id');
     }
 
     /**

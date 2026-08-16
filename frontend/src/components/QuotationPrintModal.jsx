@@ -29,7 +29,11 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
   // Automatically load official company profile & logo saved in Company Profile page
   useEffect(() => {
     if (!isOpen) return;
-    axios.get('/company-profile')
+    // Scoped to the record's brand, not the logged-in user's: reopening
+    // an old document must show the branding it was created under.
+    axios.get('/company-profile', {
+      params: quotation?.brand_id ? { brand_id: quotation.brand_id } : {},
+    })
       .then(res => {
         const d = res.data?.data || res.data;
         setCompanyProfile(d);
@@ -39,7 +43,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
       .catch(() => {
         setLogoSrc(DEMO_LOGO);
       });
-  }, [isOpen]);
+  }, [isOpen, quotation?.brand_id]);
 
   const rawItems = quotation?.items || [];
 
@@ -345,7 +349,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                     background: '#fff'
                   }}>
                     <h2 style={{ margin: '0 0 3px 0', fontSize: '22px', fontWeight: 800, color: '#000', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                      {companyProfile?.company_name || 'DHAKA BLINDS'}
+                      {companyProfile?.company_name || 'Dhaka Blinds'}
                     </h2>
                     <div style={{ fontSize: '11px', color: '#222', fontWeight: 600, marginBottom: '4px' }}>
                       {companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh.'}
@@ -734,7 +738,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
               <div style={{ textAlign: 'center' }}>
                 <strong style={{ display: 'block', marginBottom: '8px', color: '#111' }}>Authorized Factory Signature</strong>
                 <div style={{ height: '45px', border: '1px solid #e2e8f0', background: '#fafafa', borderRadius: '4px', marginBottom: '4px' }}></div>
-                <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>Dhaka Blinds</div>
+                <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>{companyProfile?.footer_name || companyProfile?.company_name || 'Dhaka Blinds'}</div>
               </div>
             </div>
 
@@ -744,7 +748,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                 <strong style={{ fontSize: '12px', color: '#000', display: 'block', marginBottom: '4px' }}>TERMS &amp; CONDITIONS:</strong>
                 <div style={{ border: '1px solid #d1d5db', padding: '10px 12px', fontSize: '11px', color: '#333', background: '#fafafa', borderRadius: '2px', lineHeight: '1.5' }}>
                   {companyProfile?.terms_conditions || `You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.
-  Please make your payment by cash or cheque in favour of "Dhaka Blinds" we hope you'll find ours rates reasonable and place an order with us.`}
+  Please make your payment by cash or cheque in favour of "${companyProfile?.cheque_favour_name || companyProfile?.company_name || 'Dhaka Blinds'}" we hope you'll find ours rates reasonable and place an order with us.`}
                 </div>
               </div>
             )}

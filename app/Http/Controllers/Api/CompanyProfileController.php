@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Brand;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Traits\ApiResponse;
@@ -11,8 +12,37 @@ class CompanyProfileController extends Controller
 {
     use ApiResponse;
 
-    // Settings file path (stored in storage/app/company_profile.json)
-    private string $filePath = 'company_profile.json';
+    /**
+     * Resolves which brand's profile a request is talking about.
+     *
+     * The Settings page passes an explicit brand_id (its brand tabs), while
+     * everything else — the dashboard title, the favicon — just wants "my"
+     * branding, so an absent parameter falls back to the caller's own brand.
+     * An unknown or inactive id falls back to the default rather than 404ing,
+     * because a missing logo should never take the whole settings page down.
+     */
+    private function resolveBrandId(Request $request): int
+    {
+        $requested = $request->input('brand_id', $request->query('brand_id'));
+
+        if ($requested !== null && Brand::whereKey((int) $requested)->exists()) {
+            return (int) $requested;
+        }
+
+        return Brand::resolveIdFor($request->user());
+    }
+
+    /**
+     * Settings file path for a brand (stored under storage/app/).
+     *
+     * Brand 1 keeps the original unsuffixed `company_profile.json`: that file
+     * already holds the live Dhaka Blinds settings, and moving it would reset
+     * the profile to defaults on the next load.
+     */
+    private function filePathFor(int $brandId): string
+    {
+        return Brand::profilePath($brandId);
+    }
 
     /**
      * Mirrors a file written under public_path() into the real web root too.
@@ -65,34 +95,100 @@ class CompanyProfileController extends Controller
         return url('logo-demo.svg');
     }
 
-    /** GET /api/company-profile */
-    public function show()
+    /**
+     * Starting values for a brand that has never been saved.
+     *
+     * Western Blinds' details come from the legacy CodeIgniter database this
+     * system replaces, so its first print already carries the right address
+     * and contact block — only the logo image still needs uploading.
+     */
+    private function defaultsFor(int $brandId): array
     {
-        if (Storage::exists($this->filePath)) {
-            $data = json_decode(Storage::get($this->filePath), true);
-        } else {
-            // Default pre-filled data
-            $data = [
-                'company_name'     => 'Dhaka Blinds',
-                'company_address'  => '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh,.',
-                'mobile'           => '01629000200',
-                'email'            => 'dhakablinds@gmail.com',
-                'opening_balance'  => '0.00',
-                'company_web'      => 'www.dhakablinds.com',
-                'company_facebook' => '#',
-                'vat_reg_no'       => '',
-                'terms_conditions' => "You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.\nPlease make your payment by cash or cheque in favour of \"Dhaka Blinds\" we hope you'll find ours rates reasonable and place an order with us.",
-                'company_logo'     => null,
-                'invoice_logo'     => null,
-                'receipt_logo'     => null,
-                'favicon'          => null,
-                'app_icon'         => null,
-                'receipt_qr_template' => "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}",
+        $shared = [
+            'opening_balance'     => '0.00',
+            'company_facebook'    => '',
+            'vat_reg_no'          => '',
+            'company_logo'        => null,
+            'invoice_logo'        => null,
+            'receipt_logo'        => null,
+            'favicon'             => null,
+            'app_icon'            => null,
+            'receipt_qr_template' => "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}",
+        ];
+
+        if ($brandId === Brand::DEFAULT_ID) {
+            return $shared + [
+                'company_name'      => 'Dhaka Blinds',
+                'company_address'   => '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh,.',
+                'office_address'    => 'Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215',
+                'footer_name'       => 'Dhaka Blinds',
+                'cheque_favour_name'=> 'Dhaka Blinds',
+                'mobile'            => '01629000200',
+                'email'             => 'dhakablinds@gmail.com',
+                'company_web'       => 'www.dhakablinds.com',
+                'browser_title'     => 'Dhaka Blinds - ERP & IMS Portal',
+                'terms_conditions'  => "You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.\nPlease make your payment by cash or cheque in favour of \"Dhaka Blinds\" we hope you'll find ours rates reasonable and place an order with us.",
             ];
         }
 
-        $data['browser_title'] = $data['browser_title'] ?? 'Dhaka Blinds - ERP & IMS Portal';
-        $data['receipt_qr_template'] = $data['receipt_qr_template'] ?? "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}";
+        $brandName = Brand::find($brandId)?->name ?? 'Company';
+
+        if ($brandId === 2) {
+            return $shared + [
+                'company_name'      => 'Western Blinds Ltd',
+                'company_address'   => 'House: 300, (1st Floor), Road: Shadhinata Shoroni, Uttar Badda, Dhaka-1212',
+                'office_address'    => 'House: 300, (1st Floor), Road: Shadhinata Shoroni, Uttar Badda, Dhaka -1212',
+                'footer_name'       => 'Western Blinds Ltd',
+                'cheque_favour_name'=> 'Western Blinds Ltd',
+                'mobile'            => '01718040323',
+                'email'             => 'westernblindltd@gmail.com',
+                'company_web'       => 'www.westernblindsltd.com',
+                'browser_title'     => 'Western Blinds Ltd - ERP & IMS Portal',
+                'terms_conditions'  => "You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.\nPlease make your payment by cash or cheque in favour of \"Western Blinds Ltd\" we hope you'll find ours rates reasonable and place an order with us.",
+            ];
+        }
+
+        return $shared + [
+            'company_name'      => $brandName,
+            'company_address'   => '',
+            'office_address'    => '',
+            'footer_name'       => $brandName,
+            'cheque_favour_name'=> $brandName,
+            'mobile'            => '',
+            'email'             => '',
+            'company_web'       => '',
+            'browser_title'     => $brandName . ' - ERP & IMS Portal',
+            'terms_conditions'  => '',
+        ];
+    }
+
+    /** GET /api/brands — brand list for the Settings page tabs. */
+    public function brands()
+    {
+        return $this->successResponse(
+            Brand::where('is_active', true)->orderBy('id')->get(['id', 'name', 'short_name', 'is_default']),
+            'Brands loaded.'
+        );
+    }
+
+    /** GET /api/company-profile?brand_id= */
+    public function show(Request $request)
+    {
+        $brandId  = $this->resolveBrandId($request);
+        $defaults = $this->defaultsFor($brandId);
+
+        $path = $this->filePathFor($brandId);
+        $data = Storage::exists($path)
+            ? (json_decode(Storage::get($path), true) ?: [])
+            : [];
+
+        // Saved values win, but any key the saved file predates (office_address
+        // and the two name fields were added with brand support) falls back to
+        // this brand's defaults instead of coming back empty on the printout.
+        $data = array_filter($data, fn ($v) => $v !== null && $v !== '') + $defaults;
+
+        $data['brand_id']   = $brandId;
+        $data['brand_name'] = Brand::find($brandId)?->name ?? $data['company_name'];
 
         $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
@@ -100,7 +196,12 @@ class CompanyProfileController extends Controller
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
         $data['app_icon_url']     = $this->getLogoUrl($data['app_icon'] ?? null);
 
-        $this->syncAppIcons($data['app_icon'] ?? null, $data['company_logo'] ?? null);
+        // Home-screen icons are a single set shared by the installed app, so
+        // only the default brand drives them — otherwise whichever brand's
+        // settings page loaded last would silently rewrite everyone's icon.
+        if ($brandId === Brand::DEFAULT_ID) {
+            $this->syncAppIcons($data['app_icon'] ?? null, $data['company_logo'] ?? null);
+        }
 
         return $this->successResponse($data, 'Company profile loaded.');
     }
@@ -131,12 +232,27 @@ class CompanyProfileController extends Controller
 
         // If neither is found, fall back to whatever app icon or company logo
         // was last uploaded (covers a stale/renamed reference in the JSON).
+        //
+        // The patterns are pinned to the default brand — uploads are named
+        // `<kind>_b<brandId>_...`, so an unqualified `app_icon_*` glob would
+        // happily match a Western Blinds upload and push that onto every
+        // installed app's home screen. The trailing `_[0-9]*` alternatives
+        // match logos uploaded before brand support added the `_b<id>` part.
         if (!$targetLogo) {
             $logoDir = public_path('uploads/logos');
             if (file_exists($logoDir)) {
-                $files = array_merge(glob($logoDir . '/app_icon_*') ?: [], glob($logoDir . '/company_logo_*') ?: []);
-                if (!empty($files)) {
-                    $targetLogo = $files[0];
+                $patterns = [
+                    '/app_icon_b' . Brand::DEFAULT_ID . '_*',
+                    '/company_logo_b' . Brand::DEFAULT_ID . '_*',
+                    '/app_icon_[0-9]*',
+                    '/company_logo_[0-9]*',
+                ];
+                foreach ($patterns as $pattern) {
+                    $files = glob($logoDir . $pattern) ?: [];
+                    if (!empty($files)) {
+                        $targetLogo = $files[0];
+                        break;
+                    }
                 }
             }
         }
@@ -190,8 +306,12 @@ class CompanyProfileController extends Controller
         }
 
         $request->validate([
+            'brand_id'        => 'nullable|exists:brands,id',
             'company_name'    => 'required|string|max:200',
             'company_address' => 'required|string|max:500',
+            'office_address'  => 'nullable|string|max:500',
+            'footer_name'     => 'nullable|string|max:200',
+            'cheque_favour_name' => 'nullable|string|max:200',
             'mobile'          => 'required|string|max:20',
             'email'           => 'nullable|email|max:200',
             'opening_balance' => 'nullable|numeric',
@@ -210,15 +330,25 @@ class CompanyProfileController extends Controller
             'browser_title'   => 'nullable|string|max:200',
         ]);
 
+        $brandId  = $this->resolveBrandId($request);
+        $filePath = $this->filePathFor($brandId);
+        $defaults = $this->defaultsFor($brandId);
+
         // Load existing data
         $existing = [];
-        if (Storage::exists($this->filePath)) {
-            $existing = json_decode(Storage::get($this->filePath), true) ?? [];
+        if (Storage::exists($filePath)) {
+            $existing = json_decode(Storage::get($filePath), true) ?? [];
         }
 
         $data = [
             'company_name'     => $request->company_name,
             'company_address'  => $request->company_address,
+            // These three drive the printed header line and the signature /
+            // cheque-payee names. Blank falls back to this brand's default so
+            // a printout never loses its address because a field was cleared.
+            'office_address'   => $request->office_address ?: $defaults['office_address'],
+            'footer_name'      => $request->footer_name ?: $request->company_name,
+            'cheque_favour_name' => $request->cheque_favour_name ?: $request->company_name,
             'mobile'           => $request->mobile,
             'email'            => $request->email,
             'opening_balance'  => $request->opening_balance ?? '0.00',
@@ -227,7 +357,7 @@ class CompanyProfileController extends Controller
             'vat_reg_no'       => $request->vat_reg_no,
             'terms_conditions' => $request->terms_conditions,
             'receipt_qr_template' => $request->receipt_qr_template,
-            'browser_title'    => $request->browser_title ?? 'Dhaka Blinds - ERP & IMS Portal',
+            'browser_title'    => $request->browser_title ?: $defaults['browser_title'],
             'company_logo'     => $existing['company_logo'] ?? null,
             'invoice_logo'     => $existing['invoice_logo'] ?? null,
             'receipt_logo'     => $existing['receipt_logo'] ?? null,
@@ -244,7 +374,7 @@ class CompanyProfileController extends Controller
         // Handle company_logo upload
         if ($request->hasFile('company_logo')) {
             $file = $request->file('company_logo');
-            $filename = 'company_logo_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $filename = 'company_logo_b' . $brandId . '_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->move($uploadDir, $filename);
 
             // Also keep storage copy for backup
@@ -257,7 +387,7 @@ class CompanyProfileController extends Controller
         // Handle invoice_logo upload
         if ($request->hasFile('invoice_logo')) {
             $file = $request->file('invoice_logo');
-            $filename = 'invoice_logo_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $filename = 'invoice_logo_b' . $brandId . '_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->move($uploadDir, $filename);
 
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
@@ -269,7 +399,7 @@ class CompanyProfileController extends Controller
         // Handle receipt_logo upload
         if ($request->hasFile('receipt_logo')) {
             $file = $request->file('receipt_logo');
-            $filename = 'receipt_logo_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $filename = 'receipt_logo_b' . $brandId . '_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->move($uploadDir, $filename);
 
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
@@ -281,7 +411,7 @@ class CompanyProfileController extends Controller
         // Handle favicon upload
         if ($request->hasFile('favicon')) {
             $file = $request->file('favicon');
-            $filename = 'favicon_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $filename = 'favicon_b' . $brandId . '_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->move($uploadDir, $filename);
 
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
@@ -293,7 +423,7 @@ class CompanyProfileController extends Controller
         // Handle app_icon upload (PWA / APK home-screen icon)
         if ($request->hasFile('app_icon')) {
             $file = $request->file('app_icon');
-            $filename = 'app_icon_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $filename = 'app_icon_b' . $brandId . '_' . time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->move($uploadDir, $filename);
 
             @copy($uploadDir . '/' . $filename, storage_path('app/public/logos/' . $filename));
@@ -302,7 +432,10 @@ class CompanyProfileController extends Controller
             $data['app_icon'] = 'logos/' . $filename;
         }
 
-        Storage::put($this->filePath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        Storage::put($filePath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        $data['brand_id']   = $brandId;
+        $data['brand_name'] = Brand::find($brandId)?->name ?? $data['company_name'];
 
         // Attach public URLs
         $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
@@ -311,7 +444,11 @@ class CompanyProfileController extends Controller
         $data['favicon_url']      = $this->getLogoUrl($data['favicon'] ?? null);
         $data['app_icon_url']     = $this->getLogoUrl($data['app_icon'] ?? null);
 
-        $this->syncAppIcons($data['app_icon'] ?? null, $data['company_logo'] ?? null);
+        // Only the default brand owns the installed app's home-screen icons —
+        // see the matching guard in show().
+        if ($brandId === Brand::DEFAULT_ID) {
+            $this->syncAppIcons($data['app_icon'] ?? null, $data['company_logo'] ?? null);
+        }
 
         return $this->successResponse($data, 'Company profile updated successfully.');
     }

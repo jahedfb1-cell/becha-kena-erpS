@@ -253,6 +253,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Company Profile & Pipeline Mode Settings
+    // /brands feeds the brand tabs on the Company Profile page; each brand has
+    // its own profile + logos, selected with ?brand_id= on the calls below.
+    Route::get('/brands', [CompanyProfileController::class, 'brands']);
     Route::get('/company-profile', [CompanyProfileController::class, 'show']);
     Route::post('/company-profile', [CompanyProfileController::class, 'update']);
     Route::get('/company-profile/logo/{filename}', [CompanyProfileController::class, 'getLogoFile']);

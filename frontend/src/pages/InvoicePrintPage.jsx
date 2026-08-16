@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
+import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -69,18 +70,16 @@ const InvoicePrintPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [iRes, cRes] = await Promise.all([
-          api.get(`/invoices/${id}`),
-          api.get('/company-profile').catch(() => ({ data: { data: null } }))
-        ]);
-        if (iRes.data && iRes.data.data) {
-          setInvoice(iRes.data.data);
+        const iRes = await api.get(`/invoices/${id}`);
+        const record = iRes.data?.data;
+        if (record) {
+          setInvoice(record);
         } else {
           setError('Invoice not found');
         }
-        if (cRes.data && cRes.data.data) {
-          setCompanyProfile(cRes.data.data);
-        }
+        // Sequential rather than parallel on purpose: which brand's
+        // profile to load is only known once the invoice has come back.
+        setCompanyProfile(await fetchProfileForRecord(api, record));
       } catch (err) {
         console.error('Error loading print invoice:', err);
         setError('Failed to load invoice');
@@ -114,14 +113,17 @@ const InvoicePrintPage = () => {
 
       const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
 
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by Dhaka Blinds`;
+      // The PDF's filename comes from document.title, so it has to name
+      // the brand the invoice was raised under, not the app's default.
+      const brandName = brandFields(companyProfile).footerName;
+      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by ${clean(brandName)}`;
       document.title = customTitle;
 
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
     }
-  }, [invoice, printType]);
+  }, [invoice, printType, companyProfile]);
 
   const handlePrint = () => {
     window.print();
@@ -153,7 +155,8 @@ const InvoicePrintPage = () => {
   const isPad = printType === 'pad' || printType === 'pad-sizes';
   const isDetailed = printType === 'detailed' || printType === 'pad-sizes';
 
-  const logoSrc = companyProfile?.invoice_logo_url || companyProfile?.company_logo_url || '/logo-demo.svg';
+  const brand = brandFields(companyProfile);
+  const logoSrc = brand.logoSrc;
 
   const customer = invoice.customer || invoice.quotation?.customer || {};
   const quotation = invoice.quotation || {};
@@ -375,7 +378,7 @@ const InvoicePrintPage = () => {
               textTransform: 'uppercase',
               letterSpacing: '0.3px'
             }}>
-              Office Address : Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215
+              Office Address : {brand.officeAddress}
             </div>
 
             {/* Red Divider Line under Logo */}
@@ -388,10 +391,10 @@ const InvoicePrintPage = () => {
                 {/* 3-Column Info Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
                   <div>
-                    Mobile : {companyProfile?.mobile || '01629000200'}<br/>
-                    Email : {companyProfile?.email || 'dhakablinds@gmail.com'}<br/>
-                    Web : {companyProfile?.company_web || 'www.dhakablinds.com'}
-                    {companyProfile?.vat_reg_no && <div>VAT Reg No : {companyProfile.vat_reg_no}</div>}
+                    Mobile : {brand.mobile}<br/>
+                    Email : {brand.email}<br/>
+                    Web : {brand.web}
+                    {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
@@ -422,7 +425,7 @@ const InvoicePrintPage = () => {
               textTransform: 'uppercase',
               letterSpacing: '0.3px'
             }}>
-              Office Address : Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215
+              Office Address : {brand.officeAddress}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center' }}>
               <div></div>
@@ -762,7 +765,7 @@ const InvoicePrintPage = () => {
           <div style={{ textAlign: 'center' }}>
             <strong style={{ display: 'block', marginBottom: '4px', color: '#111' }}>Authorized Signature</strong>
             <div style={{ height: '24px', border: '1px solid #cbd5e1', background: '#fafafa', borderRadius: '4px', marginBottom: '2px' }}></div>
-            <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>Dhaka Blinds</div>
+            <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>{brand.footerName}</div>
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 
 // --- Number to Words (Taka) ---
 const numberToWords = (num) => {
@@ -64,12 +65,12 @@ const MoneyReceiptPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [pRes, cRes] = await Promise.all([
-          api.get(`/payments/${id}/receipt`),
-          api.get('/company-profile').catch(() => ({ data: { data: null } })),
-        ]);
-        setPayment(pRes.data.data);
-        setCompanyProfile(cRes.data?.data || null);
+        const pRes = await api.get(`/payments/${id}/receipt`);
+        const record = pRes.data.data;
+        setPayment(record);
+        // Sequential rather than parallel on purpose: which brand's profile
+        // to load is only known once the payment has come back.
+        setCompanyProfile(await fetchProfileForRecord(api, record));
       } catch (err) {
         setError('Failed to load money receipt.');
       } finally {
@@ -97,13 +98,16 @@ const MoneyReceiptPage = () => {
 
       const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
 
-      document.title = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Money Receipt _ by Dhaka Blinds`;
+      // The PDF's filename comes from document.title, so it has to name
+      // the brand the receipt was issued under, not the app's default.
+      const brandName = brandFields(companyProfile).footerName;
+      document.title = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Money Receipt _ by ${clean(brandName)}`;
 
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
     }
-  }, [payment]);
+  }, [payment, companyProfile]);
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
@@ -120,10 +124,11 @@ const MoneyReceiptPage = () => {
 
   const inv = payment.invoice || {};
   const customer = payment.customer || inv.customer || {};
-  const companyName = companyProfile?.company_name || 'Dhaka Blinds';
-  const companyAddress = companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh.';
-  const companyPhone = companyProfile?.mobile || '01629000200';
-  const companyEmail = companyProfile?.email || 'dhakablinds@gmail.com';
+  const brand = brandFields(companyProfile);
+  const companyName = brand.name;
+  const companyAddress = brand.companyAddress || brand.officeAddress;
+  const companyPhone = brand.mobile;
+  const companyEmail = brand.email;
   const companyLogoUrl = companyProfile?.receipt_logo_url || companyProfile?.company_logo_url || companyProfile?.invoice_logo_url || null;
 
   const customerDisplayName = customer.company_name || customer.name || 'N/A';

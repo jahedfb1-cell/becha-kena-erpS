@@ -1,6 +1,8 @@
 import React from 'react';
+import axios from '../api/axios';
 import { formatDate } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
+import { brandFields } from '../utils/brandProfile';
 
 const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
   if (!isOpen || !challan) return null;
@@ -10,6 +12,21 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
   };
 
   const [challanItems, setChallanItems] = React.useState([]);
+  const [companyProfile, setCompanyProfile] = React.useState(null);
+
+  // Header details used to be hardcoded placeholder text here (a stub address
+  // and phone number that were never the real ones). They now come from the
+  // challan's own brand profile, so the modal matches the printed challan.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    axios.get('/company-profile', {
+      params: challan?.brand_id ? { brand_id: challan.brand_id } : {},
+    })
+      .then(res => setCompanyProfile(res.data?.data || res.data || null))
+      .catch(() => setCompanyProfile(null));
+  }, [isOpen, challan?.brand_id]);
+
+  const brand = brandFields(companyProfile);
 
   React.useEffect(() => {
     if (challan) {
@@ -120,11 +137,11 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
               <div>
                 <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>
-                  DHAKABLINDS-IMS
+                  {brand.name}
                 </h1>
                 <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-                  Dhaka Blinds & Interior Solutions<br />
-                  House 12, Road 5, Block B, Dhaka | Phone: +880 1700-000000
+                  {brand.companyAddress || brand.officeAddress}
+                  {brand.mobile ? ` | Phone: ${brand.mobile}` : ''}
                 </p>
               </div>
               <div style={{ textAlign: 'right' }}>

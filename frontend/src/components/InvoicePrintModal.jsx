@@ -17,7 +17,11 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
   // Automatically load official company profile & logo saved in Company Profile page
   useEffect(() => {
     if (!isOpen) return;
-    axios.get('/company-profile')
+    // Scoped to the record's brand, not the logged-in user's: reopening
+    // an old document must show the branding it was created under.
+    axios.get('/company-profile', {
+      params: invoice?.brand_id ? { brand_id: invoice.brand_id } : {},
+    })
       .then(res => {
         const d = res.data?.data || res.data;
         setCompanyProfile(d);
@@ -27,7 +31,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
       .catch(() => {
         setLogoSrc(DEMO_LOGO);
       });
-  }, [isOpen]);
+  }, [isOpen, invoice?.brand_id]);
 
   if (!isOpen || !invoice) return null;
 
@@ -608,7 +612,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
               <div style={{ textAlign: 'center' }}>
                 <strong style={{ display: 'block', marginBottom: '8px', color: '#111' }}>Authorized Signature</strong>
                 <div style={{ height: '45px', border: '1px solid #e2e8f0', background: '#fafafa', borderRadius: '4px', marginBottom: '4px' }}></div>
-                <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>Dhaka Blinds</div>
+                <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px' }}>{companyProfile?.footer_name || companyProfile?.company_name || 'Dhaka Blinds'}</div>
               </div>
             </div>
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\Archivable;
+use App\Traits\BelongsToBrand;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,9 +11,10 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class SupplierLedger extends Model
 {
-    use HasFactory, Archivable;
+    use HasFactory, Archivable, BelongsToBrand;
 
     protected $fillable = [
+        'brand_id',
         'supplier_id',
         'transaction_type',
         'reference_type',

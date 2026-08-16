@@ -18,7 +18,24 @@ const CompanyProfile = () => {
     terms_conditions: '',
     receipt_qr_template: '',
     browser_title: '',
+    // Printed-document fields. These are separate from company_address /
+    // company_name because the print header and the signature block use a
+    // shorter, differently punctuated form than the full postal address.
+    office_address: '',
+    footer_name: '',
+    cheque_favour_name: '',
   });
+
+  // Each brand (Dhaka Blinds, Western Blinds Ltd) keeps its own profile and
+  // its own logo files. The tabs below switch which one is being edited; the
+  // rest of the form is identical for every brand.
+  const [brands, setBrands] = useState([]);
+  const [activeBrandId, setActiveBrandId] = useState(null);
+  // The brand this user actually sells under — whatever the profile endpoint
+  // returned before any tab was clicked. Only edits to this brand should
+  // repaint the browser tab's favicon, since that is this user's own chrome.
+  const [ownBrandId, setOwnBrandId] = useState(null);
+  const [switchingBrand, setSwitchingBrand] = useState(false);
 
   const [companyLogoFile, setCompanyLogoFile] = useState(null);
   const [invoiceLogoFile, setInvoiceLogoFile] = useState(null);
@@ -84,9 +101,30 @@ const CompanyProfile = () => {
     });
   };
 
-  // Load current profile on mount
-  useEffect(() => {
-    axios.get('/company-profile')
+  const resetPreviews = () => {
+    setCompanyLogoPreview('/logo-demo.svg');
+    setInvoiceLogoPreview('/logo-demo.svg');
+    setReceiptLogoPreview('/logo-demo.svg');
+    setFaviconPreview('/logo-demo.svg');
+    setAppIconPreview('/logo-demo.svg');
+  };
+
+  /**
+   * Loads one brand's profile into the form.
+   *
+   * Any file the user had picked but not yet saved is dropped on the way in:
+   * those pending uploads belong to the brand that was open when they were
+   * chosen, and carrying them across a tab switch would attach, say, the
+   * Dhaka Blinds letterhead to the Western Blinds profile on the next save.
+   */
+  const loadBrandProfile = (brandId) => {
+    setCompanyLogoFile(null);
+    setInvoiceLogoFile(null);
+    setReceiptLogoFile(null);
+    setFaviconFile(null);
+    setAppIconFile(null);
+
+    return axios.get('/company-profile', { params: brandId ? { brand_id: brandId } : {} })
       .then(res => {
         const d = res.data?.data || res.data;
         setForm({
@@ -101,22 +139,40 @@ const CompanyProfile = () => {
           terms_conditions: d.terms_conditions || '',
           receipt_qr_template: d.receipt_qr_template || '',
           browser_title:    d.browser_title    || '',
+          office_address:   d.office_address   || '',
+          footer_name:      d.footer_name      || '',
+          cheque_favour_name: d.cheque_favour_name || '',
         });
         setCompanyLogoPreview(d.company_logo_url || '/logo-demo.svg');
         setInvoiceLogoPreview(d.invoice_logo_url || '/logo-demo.svg');
         setReceiptLogoPreview(d.receipt_logo_url || '/logo-demo.svg');
         setFaviconPreview(d.favicon_url || '/logo-demo.svg');
         setAppIconPreview(d.app_icon_url || '/logo-demo.svg');
+        if (d.brand_id) setActiveBrandId(d.brand_id);
+        return d;
       })
-      .catch(() => {
-        setCompanyLogoPreview('/logo-demo.svg');
-        setInvoiceLogoPreview('/logo-demo.svg');
-        setReceiptLogoPreview('/logo-demo.svg');
-        setFaviconPreview('/logo-demo.svg');
-        setAppIconPreview('/logo-demo.svg');
-      })
+      .catch(() => { resetPreviews(); return null; });
+  };
+
+  // Load the brand list and the caller's own profile on mount. The brand list
+  // failing is not fatal — the page then behaves exactly as it did before
+  // brands existed, editing the current user's profile with no tabs shown.
+  useEffect(() => {
+    axios.get('/brands')
+      .then(res => setBrands(res.data?.data || res.data || []))
+      .catch(() => setBrands([]));
+
+    loadBrandProfile(null)
+      .then(d => { if (d?.brand_id) setOwnBrandId(d.brand_id); })
       .finally(() => setLoading(false));
   }, []);
+
+  const handleBrandSwitch = (brandId) => {
+    if (brandId === activeBrandId || switchingBrand) return;
+    setSwitchingBrand(true);
+    setActiveBrandId(brandId);
+    loadBrandProfile(brandId).finally(() => setSwitchingBrand(false));
+  };
 
   const handleChange = (e) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -155,6 +211,9 @@ const CompanyProfile = () => {
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => fd.append(k, v ?? ''));
+      // Without this the save would land on the logged-in user's own brand
+      // rather than whichever tab is open.
+      if (activeBrandId) fd.append('brand_id', activeBrandId);
       if (companyLogoFile) fd.append('company_logo', companyLogoFile);
       if (invoiceLogoFile) fd.append('invoice_logo', invoiceLogoFile);
       if (receiptLogoFile) fd.append('receipt_logo', receiptLogoFile);
@@ -171,6 +230,11 @@ const CompanyProfile = () => {
       if (d.app_icon_url) setAppIconPreview(d.app_icon_url);
       if (d.favicon_url) {
         setFaviconPreview(d.favicon_url);
+      }
+      // Repaint the live browser-tab icon only when the brand just saved is
+      // this user's own. Editing another brand's profile must not swap the
+      // icon out from under them.
+      if (d.favicon_url && (!ownBrandId || d.brand_id === ownBrandId)) {
         let link = document.querySelector("link[rel*='icon']");
         if (!link) {
           link = document.createElement('link');
@@ -184,7 +248,12 @@ const CompanyProfile = () => {
       setReceiptLogoFile(null);
       setFaviconFile(null);
       setAppIconFile(null);
-      showToast('Company profile updated successfully!', 'success');
+      showToast(
+        d.brand_name
+          ? `${d.brand_name} profile updated successfully!`
+          : 'Company profile updated successfully!',
+        'success'
+      );
     } catch (err) {
       // A validation failure (422) puts the actually useful reason inside
       // `errors`, e.g. "The app icon field must be a file of type: jpg,
@@ -320,6 +389,53 @@ const CompanyProfile = () => {
         </div>
       </div>
 
+      {/* ── BRAND TABS ──
+          Each brand is a separate trade name with its own logo, address and
+          footer. Hidden entirely when only one brand exists, so a single-brand
+          install looks exactly as it did before. */}
+      {brands.length > 1 && (
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-sub)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+            Editing brand
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }} role="tablist">
+            {brands.map(b => {
+              const isActive = b.id === activeBrandId;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  disabled={switchingBrand}
+                  onClick={() => handleBrandSwitch(b.id)}
+                  style={{
+                    minHeight: '44px', padding: '10px 18px', fontSize: '14px', fontWeight: 700,
+                    borderRadius: '8px', cursor: switchingBrand ? 'wait' : 'pointer',
+                    border: isActive ? '1px solid #2563eb' : '1px solid var(--border)',
+                    background: isActive ? '#2563eb' : 'var(--bg-card)',
+                    color: isActive ? '#ffffff' : 'var(--text-heading)',
+                    opacity: switchingBrand && !isActive ? 0.6 : 1,
+                    transition: 'background 120ms ease, color 120ms ease'
+                  }}
+                >
+                  {b.name}
+                  {b.id === ownBrandId && (
+                    <span style={{ marginLeft: '8px', fontSize: '11px', fontWeight: 600, opacity: 0.85 }}>
+                      (yours)
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--text-sub)', marginTop: '10px', lineHeight: 1.5 }}>
+            Logo, address and footer below apply only to the selected brand. Documents print
+            with the brand of whoever created them, not the brand open here.
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
 
         {/* ── SECTION 1: Company Profile Information ── */}
@@ -387,6 +503,65 @@ const CompanyProfile = () => {
                 onChange={handleChange}
                 placeholder="e.g. 01629000200"
                 required
+              />
+            </div>
+          </div>
+
+          {/* Printed-document wording. Kept apart from the postal address and
+              company name above because the header line and the signature /
+              cheque-payee names are worded differently on paper. */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '8px' }}>
+                Print Header Address
+              </label>
+              <input
+                name="office_address"
+                style={{
+                  width: '100%', minHeight: '44px', padding: '10px 14px',
+                  fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px',
+                  background: 'var(--bg-card)', color: 'var(--text-heading)',
+                  boxSizing: 'border-box', outline: 'none'
+                }}
+                value={form.office_address}
+                onChange={handleChange}
+                placeholder="Shown under the logo on quotations, invoices & challans"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '8px' }}>
+                Signature Footer Name
+              </label>
+              <input
+                name="footer_name"
+                style={{
+                  width: '100%', minHeight: '44px', padding: '10px 14px',
+                  fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px',
+                  background: 'var(--bg-card)', color: 'var(--text-heading)',
+                  boxSizing: 'border-box', outline: 'none'
+                }}
+                value={form.footer_name}
+                onChange={handleChange}
+                placeholder="Defaults to the company name"
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '8px' }}>
+                Cheque Payable To
+              </label>
+              <input
+                name="cheque_favour_name"
+                style={{
+                  width: '100%', minHeight: '44px', padding: '10px 14px',
+                  fontSize: '14px', border: '1px solid var(--border)', borderRadius: '6px',
+                  background: 'var(--bg-card)', color: 'var(--text-heading)',
+                  boxSizing: 'border-box', outline: 'none'
+                }}
+                value={form.cheque_favour_name}
+                onChange={handleChange}
+                placeholder="Defaults to the company name"
               />
             </div>
           </div>

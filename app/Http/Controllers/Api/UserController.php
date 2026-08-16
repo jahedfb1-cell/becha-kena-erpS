@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Brand;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +24,7 @@ class UserController extends Controller
     public function index(Request $request): JsonResponse
     {
         $currentUser = $request->user();
-        $query = User::with(['manager:id,name,email', 'department:id,name']);
+        $query = User::with(['manager:id,name,email', 'department:id,name', 'brand:id,name,short_name']);
 
         if ($request->filled('role')) {
             $query->where('role', $request->role);
@@ -69,6 +70,7 @@ class UserController extends Controller
             'email'         => 'nullable|email|unique:users,email',
             'password'      => 'required|string|min:6',
             'role'          => ['required', Rule::in(['admin', 'manager', 'salesman', 'staff'])],
+            'brand_id'      => 'nullable|exists:brands,id',
             'department_id' => 'nullable|exists:departments,id',
             'manager_id'    => 'nullable|exists:users,id',
         ]);
@@ -80,6 +82,9 @@ class UserController extends Controller
                 'email'         => $validated['email'] ?? null,
                 'password'      => Hash::make($validated['password']),
                 'role'          => $validated['role'],
+                // Falls back to the default brand so a user created without an
+                // explicit choice still prints under Dhaka Blinds.
+                'brand_id'      => $validated['brand_id'] ?? Brand::DEFAULT_ID,
                 'department_id' => $validated['department_id'] ?? null,
                 'manager_id'    => $validated['manager_id'] ?? null,
                 'is_active'     => true,
@@ -97,7 +102,7 @@ class UserController extends Controller
                 "Created user account {$user->name} ({$user->role})"
             );
 
-            return $this->successResponse($user->load(['manager:id,name', 'department:id,name']), 'User created successfully.', 201);
+            return $this->successResponse($user->load(['manager:id,name', 'department:id,name', 'brand:id,name,short_name']), 'User created successfully.', 201);
         });
     }
 
@@ -119,6 +124,7 @@ class UserController extends Controller
             'email'         => ['nullable', 'email', Rule::unique('users')->ignore($user->id)],
             'password'      => 'nullable|string|min:6',
             'role'          => ['sometimes', 'required', Rule::in(['admin', 'manager', 'salesman', 'staff'])],
+            'brand_id'      => 'nullable|exists:brands,id',
             'department_id' => 'nullable|exists:departments,id',
             'manager_id'    => 'nullable|exists:users,id',
             'is_active'     => 'sometimes|boolean',
@@ -159,7 +165,7 @@ class UserController extends Controller
                 "Updated user account {$user->name}"
             );
 
-            return $this->successResponse($user->load(['manager:id,name', 'department:id,name']), 'User updated successfully.');
+            return $this->successResponse($user->load(['manager:id,name', 'department:id,name', 'brand:id,name,short_name']), 'User updated successfully.');
         });
     }
 

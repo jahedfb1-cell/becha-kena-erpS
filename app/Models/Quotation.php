@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\Archivable;
+use App\Traits\BelongsToBrand;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,13 +12,14 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Quotation extends Model
 {
-    use HasFactory, Archivable;
+    use HasFactory, Archivable, BelongsToBrand;
 
     protected $attributes = [
         'is_archived' => false,
     ];
 
     protected $fillable = [
+        'brand_id',
         'quotation_number',
         'customer_id',
         'salesman_id',

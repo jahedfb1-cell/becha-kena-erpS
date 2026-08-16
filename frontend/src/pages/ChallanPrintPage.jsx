@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
+import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 
 /**
  * Delivery Challan print page - design matches the reference "Dhaka Blinds"
@@ -46,18 +47,16 @@ const ChallanPrintPage = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [iRes, cRes] = await Promise.all([
-        api.get(`/invoices/${id}`),
-        api.get('/company-profile').catch(() => ({ data: { data: null } }))
-      ]);
-      if (iRes.data && iRes.data.data) {
-        setInvoice(iRes.data.data);
+      const iRes = await api.get(`/invoices/${id}`);
+      const record = iRes.data?.data;
+      if (record) {
+        setInvoice(record);
       } else {
         setError('Invoice not found');
       }
-      if (cRes.data && cRes.data.data) {
-        setCompanyProfile(cRes.data.data);
-      }
+      // Sequential rather than parallel on purpose: which brand's profile
+      // to load is only known once the invoice has come back.
+      setCompanyProfile(await fetchProfileForRecord(api, record));
     } catch (err) {
       console.error('Error loading challan print data:', err);
       setError('Failed to load invoice');
@@ -84,14 +83,17 @@ const ChallanPrintPage = () => {
 
       const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
 
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Delivery Challan _ by Dhaka Blinds`;
+      // The PDF's filename comes from document.title, so it has to name
+      // the brand the challan was raised under, not the app's default.
+      const brandName = brandFields(companyProfile).footerName;
+      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Delivery Challan _ by ${clean(brandName)}`;
       document.title = customTitle;
 
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
     }
-  }, [invoice]);
+  }, [invoice, companyProfile]);
 
   const handleGenerateChallan = async () => {
     setGenerating(true);
@@ -132,7 +134,8 @@ const ChallanPrintPage = () => {
   const customer = invoice.customer || invoice.quotation?.customer || {};
   const quotation = invoice.quotation || {};
   const items = quotation.items || invoice.items || [];
-  const logoSrc = companyProfile?.invoice_logo_url || companyProfile?.company_logo_url || '/logo-demo.svg';
+  const brand = brandFields(companyProfile);
+  const logoSrc = brand.logoSrc;
   const shipToAddress = challan?.delivery_address || quotation.delivery_address || customer?.address || 'Dhaka, Bangladesh';
 
   // No challan has been generated for this invoice yet.
@@ -202,18 +205,18 @@ const ChallanPrintPage = () => {
 
         {/* HEADER: company name, subtitle, contact lines */}
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-          <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>Dhaka Blinds</h1>
+          <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>{brand.name}</h1>
           <div style={{ fontSize: '11px', color: '#333', margin: '4px 0' }}>
             (VERTICAL BLINDS, VENETIAN, SINGLE, DOUBLE ROLLER, PVC CURTAIN, REMOTE CONTROL CURTAIN SYSTEM SUPPLIER)
           </div>
           <div style={{ fontSize: '12px', color: '#111' }}>
-            <strong>Office:</strong> {companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh.'}
+            <strong>Office:</strong> {brand.companyAddress || brand.officeAddress}
           </div>
           <div style={{ fontSize: '12px', color: '#111' }}>
-            <strong>Cell:</strong> {companyProfile?.mobile || '01629000200'}
+            <strong>Cell:</strong> {brand.mobile}
           </div>
           <div style={{ fontSize: '12px', color: '#111' }}>
-            <strong>Email:</strong> {companyProfile?.email || 'dhakablinds@gmail.com'}
+            <strong>Email:</strong> {brand.email}
           </div>
         </div>
 
@@ -326,7 +329,7 @@ const ChallanPrintPage = () => {
           <div style={{ textAlign: 'center' }}>
             <div style={{ borderBottom: '1px solid #000', height: '24px', marginBottom: '4px' }}></div>
             <strong style={{ fontSize: '12px', color: '#111' }}>Thanking You</strong>
-            <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px', marginTop: '4px' }}>Dhaka Blinds</div>
+            <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px', marginTop: '4px' }}>{brand.footerName}</div>
           </div>
         </div>
 
