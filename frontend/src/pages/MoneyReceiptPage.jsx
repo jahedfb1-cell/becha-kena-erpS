@@ -121,9 +121,9 @@ const MoneyReceiptPage = () => {
   const inv = payment.invoice || {};
   const customer = payment.customer || inv.customer || {};
   const companyName = companyProfile?.company_name || 'Dhaka Blinds';
-  const companyAddress = companyProfile?.company_address || '';
-  const companyPhone = companyProfile?.mobile || '';
-  const companyEmail = companyProfile?.email || '';
+  const companyAddress = companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh.';
+  const companyPhone = companyProfile?.mobile || '01629000200';
+  const companyEmail = companyProfile?.email || 'dhakablinds@gmail.com';
   const companyLogoUrl = companyProfile?.receipt_logo_url || companyProfile?.company_logo_url || companyProfile?.invoice_logo_url || null;
 
   const customerDisplayName = customer.company_name || customer.name || 'N/A';
@@ -160,7 +160,7 @@ const MoneyReceiptPage = () => {
   const amount = parseFloat(payment.amount) || 0;
 
   const getQrCodeData = () => {
-    const defaultTemplate = "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount} TK\nVerify: {url}";
+    const defaultTemplate = "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}";
     const template = companyProfile?.receipt_qr_template || defaultTemplate;
 
     const dataMap = {
@@ -382,9 +382,9 @@ const MoneyReceiptPage = () => {
                 />
               </div>
               <div style={{ fontSize: '20px', fontWeight: 900, marginBottom: '4px' }}>{companyName}</div>
-              {companyAddress && <div style={{ fontSize: '11px' }}>{companyAddress}</div>}
-              {companyPhone && <div style={{ fontSize: '11px' }}>{companyPhone}</div>}
-              {companyEmail && <div style={{ fontSize: '11px' }}>Email : {companyEmail}</div>}
+              {companyAddress && <div style={{ fontSize: '11px' }}><strong>Office:</strong> {companyAddress}</div>}
+              {companyPhone && <div style={{ fontSize: '11px' }}><strong>Cell:</strong> {companyPhone}</div>}
+              {companyEmail && <div style={{ fontSize: '11px' }}><strong>Email:</strong> {companyEmail}</div>}
             </>
           )}
         </div>
@@ -408,7 +408,14 @@ const MoneyReceiptPage = () => {
             {/* Received from */}
             <tr>
               <td style={{ ...cellLabel, width: '38%' }}>Received with thanks from.</td>
-              <td style={cellValue} colSpan={3}>{customerDisplayName}</td>
+              <td style={cellValue} colSpan={3}>
+                <div>{customerDisplayName}</div>
+                {customer?.phone && (
+                  <div style={{ fontSize: '13px', fontWeight: 'normal', fontStyle: 'normal', color: '#475569', marginTop: '4px' }}>
+                    📞 {customer.phone}
+                  </div>
+                )}
+              </td>
             </tr>
 
             {/* Bill No */}

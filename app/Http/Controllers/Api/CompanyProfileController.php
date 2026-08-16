@@ -87,12 +87,12 @@ class CompanyProfileController extends Controller
                 'receipt_logo'     => null,
                 'favicon'          => null,
                 'app_icon'         => null,
-                'receipt_qr_template' => "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount} TK\nVerify: {url}",
+                'receipt_qr_template' => "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}",
             ];
         }
 
         $data['browser_title'] = $data['browser_title'] ?? 'Dhaka Blinds - ERP & IMS Portal';
-        $data['receipt_qr_template'] = $data['receipt_qr_template'] ?? "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount} TK\nVerify: {url}";
+        $data['receipt_qr_template'] = $data['receipt_qr_template'] ?? "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}";
 
         $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
