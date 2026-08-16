@@ -158,6 +158,7 @@ class QuotationController extends Controller
                 'note'               => $request->note,
                 'delivery_address'   => $request->delivery_address,
                 'created_by'         => $user->id,
+                'approved_by'        => $status === 'approved' ? $user->id : null,
                 'approved_at'        => $status === 'approved' ? now() : null,
             ]);
 
