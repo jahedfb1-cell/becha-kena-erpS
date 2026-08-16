@@ -79,9 +79,29 @@ const MoneyReceiptPage = () => {
     fetchData();
   }, [id]);
 
+  // Matches the "{Customer} _ {Category} _ {Document Type} _ by Dhaka
+  // Blinds" filename format used on the Quotation, Invoice, and Delivery
+  // Challan print pages, so a browser's "Save as PDF" suggests the same
+  // naming convention here too.
   useEffect(() => {
     if (payment) {
-      document.title = `Money Receipt - ${payment.payment_number}`;
+      const rawCustomerName = payment.customer?.company_name || payment.customer?.name
+        || payment.invoice?.customer?.company_name || payment.invoice?.customer?.name || 'Customer';
+
+      const categories = Array.from(new Set(
+        (payment.invoice?.quotation?.items || [])
+          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
+          .filter(Boolean)
+      ));
+      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
+
+      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
+
+      document.title = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Money Receipt _ by Dhaka Blinds`;
+
+      return () => {
+        document.title = 'Dhakablinds-Ims';
+      };
     }
   }, [payment]);
 
@@ -138,6 +158,38 @@ const MoneyReceiptPage = () => {
   };
 
   const amount = parseFloat(payment.amount) || 0;
+
+  const getQrCodeData = () => {
+    const defaultTemplate = "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount} TK\nVerify: {url}";
+    const template = companyProfile?.receipt_qr_template || defaultTemplate;
+
+    const dataMap = {
+      '{url}': window.location.origin + '/payments/' + payment.id + '/receipt',
+      '{payment_no}': payment.payment_number,
+      '{invoice_no}': inv.invoice_number,
+      '{order_no}': inv.quotation?.quotation_number,
+      '{customer}': customerDisplayName,
+      '{customer_phone}': customer?.phone,
+      '{amount}': amount > 0 ? formatCurrency(amount) + ' BDT' : '',
+      '{payment_method}': payment.payment_method ? payment.payment_method.toUpperCase() : '',
+      '{due_amount}': inv.due_amount !== undefined && inv.due_amount !== null ? formatCurrency(inv.due_amount) + ' BDT' : '',
+      '{total_amount}': inv.grand_total !== undefined && inv.grand_total !== null ? formatCurrency(inv.grand_total) + ' BDT' : '',
+      '{date}': formatDate(payment.payment_date || payment.created_at),
+      '{delivery_date}': (inv.delivery_challans && inv.delivery_challans.length > 0) 
+        ? formatDate(inv.delivery_challans[0].delivery_date || inv.delivery_challans[0].created_at) 
+        : '',
+      '{salesman}': inv.salesman?.name,
+      '{company}': companyName
+    };
+
+    let result = template;
+    Object.entries(dataMap).forEach(([token, value]) => {
+      const cleanValue = (value !== null && value !== undefined) ? String(value).trim() : '';
+      result = result.replaceAll(token, cleanValue);
+    });
+
+    return result.trim();
+  };
 
   const loadHtml2Pdf = () => {
     return new Promise((resolve, reject) => {
@@ -313,7 +365,7 @@ const MoneyReceiptPage = () => {
                 borderRadius: '2px'
               }}>
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent(window.location.origin + '/payments/' + payment.id + '/receipt')}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(getQrCodeData())}`}
                   alt="Receipt Verification QR"
                   style={{ width: '60px', height: '60px', display: 'block' }}
                 />
@@ -324,7 +376,7 @@ const MoneyReceiptPage = () => {
               {/* Centered QR Code fallback for text layout */}
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent(window.location.origin + '/payments/' + payment.id + '/receipt')}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(getQrCodeData())}`}
                   alt="Receipt Verification QR"
                   style={{ width: '70px', height: '70px', display: 'block' }}
                 />

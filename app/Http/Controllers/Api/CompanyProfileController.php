@@ -87,10 +87,12 @@ class CompanyProfileController extends Controller
                 'receipt_logo'     => null,
                 'favicon'          => null,
                 'app_icon'         => null,
+                'receipt_qr_template' => "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount} TK\nVerify: {url}",
             ];
         }
 
         $data['browser_title'] = $data['browser_title'] ?? 'Dhaka Blinds - ERP & IMS Portal';
+        $data['receipt_qr_template'] = $data['receipt_qr_template'] ?? "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount} TK\nVerify: {url}";
 
         $data['company_logo_url'] = $this->getLogoUrl($data['company_logo'] ?? null);
         $data['invoice_logo_url'] = $this->getLogoUrl($data['invoice_logo'] ?? null);
@@ -197,6 +199,7 @@ class CompanyProfileController extends Controller
             'company_facebook'=> 'nullable|string|max:200',
             'vat_reg_no'      => 'nullable|string|max:100',
             'terms_conditions'=> 'nullable|string|max:3000',
+            'receipt_qr_template' => 'nullable|string|max:1000',
             // SVG deliberately excluded: it's an active content type (can embed
             // <script>) and would be served back on this origin, enabling stored XSS.
             'company_logo'    => 'nullable|file|mimes:jpg,jpeg,png|max:5120',
@@ -223,6 +226,7 @@ class CompanyProfileController extends Controller
             'company_facebook' => $request->company_facebook,
             'vat_reg_no'       => $request->vat_reg_no,
             'terms_conditions' => $request->terms_conditions,
+            'receipt_qr_template' => $request->receipt_qr_template,
             'browser_title'    => $request->browser_title ?? 'Dhaka Blinds - ERP & IMS Portal',
             'company_logo'     => $existing['company_logo'] ?? null,
             'invoice_logo'     => $existing['invoice_logo'] ?? null,

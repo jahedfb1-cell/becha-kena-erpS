@@ -86,6 +86,8 @@ class PaymentController extends Controller
             'customer',
             'invoice.customer',
             'invoice.salesman',
+            'invoice.quotation',
+            'invoice.deliveryChallans',
             'invoice.quotation.items.product',
             'invoice.quotation.items.variant',
         ])->find($id);

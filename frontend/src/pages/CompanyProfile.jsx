@@ -16,6 +16,7 @@ const CompanyProfile = () => {
     company_facebook: '',
     vat_reg_no: '',
     terms_conditions: '',
+    receipt_qr_template: '',
     browser_title: '',
   });
 
@@ -55,6 +56,7 @@ const CompanyProfile = () => {
           company_facebook: d.company_facebook || '',
           vat_reg_no:       d.vat_reg_no       || '',
           terms_conditions: d.terms_conditions || '',
+          receipt_qr_template: d.receipt_qr_template || '',
           browser_title:    d.browser_title    || '',
         });
         setCompanyLogoPreview(d.company_logo_url || '/logo-demo.svg');
@@ -480,6 +482,50 @@ const CompanyProfile = () => {
               onChange={handleChange}
               placeholder="Enter quotation print terms and conditions..."
             />
+          </div>
+
+          <div style={{ marginTop: '20px', borderTop: '1px dashed var(--border)', paddingTop: '16px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: 'var(--text-heading)', marginBottom: '4px' }}>
+              Money Receipt QR Code Template
+            </label>
+            <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '8px', lineHeight: '1.4' }}>
+              Define the layout of the scanned QR Code data using placeholder tokens. Values that are empty or not generated yet will automatically fall back to empty text in the QR.
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', alignItems: 'start' }}>
+              <textarea
+                name="receipt_qr_template"
+                rows={5}
+                style={{
+                  width: '100%', padding: '12px 14px',
+                  fontSize: '13px', border: '1px solid var(--border)', borderRadius: '6px',
+                  background: 'var(--bg-card)', color: 'var(--text-heading)',
+                  boxSizing: 'border-box', outline: 'none', resize: 'vertical',
+                  lineHeight: '1.5', fontFamily: 'monospace'
+                }}
+                value={form.receipt_qr_template || ''}
+                onChange={handleChange}
+                placeholder="Enter receipt QR template..."
+              />
+              <div style={{ background: 'var(--bg-app)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--text-main)', lineHeight: '1.6' }}>
+                <strong style={{ display: 'block', marginBottom: '4px', fontSize: '12px', color: 'var(--text-heading)' }}>Available Tokens:</strong>
+                <ul style={{ margin: 0, paddingLeft: '14px', listStyleType: 'square' }}>
+                  <li><code>{`{url}`}</code> - Digital verification link</li>
+                  <li><code>{`{payment_no}`}</code> - Receipt Voucher No</li>
+                  <li><code>{`{invoice_no}`}</code> - Invoice Reference</li>
+                  <li><code>{`{order_no}`}</code> - Original Order No</li>
+                  <li><code>{`{customer}`}</code> - Customer Name</li>
+                  <li><code>{`{customer_phone}`}</code> - Customer Phone</li>
+                  <li><code>{`{amount}`}</code> - Paid Amount</li>
+                  <li><code>{`{payment_method}`}</code> - Method (Cash/Bank/Mobile)</li>
+                  <li><code>{`{due_amount}`}</code> - Invoice Due Amount</li>
+                  <li><code>{`{total_amount}`}</code> - Invoice Total Amount</li>
+                  <li><code>{`{date}`}</code> - Receipt Date</li>
+                  <li><code>{`{delivery_date}`}</code> - Scheduled Delivery Date</li>
+                  <li><code>{`{salesman}`}</code> - Salesman Name</li>
+                  <li><code>{`{company}`}</code> - Company Name</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 
