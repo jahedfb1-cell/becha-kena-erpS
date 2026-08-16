@@ -85,6 +85,7 @@ class PaymentController extends Controller
         $payment = Payment::with([
             'customer',
             'invoice.customer',
+            'invoice.salesman',
             'invoice.quotation.items.product',
             'invoice.quotation.items.variant',
         ])->find($id);

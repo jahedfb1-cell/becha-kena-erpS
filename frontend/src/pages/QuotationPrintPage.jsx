@@ -31,6 +31,29 @@ const numberToWords = (num) => {
   return result.trim() + ' Only.';
 };
 
+// PVC strip-curtain items (e.g. "PVC Strip Door Curtain" / "2mm Clear Water
+// Co") are billed by total width — slat count × each slat's width — rather
+// than the customer's requested opening width. The printed Width column
+// shows that total-width figure for these items instead of the raw width,
+// matching the "T. Width (in)" figure shown for the same products in the
+// quotation builder.
+const isPvcItem = (item) => {
+  const unit = (item.product?.unit || '').toLowerCase();
+  const category = (item.product?.category?.name || '').toLowerCase();
+  const name = (item.product?.name || '').toLowerCase();
+  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
+};
+
+const getDisplayWidth = (item) => {
+  const width = parseFloat(item.width) || 0;
+  if (!isPvcItem(item)) return width;
+  const slatSize = parseFloat(item.product?.product_size) || 8;
+  const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
+    ? parseInt(item.slats)
+    : (width > 0 ? Math.ceil(width / 5.85) : 0);
+  return Math.round(slats * slatSize * 100) / 100;
+};
+
 const QuotationPrintPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -573,7 +596,7 @@ const QuotationPrintPage = () => {
 
                         {isDetailed && (
                           <>
-                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{width}</td>
+                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
                             <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{height}</td>
                             <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{pcs}</td>
                           </>

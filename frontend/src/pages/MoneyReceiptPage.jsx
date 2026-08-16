@@ -48,6 +48,17 @@ const MoneyReceiptPage = () => {
   const [companyProfile, setCompanyProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sharing, setSharing] = useState(false);
+
+  const handleBack = () => {
+    if (window.opener) {
+      window.close();
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/payments');
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -83,7 +94,7 @@ const MoneyReceiptPage = () => {
   if (error || !payment) return (
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: '16px', fontFamily: 'Arial, sans-serif' }}>
       <div style={{ color: '#dc2626', fontSize: '16px' }}>{error || 'Receipt not found.'}</div>
-      <button onClick={() => navigate(-1)} style={{ padding: '8px 20px', border: '1px solid #94a3b8', borderRadius: '6px', cursor: 'pointer' }}>← Back</button>
+      <button onClick={handleBack} style={{ padding: '8px 20px', border: '1px solid #94a3b8', borderRadius: '6px', cursor: 'pointer' }}>← Back</button>
     </div>
   );
 
@@ -100,17 +111,25 @@ const MoneyReceiptPage = () => {
 
   // Product codes from invoice quotation items
   const items = inv.quotation?.items || [];
-  const productNames = Array.from(new Set(
-    items.map(i => i.product?.name || i.product?.product_code || '').filter(Boolean)
-  )).join(', ') || 'N/A';
   const productCodes = Array.from(new Set(
     items.map(i => i.product?.product_code || '').filter(Boolean)
-  )).join(', ') || '';
+  )).join(', ') || 'N/A';
 
   const totalSqft = items.reduce((s, i) => s + (parseFloat(i.billed_sqft) || 0), 0);
-  const avgUnitPrice = items.length > 0
-    ? items.reduce((s, i) => s + (parseFloat(i.unit_price) || 0), 0) / items.length
-    : 0;
+
+  // One price per distinct product, in the same order as productCodes
+  // above, instead of a single averaged figure — e.g. "12000, 110, 220"
+  // for a 3-product invoice rather than one blended number.
+  const seenProductCodes = new Set();
+  const unitPriceList = items
+    .filter(i => {
+      const code = i.product?.product_code || '';
+      if (!code || seenProductCodes.has(code)) return false;
+      seenProductCodes.add(code);
+      return true;
+    })
+    .map(i => (parseFloat(i.unit_price) || 0).toFixed(0))
+    .join(', ') || 'N/A';
 
   const paymentMethodLabel = () => {
     if (payment.payment_method === 'bank') return `Bank Transfer - ${payment.bank_name || ''}${payment.cheque_number ? ` (Cheque: ${payment.cheque_number})` : ''}`;
@@ -120,16 +139,108 @@ const MoneyReceiptPage = () => {
 
   const amount = parseFloat(payment.amount) || 0;
 
+  const loadHtml2Pdf = () => {
+    return new Promise((resolve, reject) => {
+      if (window.html2pdf) {
+        resolve(window.html2pdf);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.onload = () => resolve(window.html2pdf);
+      script.onerror = (err) => reject(err);
+      document.head.appendChild(script);
+    });
+  };
+
+  const handleWhatsAppShare = async () => {
+    try {
+      setSharing(true);
+      const html2pdfLib = await loadHtml2Pdf();
+      const element = document.querySelector('.receipt-paper');
+      
+      const opt = {
+        margin:       10,
+        filename:     `MoneyReceipt_${payment.payment_number}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, allowTaint: true },
+        jsPDF:        { unit: 'mm', format: 'a5', orientation: 'landscape' }
+      };
+
+      // Generate PDF Blob using correct .output('blob') method
+      const pdfBlob = await html2pdfLib().from(element).set(opt).output('blob');
+      const file = new File([pdfBlob], `MoneyReceipt_${payment.payment_number}.pdf`, { type: 'application/pdf' });
+
+      // Clean and format phone number
+      const phoneNum = customer.phone ? customer.phone.replace(/\D/g, '') : '';
+      const formattedPhone = phoneNum.length === 11 && phoneNum.startsWith('0') 
+        ? '88' + phoneNum 
+        : phoneNum;
+
+      const messageText = `Assalamu Alaikum. Here is the Money Receipt #${payment.payment_number} from ${companyName}.`;
+
+      let sharedNatively = false;
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `Money Receipt - ${payment.payment_number}`,
+            text: messageText,
+          });
+          sharedNatively = true;
+        } catch (shareErr) {
+          console.warn('Native share failed, falling back to download:', shareErr);
+        }
+      }
+
+      if (!sharedNatively) {
+        // Fallback: download PDF
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `MoneyReceipt_${payment.payment_number}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        // Open WhatsApp
+        const whatsappUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(messageText + ' Please attach the downloaded PDF file.')}`;
+        window.open(whatsappUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('WhatsApp share error:', err);
+      alert('Failed to generate or share PDF. Please try printing to PDF instead.');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  // Grid-style cell borders, matching the plain black/grey ledger look of the
+  // paper sample rather than the previous colored-label design.
+  const cellLabel = { border: '1px solid #aaa', padding: '6px 9px', fontWeight: 700, color: '#111', verticalAlign: 'top', fontSize: '14px' };
+  const cellValue = { border: '1px solid #aaa', padding: '6px 9px', fontStyle: 'italic', fontWeight: 600, color: '#111', fontSize: '16px' };
+
   return (
-    <div style={{ fontFamily: "'Times New Roman', serif", background: '#f0f0f0', minHeight: '100vh', padding: '30px 20px' }}>
+    <div className="print-page-wrapper" style={{ fontFamily: "'Times New Roman', Georgia, serif", background: '#ffffff', minHeight: '100vh', padding: '24px 0' }}>
       {/* Print styles */}
       <style>{`
         @media print {
-          body { background: #fff !important; }
+          body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
           .no-print { display: none !important; }
-          .receipt-paper { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
+          .receipt-paper {
+            box-shadow: none !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            height: 148.5mm !important;
+            box-sizing: border-box !important;
+            border: none !important;
+            border-bottom: 1px dashed #000 !important;
+            padding: 12mm 18mm !important;
+          }
         }
-        @page { size: A5 landscape; margin: 10mm; }
+        @page { size: A4 portrait; margin: 0; }
       `}</style>
 
       {/* Action Buttons (no print) */}
@@ -141,7 +252,14 @@ const MoneyReceiptPage = () => {
           🖨️ Print
         </button>
         <button
-          onClick={() => navigate(-1)}
+          onClick={handleWhatsAppShare}
+          disabled={sharing}
+          style={{ padding: '10px 24px', background: '#25d366', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          💬 {sharing ? 'Generating PDF...' : 'Share on WhatsApp'}
+        </button>
+        <button
+          onClick={handleBack}
           style={{ padding: '10px 20px', background: '#64748b', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           ← Back
@@ -155,116 +273,151 @@ const MoneyReceiptPage = () => {
           background: '#fff',
           maxWidth: '720px',
           margin: '0 auto',
-          padding: '28px 36px',
+          padding: '22px 32px',
           boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
           borderRadius: '4px',
-          border: '1px solid #ddd',
+          border: '1px solid #e2e8f0',
+          color: '#111',
         }}
       >
-        {/* Header */}
-        <div style={{ textAlign: 'center', borderBottom: '2px solid #222', paddingBottom: '12px', marginBottom: '14px' }}>
-          {companyLogoUrl && (
-            <img src={companyLogoUrl} alt="Company Logo" style={{ height: '60px', objectFit: 'contain', display: 'block', margin: '0 auto 6px' }} />
+        {/* Header: logo + address block, centered, no rule beneath it */}
+        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+          {/* Centered Receipt Verification QR Code */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent(window.location.origin + '/payments/' + payment.id + '/receipt')}`}
+              alt="Receipt Verification QR"
+              style={{ width: '70px', height: '70px', display: 'block' }}
+            />
+          </div>
+
+          {companyLogoUrl ? (
+            <img
+              src={companyLogoUrl}
+              alt={companyName}
+              style={{
+                width: '100%',
+                maxWidth: '100%',
+                height: 'auto',
+                maxHeight: '120px',
+                objectFit: 'contain',
+                display: 'block',
+                margin: '0 auto'
+              }}
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          ) : (
+            <>
+              <div style={{ fontSize: '20px', fontWeight: 900, marginBottom: '4px' }}>{companyName}</div>
+              {companyAddress && <div style={{ fontSize: '11px' }}>{companyAddress}</div>}
+              {companyPhone && <div style={{ fontSize: '11px' }}>{companyPhone}</div>}
+              {companyEmail && <div style={{ fontSize: '11px' }}>Email : {companyEmail}</div>}
+            </>
           )}
-          <div style={{ fontSize: '22px', fontWeight: 900, color: '#1e40af', fontFamily: 'Arial Black, sans-serif', lineHeight: 1.2 }}>
-            {companyName}
-          </div>
-          {companyAddress && <div style={{ fontSize: '12px', color: '#374151', marginTop: '2px' }}>{companyAddress}</div>}
-          <div style={{ fontSize: '12px', color: '#374151' }}>
-            {companyPhone && <span>{companyPhone}</span>}
-            {companyPhone && companyEmail && <span> &nbsp;|&nbsp; </span>}
-            {companyEmail && <span>Email : {companyEmail}</span>}
-          </div>
         </div>
 
-        {/* Receipt Title Row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ fontSize: '13px', color: '#374151' }}>
+        {/* Receipt Title Row: plain text, no badge/pill */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 10px' }}>
+          <div style={{ fontSize: '13px' }}>
             <strong>No:</strong> {payment.payment_number}
           </div>
-          <div style={{
-            background: '#111', color: '#fff', padding: '4px 22px',
-            fontSize: '15px', fontWeight: 700, letterSpacing: '1px', borderRadius: '2px'
-          }}>
+          <div style={{ fontSize: '15px', fontWeight: 700 }}>
             Money Receipt
           </div>
-          <div style={{ fontSize: '13px', color: '#374151' }}>
+          <div style={{ fontSize: '13px' }}>
             <strong>Date:</strong> {formatDate(payment.payment_date || payment.created_at)}
           </div>
         </div>
 
-        {/* Receipt Body Table */}
+        {/* Receipt Body Table — full grid borders like the sample */}
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <tbody>
             {/* Received from */}
-            <tr style={{ borderTop: '1px solid #bbb' }}>
-              <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1e3a5f', width: '38%' }}>
-                Received with thanks from.
-              </td>
-              <td style={{ padding: '7px 8px', color: '#111' }} colSpan={3}>
-                {customerDisplayName}
-              </td>
+            <tr>
+              <td style={{ ...cellLabel, width: '38%' }}>Received with thanks from.</td>
+              <td style={cellValue} colSpan={3}>{customerDisplayName}</td>
             </tr>
 
-            {/* Bill No & Product Name */}
-            <tr style={{ borderTop: '1px solid #ddd' }}>
-              <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1e3a5f' }}>Bill No:</td>
-              <td style={{ padding: '7px 8px', color: '#2563eb', fontWeight: 600 }}>{invoiceNumber}</td>
-              <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1e3a5f', width: '22%' }}>Product Name</td>
-              <td style={{ padding: '7px 8px', color: '#2563eb' }}>
-                {productNames}
-                {productCodes && productCodes !== productNames && (
-                  <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>({productCodes})</span>
-                )}
+            {/* Bill No */}
+            <tr>
+              <td style={{ ...cellLabel, width: '38%' }}>Bill No:</td>
+              <td style={cellValue} colSpan={3}>{invoiceNumber}</td>
+            </tr>
+
+            {/* Product Name — shows the product code(s), e.g. "TQA25 REAX, DBB
+                1116, 2mm Clear Water Co". Line-clamped so an invoice with
+                many distinct products can never push the row past the fixed
+                half-A4 print height; the full list is still in the title
+                attribute. */}
+            <tr>
+              <td style={{ ...cellLabel, width: '38%' }}>Product Name</td>
+              <td
+                style={cellValue}
+                colSpan={3}
+                title={productCodes}
+              >
+                <div style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  lineHeight: 1.3,
+                }}>
+                  {productCodes}
+                </div>
               </td>
             </tr>
 
             {/* Sqft & Price */}
             {totalSqft > 0 && (
-              <tr style={{ borderTop: '1px solid #ddd' }}>
-                <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1e3a5f' }}>Total Sft.</td>
-                <td style={{ padding: '7px 8px' }}>{totalSqft.toFixed(0)}</td>
-                <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1e3a5f' }}>Price (Tk)</td>
-                <td style={{ padding: '7px 8px' }}>{avgUnitPrice > 0 ? avgUnitPrice.toFixed(0) : 'N/A'}</td>
+              <tr>
+                <td style={cellLabel}>Total Sft.</td>
+                <td style={cellValue}>{totalSqft.toFixed(0)}</td>
+                <td style={cellLabel}>Price (TK)</td>
+                <td style={cellValue}>{unitPriceList}</td>
               </tr>
             )}
 
             {/* Amount by Cash / Cheque */}
-            <tr style={{ borderTop: '1px solid #ddd' }}>
-              <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1e3a5f' }}>Amount by Cash / Cheque NO.</td>
-              <td style={{ padding: '7px 8px', color: '#2563eb' }} colSpan={3}>{paymentMethodLabel()}</td>
+            <tr>
+              <td style={cellLabel}>Amount by Cash / Cheque NO.</td>
+              <td style={cellValue} colSpan={3}>{paymentMethodLabel()}</td>
             </tr>
 
             {/* Amount in words */}
-            <tr style={{ borderTop: '1px solid #ddd', borderBottom: '1px solid #bbb' }}>
-              <td style={{ padding: '7px 8px', fontWeight: 700, color: '#1e3a5f' }}>Amounts in words:</td>
-              <td style={{ padding: '7px 8px', fontStyle: 'italic', color: '#2563eb' }} colSpan={3}>
-                {numberToWords(amount)}
-              </td>
+            <tr>
+              <td style={cellLabel}>Amounts in words:</td>
+              <td style={cellValue} colSpan={3}>{numberToWords(amount)}</td>
             </tr>
           </tbody>
         </table>
 
         {/* Footer row: Tk box + For */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '16px', fontWeight: 700 }}>Tk.</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '15px', fontStyle: 'italic' }}>Tk.</span>
             <div style={{
-              border: '2px solid #222', padding: '6px 20px',
-              fontSize: '18px', fontWeight: 900, minWidth: '100px', textAlign: 'center',
-              background: '#f9fafb',
+              border: '1.5px solid #222', padding: '5px 18px',
+              fontSize: '17px', fontWeight: 800, minWidth: '90px', textAlign: 'center',
             }}>
               {formatCurrency(amount)}
             </div>
           </div>
-          <div style={{ fontSize: '14px', fontWeight: 700, textAlign: 'right' }}>
-            for : <span style={{ fontSize: '16px', fontWeight: 900 }}>{companyName}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', textAlign: 'right' }}>
+            {payment.invoice?.salesman?.name && (
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111', textTransform: 'uppercase' }}>
+                {payment.invoice.salesman.name}
+              </div>
+            )}
+            <div style={{ fontSize: '13px', fontStyle: 'italic' }}>
+              for : <span style={{ fontSize: '14px', fontWeight: 700 }}>{companyName}</span>
+            </div>
           </div>
         </div>
 
         {/* Thank you */}
-        <div style={{ textAlign: 'center', marginTop: '18px', paddingTop: '10px', borderTop: '1px solid #ddd' }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '1px', color: '#374151' }}>
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <span style={{ fontSize: '12px', fontStyle: 'italic', fontWeight: 700, letterSpacing: '0.5px' }}>
             THANK YOU FOR DOING BUSINESS WITH US
           </span>
         </div>

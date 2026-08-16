@@ -11,6 +11,29 @@ import { formatDate } from '../utils/format';
  * Notes box, thank-you footer) but sources its data from the invoice
  * being printed, not the reference document.
  */
+// PVC strip-curtain items (e.g. "PVC Strip Door Curtain" / "2mm Clear Water
+// Co") are billed by total width — slat count × each slat's width — rather
+// than the customer's requested opening width. The printed Length column
+// shows that total-width figure for these items instead of the raw width,
+// matching the "T. Width (in)" figure shown for the same products in the
+// quotation builder and on the quotation print page.
+const isPvcItem = (item) => {
+  const unit = (item.product?.unit || '').toLowerCase();
+  const category = (item.product?.category?.name || '').toLowerCase();
+  const name = (item.product?.name || '').toLowerCase();
+  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
+};
+
+const getDisplayWidth = (item) => {
+  const width = parseFloat(item.width) || 0;
+  if (!isPvcItem(item)) return width;
+  const slatSize = parseFloat(item.product?.product_size) || 8;
+  const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
+    ? parseInt(item.slats)
+    : (width > 0 ? Math.ceil(width / 5.85) : 0);
+  return Math.round(slats * slatSize * 100) / 100;
+};
+
 const ChallanPrintPage = () => {
   const { id } = useParams(); // invoice id
   const navigate = useNavigate();
@@ -278,7 +301,7 @@ const ChallanPrintPage = () => {
                           {firstItem.product?.product_code || firstItem.variant?.name || '-'}
                         </td>
                       )}
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.width}</td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.height}</td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.pcs}</td>
                       {isFirst && (
