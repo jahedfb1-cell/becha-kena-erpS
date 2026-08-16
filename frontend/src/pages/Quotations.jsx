@@ -2170,115 +2170,132 @@ const Quotations = () => {
                                               </td>
                                             )}
 
-                                            {/* Width - a per-piece item has no measurable width */}
-                                            {isPcsBlock ? <NotApplicableCell /> : (
-                                              <td className="cell-size" style={{ padding: '6px' }}>
-                                                <input
-                                                  type="number"
-                                                  inputMode="decimal"
-                                                  value={sizeRow.width}
-                                                  onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
-                                                  placeholder="Width"
-                                                  className="modern-form-control"
-                                                />
+                                            {/* Measurement Columns: Dynamic Row Pattern */}
+                                            {isPcsBlock ? (
+                                              <td colSpan={sectionHasPvc ? 6 : 3} className="cell-size cell-pcs-unified" style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '6px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                  <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>Quantity:</span>
+                                                  <input
+                                                    type="number"
+                                                    inputMode="numeric"
+                                                    min="1"
+                                                    value={sizeRow.pcs}
+                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                                    placeholder="Pcs"
+                                                    className="modern-form-control"
+                                                    style={{ width: '80px', textAlign: 'center', fontWeight: '700', fontSize: '13px', padding: '5px' }}
+                                                  />
+                                                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>PCS</span>
+                                                </div>
                                               </td>
+                                            ) : (
+                                              <>
+                                                {/* Width */}
+                                                <td className="cell-size" style={{ padding: '6px' }}>
+                                                  <input
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    value={sizeRow.width}
+                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
+                                                    placeholder="Width"
+                                                    className="modern-form-control"
+                                                  />
+                                                </td>
+
+                                                {/* Approx Pcs */}
+                                                {sectionHasPvc && (isPvcBlock ? (
+                                                  <td className="cell-size" style={{ padding: '6px' }}>
+                                                    <input
+                                                      type="text"
+                                                      value={pvcApproxSlats(sizeRow.width)}
+                                                      readOnly
+                                                      placeholder="Approx"
+                                                      className="modern-form-control"
+                                                      style={{ backgroundColor: '#f0f9ff', color: '#0284c7', textAlign: 'center', fontWeight: '700', fontSize: '12px', border: '1px solid #bae6fd' }}
+                                                    />
+                                                  </td>
+                                                ) : <NotApplicableCell />)}
+
+                                                {/* pcs of Slats */}
+                                                {sectionHasPvc && (isPvcBlock ? (
+                                                  <td className="cell-size" style={{ padding: '6px' }}>
+                                                    <input
+                                                      type="number"
+                                                      inputMode="numeric"
+                                                      value={(() => {
+                                                        const w = parseFloat(sizeRow.width) || 0;
+                                                        if (w <= 0) return '';
+                                                        if (sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '') {
+                                                          return sizeRow.slats;
+                                                        }
+                                                        return pvcSlatCount(w);
+                                                      })()}
+                                                      onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'slats', e.target.value)}
+                                                      placeholder="Slats"
+                                                      className="modern-form-control"
+                                                      style={{ textAlign: 'center', fontWeight: '700', border: '1.5px solid #0ea5e9', color: '#0369a1' }}
+                                                    />
+                                                  </td>
+                                                ) : <NotApplicableCell />)}
+
+                                                {/* T. Width (in) */}
+                                                {sectionHasPvc && (isPvcBlock ? (
+                                                  <td className="cell-size" style={{ padding: '6px' }}>
+                                                    <input
+                                                      type="text"
+                                                      value={(() => {
+                                                        const w = parseFloat(sizeRow.width) || 0;
+                                                        if (w <= 0) return '';
+                                                        const slatSize = parseFloat(block.product_size) || 8;
+                                                        const slatsCount = sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '' ? parseInt(sizeRow.slats) : pvcSlatCount(w);
+                                                        return (slatsCount || 0) * slatSize;
+                                                      })()}
+                                                      readOnly
+                                                      placeholder="T. Width"
+                                                      className="modern-form-control"
+                                                      style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '700', color: '#0f172a' }}
+                                                    />
+                                                  </td>
+                                                ) : <NotApplicableCell />)}
+
+                                                {/* Height */}
+                                                <td className="cell-size" style={{ padding: '6px' }}>
+                                                  <input
+                                                    type="number"
+                                                    inputMode="decimal"
+                                                    value={sizeRow.height}
+                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                                    placeholder="Height"
+                                                    className="modern-form-control"
+                                                  />
+                                                </td>
+
+                                                {/* Pcs */}
+                                                <td className="cell-size" style={{ padding: '6px' }}>
+                                                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                    <input
+                                                      type="number"
+                                                      inputMode="numeric"
+                                                      value={sizeRow.pcs}
+                                                      onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                                      placeholder="Pcs"
+                                                      className="modern-form-control"
+                                                      style={{ textAlign: 'center' }}
+                                                    />
+                                                    {block.sizes.length > 1 && (
+                                                      <button 
+                                                        type="button" 
+                                                        onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
+                                                        className="btn-action-circle btn-action-delete"
+                                                        style={{ padding: '4px 6px', fontSize: '12px' }}
+                                                      >
+                                                        🗑️
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                </td>
+                                              </>
                                             )}
-
-                                            {/* Approx Pcs - column exists if sectionHasPvc, but only carries a
-                                                real value on the section's actual PVC rows */}
-                                            {sectionHasPvc && (isPvcBlock ? (
-                                              <td className="cell-size" style={{ padding: '6px' }}>
-                                                <input
-                                                  type="text"
-                                                  value={pvcApproxSlats(sizeRow.width)}
-                                                  readOnly
-                                                  placeholder="Approx"
-                                                  className="modern-form-control"
-                                                  style={{ backgroundColor: '#f0f9ff', color: '#0284c7', textAlign: 'center', fontWeight: '700', fontSize: '12px', border: '1px solid #bae6fd' }}
-                                                />
-                                              </td>
-                                            ) : <NotApplicableCell />)}
-
-                                            {/* pcs of Slats - same: only meaningful, only editable, on PVC rows */}
-                                            {sectionHasPvc && (isPvcBlock ? (
-                                              <td className="cell-size" style={{ padding: '6px' }}>
-                                                <input
-                                                  type="number"
-                                                  inputMode="numeric"
-                                                  value={(() => {
-                                                    const w = parseFloat(sizeRow.width) || 0;
-                                                    if (w <= 0) return '';
-                                                    if (sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '') {
-                                                      return sizeRow.slats;
-                                                    }
-                                                    return pvcSlatCount(w);
-                                                  })()}
-                                                  onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'slats', e.target.value)}
-                                                  placeholder="Slats"
-                                                  className="modern-form-control"
-                                                  style={{ textAlign: 'center', fontWeight: '700', border: '1.5px solid #0ea5e9', color: '#0369a1' }}
-                                                />
-                                              </td>
-                                            ) : <NotApplicableCell />)}
-
-                                            {/* T. Width (in) - same: real slat-based total width only for PVC rows */}
-                                            {sectionHasPvc && (isPvcBlock ? (
-                                              <td className="cell-size" style={{ padding: '6px' }}>
-                                                <input
-                                                  type="text"
-                                                  value={(() => {
-                                                    const w = parseFloat(sizeRow.width) || 0;
-                                                    if (w <= 0) return '';
-                                                    const slatSize = parseFloat(block.product_size) || 8;
-                                                    const slatsCount = sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '' ? parseInt(sizeRow.slats) : pvcSlatCount(w);
-                                                    return (slatsCount || 0) * slatSize;
-                                                  })()}
-                                                  readOnly
-                                                  placeholder="T. Width"
-                                                  className="modern-form-control"
-                                                  style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '700', color: '#0f172a' }}
-                                                />
-                                              </td>
-                                            ) : <NotApplicableCell />)}
-
-                                            {/* Height - a per-piece item has no measurable height */}
-                                            {isPcsBlock ? <NotApplicableCell /> : (
-                                              <td className="cell-size" style={{ padding: '6px' }}>
-                                                <input
-                                                  type="number"
-                                                  inputMode="decimal"
-                                                  value={sizeRow.height}
-                                                  onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
-                                                  placeholder="Height"
-                                                  className="modern-form-control"
-                                                />
-                                              </td>
-                                            )}
-
-                                            {/* Pcs */}
-                                            <td className="cell-size" style={{ padding: '6px' }}>
-                                              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                                <input
-                                                  type="number"
-                                                  inputMode="numeric"
-                                                  value={sizeRow.pcs}
-                                                  onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
-                                                  placeholder="Pcs"
-                                                  className="modern-form-control"
-                                                  style={{ textAlign: 'center' }}
-                                                />
-                                                {block.sizes.length > 1 && (
-                                                  <button 
-                                                    type="button" 
-                                                    onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
-                                                    className="btn-action-circle btn-action-delete"
-                                                    style={{ padding: '4px 6px', fontSize: '12px' }}
-                                                  >
-                                                    🗑️
-                                                  </button>
-                                                )}
-                                              </div>
-                                            </td>
 
                                             {/* Total Billing (desktop-only) */}
                                             {sIdx === 0 && (
@@ -2309,71 +2326,73 @@ const Quotations = () => {
                                             {/* Block Actions */}
                                             <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                                <button 
-                                                  type="button" 
-                                                  onClick={() => addSizeRowToBlock(sec.id, block.id)} 
-                                                  className="btn-action-circle btn-action-add"
-                                                  title="Add Size Row"
-                                                  style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                                >
-                                                  ➕
-                                                </button>
+                                                {!isPcsBlock && (
+                                                  <button 
+                                                    type="button" 
+                                                    onClick={() => addSizeRowToBlock(sec.id, block.id)} 
+                                                    className="btn-action-circle btn-action-add"
+                                                    title="Add Size Row"
+                                                    style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                                  >
+                                                    ➕
+                                                  </button>
+                                                )}
                                                 <button 
                                                   type="button" 
                                                   onClick={() => {
-                                                    if (block.sizes.length > 1) {
+                                                    if (!isPcsBlock && block.sizes.length > 1) {
                                                       removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
                                                     } else {
                                                       removeProductBlock(sec.id, block.id);
                                                     }
                                                   }} 
                                                   className="btn-action-circle btn-action-delete"
-                                                  title={block.sizes.length > 1 ? "Delete Size Row" : "Delete Product Block"}
+                                                  title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
                                                   style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                                 >
                                                   🗑️
                                                 </button>
-                                                {sIdx === 0 && (
-                                                  <>
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => {
-                                                        setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
-                                                        setExcelPasteText('');
-                                                      }}
-                                                      style={{
-                                                        background: '#059669',
-                                                        color: '#ffffff',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        padding: '4px 7px',
-                                                        fontSize: '11px',
-                                                        fontWeight: 'bold',
-                                                        cursor: 'pointer'
-                                                      }}
-                                                      title="Paste Width, Height, Pcs from Excel"
-                                                    >
-                                                      📋 Excel
-                                                    </button>
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => setAiScanTargetBlock({ sectionId: sec.id, blockId: block.id })}
-                                                      style={{
-                                                        background: '#0891b2',
-                                                        color: '#ffffff',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        padding: '4px 7px',
-                                                        fontSize: '11px',
-                                                        fontWeight: 'bold',
-                                                        cursor: 'pointer'
-                                                      }}
-                                                      title="Scan handwritten sizes with AI"
-                                                    >
-                                                      🪄 AI Scan
-                                                    </button>
-                                                  </>
-                                                )}
+                                                {sIdx === 0 && !isPcsBlock && (
+                                                   <>
+                                                     <button
+                                                       type="button"
+                                                       onClick={() => {
+                                                         setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                                         setExcelPasteText('');
+                                                       }}
+                                                       style={{
+                                                         background: '#059669',
+                                                         color: '#ffffff',
+                                                         border: 'none',
+                                                         borderRadius: '6px',
+                                                         padding: '4px 7px',
+                                                         fontSize: '11px',
+                                                         fontWeight: 'bold',
+                                                         cursor: 'pointer'
+                                                       }}
+                                                       title="Paste Width, Height, Pcs from Excel"
+                                                     >
+                                                       📋 Excel
+                                                     </button>
+                                                     <button
+                                                       type="button"
+                                                       onClick={() => setAiScanTargetBlock({ sectionId: sec.id, blockId: block.id })}
+                                                       style={{
+                                                         background: '#0891b2',
+                                                         color: '#ffffff',
+                                                         border: 'none',
+                                                         borderRadius: '6px',
+                                                         padding: '4px 7px',
+                                                         fontSize: '11px',
+                                                         fontWeight: 'bold',
+                                                         cursor: 'pointer'
+                                                       }}
+                                                       title="AI Measure (OCR Bill/Slip Scan)"
+                                                     >
+                                                       📷 AI Scan
+                                                     </button>
+                                                   </>
+                                                 )}
                                               </div>
                                             </td>
                                           </tr>

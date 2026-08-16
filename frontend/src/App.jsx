@@ -27,6 +27,7 @@ import Settings from './pages/Settings';
 import QuotationPrintPage from './pages/QuotationPrintPage';
 import InvoicePrintPage from './pages/InvoicePrintPage';
 import ChallanPrintPage from './pages/ChallanPrintPage';
+import PvcChallanPrintPage from './pages/PvcChallanPrintPage';
 import MoneyReceiptPage from './pages/MoneyReceiptPage';
 
 function App() {
@@ -55,6 +56,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ChallanPrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/invoices/print/:id/pvc-challan"
+          element={
+            <ProtectedRoute>
+              <PvcChallanPrintPage />
             </ProtectedRoute>
           }
         />

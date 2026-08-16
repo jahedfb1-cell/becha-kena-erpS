@@ -72,13 +72,15 @@ export const itemColumnTitles = (columns, kind) =>
  * it scrolls out of view and leaves a row of numbers with nothing naming them.
  */
 const ItemLineHeader = ({ productCode, productName, kind, columns }) => {
+  const isPcs = kind === 'pcs';
+  const sizeColsCount = columns.filter(c => !['product', 'unit_price', 'billing', 'total', 'action'].includes(c)).length;
   const titles = itemColumnTitles(columns, kind);
 
   return (
     <>
       <tr className="block-product-row">
         <td
-          colSpan={titles.length}
+          colSpan={columns.length}
           style={{ padding: '8px 10px', background: '#f8fafc', borderTop: '2px solid #cbd5e1', borderBottom: '1px solid #e2e8f0' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -96,24 +98,47 @@ const ItemLineHeader = ({ productCode, productName, kind, columns }) => {
       </tr>
 
       <tr className="block-header-row">
-        {titles.map((title, idx) => (
-          <th
-            key={idx}
-            scope="col"
-            style={{
-              padding: '6px 8px',
-              fontSize: '11px',
-              fontWeight: '700',
-              textAlign: idx === 0 ? 'left' : 'center',
-              color: '#475569',
-              background: '#f1f5f9',
-              borderBottom: '1px solid #e2e8f0',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {title || ' '}
-          </th>
-        ))}
+        {isPcs ? (
+          <>
+            <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'left', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+              Product Code / Name *
+            </th>
+            <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+              Unit Price
+            </th>
+            <th scope="col" colSpan={sizeColsCount} style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#0369a1', background: '#e0f2fe', borderBottom: '1px solid #bae6fd', whiteSpace: 'nowrap' }}>
+              Quantity (Pcs / Set)
+            </th>
+            <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+              Total Pcs
+            </th>
+            <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+              Total Price
+            </th>
+            <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
+              Action
+            </th>
+          </>
+        ) : (
+          titles.map((title, idx) => (
+            <th
+              key={idx}
+              scope="col"
+              style={{
+                padding: '6px 8px',
+                fontSize: '11px',
+                fontWeight: '700',
+                textAlign: idx === 0 ? 'left' : 'center',
+                color: '#475569',
+                background: '#f1f5f9',
+                borderBottom: '1px solid #e2e8f0',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {title || ' '}
+            </th>
+          ))
+        )}
       </tr>
     </>
   );

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
+import { pvcSlatCount } from '../utils/billing';
 
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -49,9 +50,13 @@ const getDisplayWidth = (item) => {
   const width = parseFloat(item.width) || 0;
   if (!isPvcItem(item)) return width;
   const slatSize = parseFloat(item.product?.product_size) || 8;
+  // Falls back to the shared pvcSlatCount() rule (round up only past the
+  // 3/4-slat mark) rather than a plain Math.ceil, so an item whose slat
+  // count wasn't already saved on the record still bills the same width
+  // here as it would in the quotation builder or on the PVC Challan.
   const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
     ? parseInt(item.slats)
-    : (width > 0 ? Math.ceil(width / 5.85) : 0);
+    : pvcSlatCount(width);
   return Math.round(slats * slatSize * 100) / 100;
 };
 

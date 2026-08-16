@@ -3,22 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
-import { pvcSlatCount } from '../utils/billing';
+import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
 
 /**
- * Delivery Challan print page - design matches the reference "Dhaka Blinds"
- * challan layout exactly (company header, No/Date row, Bill To/Ship To
- * boxes, SL/Colour/Length/Height/Pcs/Quantity-Sq.Ft table with sizes
- * grouped under one product row, Received By/Thanking You signatures,
- * Notes box, thank-you footer) but sources its data from the invoice
- * being printed, not the reference document.
+ * PVC Challan print page - a second delivery-challan layout for the "PVC
+ * Strip Curtains" category, matching the reference PVC challan format
+ * (SL / Goods Description / Code / Pcs of Slats / T. Length / Height / Pcs /
+ * UOM - SQ.Ft) instead of the general Colour/T.Width/Height/Pcs table on the
+ * standard ChallanPrintPage.
+ *
+ * It prints the SAME delivery challan record (challan number, date, notes)
+ * as the standard challan - there is only ever one Delivery Challan per
+ * invoice - this route just renders it with the PVC-specific column set a
+ * PVC strip-curtain order needs (slat count and total slat length) instead
+ * of the generic ones.
  */
-// PVC strip-curtain items (e.g. "PVC Strip Door Curtain" / "2mm Clear Water
-// Co") are billed by total width — slat count × each slat's width — rather
-// than the customer's requested opening width. The printed Length column
-// shows that total-width figure for these items instead of the raw width,
-// matching the "T. Width (in)" figure shown for the same products in the
-// quotation builder and on the quotation print page.
 const isPvcItem = (item) => {
   const unit = (item.product?.unit || '').toLowerCase();
   const category = (item.product?.category?.name || '').toLowerCase();
@@ -26,21 +25,22 @@ const isPvcItem = (item) => {
   return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
 };
 
-const getDisplayWidth = (item) => {
+const getSlatCount = (item) => {
+  if (item.slats !== undefined && item.slats !== null && item.slats !== '') {
+    return parseInt(item.slats);
+  }
   const width = parseFloat(item.width) || 0;
-  if (!isPvcItem(item)) return width;
-  const slatSize = parseFloat(item.product?.product_size) || 8;
-  // Falls back to the shared pvcSlatCount() rule (round up only past the
-  // 3/4-slat mark) rather than a plain Math.ceil, so an item whose slat
-  // count wasn't already saved on the record still bills the same width
-  // here as it would in the quotation builder or on the PVC Challan.
-  const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
-    ? parseInt(item.slats)
-    : pvcSlatCount(width);
-  return Math.round(slats * slatSize * 100) / 100;
+  return width > 0 ? pvcSlatCount(width) : 0;
 };
 
-const ChallanPrintPage = () => {
+const getTotalLength = (item) => {
+  const width = parseFloat(item.width) || 0;
+  const slatSize = parseFloat(item.product?.product_size) || 8;
+  const slats = getSlatCount(item);
+  return Math.round(slats * slatSize * 100) / 100 || pvcBillingWidth(width, slatSize);
+};
+
+const PvcChallanPrintPage = () => {
   const { id } = useParams(); // invoice id
   const navigate = useNavigate();
   const [invoice, setInvoice] = useState(null);
@@ -59,11 +59,9 @@ const ChallanPrintPage = () => {
       } else {
         setError('Invoice not found');
       }
-      // Sequential rather than parallel on purpose: which brand's profile
-      // to load is only known once the invoice has come back.
       setCompanyProfile(await fetchProfileForRecord(api, record));
     } catch (err) {
-      console.error('Error loading challan print data:', err);
+      console.error('Error loading PVC challan print data:', err);
       setError('Failed to load invoice');
     } finally {
       setLoading(false);
@@ -78,21 +76,9 @@ const ChallanPrintPage = () => {
   useEffect(() => {
     if (invoice) {
       const rawCustomerName = invoice.customer?.company_name || invoice.customer?.name || 'Customer';
-      
-      const categories = Array.from(new Set(
-        (invoice.items || [])
-          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
-          .filter(Boolean)
-      ));
-      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
-
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-
-      // The PDF's filename comes from document.title, so it has to name
-      // the brand the challan was raised under, not the app's default.
       const brandName = brandFields(companyProfile).footerName;
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Delivery Challan _ by ${clean(brandName)}`;
-      document.title = customTitle;
+      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
+      document.title = `${clean(rawCustomerName)} _ PVC Challan _ by ${clean(brandName)}`;
 
       return () => {
         document.title = 'Dhakablinds-Ims';
@@ -119,7 +105,7 @@ const ChallanPrintPage = () => {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif' }}>
-        <h2>Loading Delivery Challan...</h2>
+        <h2>Loading PVC Challan...</h2>
       </div>
     );
   }
@@ -138,12 +124,11 @@ const ChallanPrintPage = () => {
   const challan = invoice.delivery_challans?.[0] || null;
   const customer = invoice.customer || invoice.quotation?.customer || {};
   const quotation = invoice.quotation || {};
-  const items = quotation.items || invoice.items || [];
+  const allItems = quotation.items || invoice.items || [];
+  const items = allItems.filter(isPvcItem);
   const brand = brandFields(companyProfile);
-  const logoSrc = brand.logoSrc;
   const shipToAddress = challan?.delivery_address || quotation.delivery_address || customer?.address || 'Dhaka, Bangladesh';
 
-  // No challan has been generated for this invoice yet.
   if (!challan) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif', gap: '16px' }}>
@@ -164,9 +149,9 @@ const ChallanPrintPage = () => {
     );
   }
 
-  // Group items so a product with several sizes shows its description
-  // and colour code once (rowSpan) with one merged Quantity/Sq.Ft total,
-  // matching how the invoice/quotation print pages already group rows.
+  // Same grouping rule as the standard challan: one product+colour+price
+  // combination gets one description/code row with each of its sizes
+  // listed underneath.
   const buildGroups = (rawItems) => {
     const map = new Map();
     rawItems.forEach(item => {
@@ -187,8 +172,8 @@ const ChallanPrintPage = () => {
   return (
     <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
-      <div className="no-print" style={{ maxWidth: '850px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>🚚 Delivery Challan: {challan.challan_number}</div>
+      <div className="no-print" style={{ maxWidth: '900px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>🧵 PVC Challan: {challan.challan_number}</div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             onClick={handlePrint}
@@ -196,14 +181,12 @@ const ChallanPrintPage = () => {
           >
             <span>🖨️</span> Print PDF
           </button>
-          {items.some(isPvcItem) && (
-            <button
-              onClick={() => navigate(`/invoices/print/${id}/pvc-challan`)}
-              style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#7c3aed', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              🧵 PVC Challan
-            </button>
-          )}
+          <button
+            onClick={() => navigate(`/invoices/print/${id}/challan`)}
+            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#059669', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            🚚 Standard Challan
+          </button>
           <button
             onClick={() => navigate(`/invoices/print/${id}`)}
             style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -214,7 +197,7 @@ const ChallanPrintPage = () => {
       </div>
 
       {/* ── PRINTABLE DOCUMENT CANVAS ── */}
-      <div style={{ maxWidth: '850px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)' }} className="printable-area">
+      <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)' }} className="printable-area">
 
         {/* HEADER: company name, subtitle, contact lines */}
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
@@ -234,7 +217,7 @@ const ChallanPrintPage = () => {
         </div>
 
         <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', letterSpacing: '6px', textDecoration: 'underline', margin: '12px 0 16px', color: '#000' }}>
-          DELIVERY CHALLAN
+          PVC CHALLAN
         </div>
 
         {/* No / Date row */}
@@ -264,32 +247,32 @@ const ChallanPrintPage = () => {
           </div>
         </div>
 
-        {/* Items table */}
+        {/* Items table - PVC-specific columns */}
         <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
-              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}></th>
-              <th style={{ width: '75px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Colour</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>T. Width (in)</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Height</th>
+              <th style={{ width: '40px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
+              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Goods Description</th>
+              <th style={{ width: '80px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Code</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs of Slats</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>T. Length</th>
+              <th style={{ width: '60px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Height</th>
               <th style={{ width: '50px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs</th>
-              <th style={{ width: '110px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Quantity / Sq.Ft</th>
+              <th style={{ width: '90px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>UOM - SQ.Ft</th>
             </tr>
           </thead>
           <tbody>
             {groups.length === 0 ? (
               <tr>
-                <td colSpan="7" style={{ padding: '20px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>No line items found.</td>
+                <td colSpan="8" style={{ padding: '20px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>No line items found.</td>
               </tr>
             ) : (
               groups.map((rows, groupIdx) => {
                 const firstItem = rows[0];
                 const span = rows.length;
                 const groupTotalSqft = rows.reduce((sum, item) => {
-                  const w = parseFloat(item.width) || 0;
                   const h = parseFloat(item.height) || 0;
-                  const fallback = Math.round(((w * h) / 144) * 100) / 100;
+                  const fallback = Math.round(((getTotalLength(item) * h) / 144) * 100) / 100;
                   return sum + (parseFloat(item.billed_sqft) || fallback);
                 }, 0);
 
@@ -299,12 +282,12 @@ const ChallanPrintPage = () => {
                     <tr key={item.id}>
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                          {groupIdx + 1}
+                          {String(groupIdx + 1).padStart(2, '0')}
                         </td>
                       )}
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
-                          <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
+                          <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'PVC Strip Curtain'}</strong>
                           {(firstItem.notes || firstItem.product?.details) ? (
                             <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
                               {firstItem.notes || firstItem.product.details}
@@ -314,15 +297,16 @@ const ChallanPrintPage = () => {
                       )}
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                          {firstItem.product?.product_code || firstItem.variant?.name || '-'}
+                          {firstItem.variant?.name || firstItem.product?.product_code || '-'}
                         </td>
                       )}
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getSlatCount(item)}</td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getTotalLength(item)}</td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.height}</td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.pcs}</td>
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                          {groupTotalSqft.toFixed(2)} Square feet
+                          {groupTotalSqft.toFixed(2)}
                         </td>
                       )}
                     </tr>
@@ -348,9 +332,9 @@ const ChallanPrintPage = () => {
 
         {/* Notes */}
         <div style={{ fontSize: '12px', marginBottom: '16px' }}>
-          <strong>NOTES:</strong>
+          <strong>NOTES:</strong> {brand.footerName}
           <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', minHeight: '30px', marginTop: '4px', padding: '6px 10px' }}>
-            {challan.notes || ''}
+            {challan.notes || 'Goods Received in Full Quantity and Good Conditions.'}
           </div>
         </div>
 
@@ -381,4 +365,4 @@ const ChallanPrintPage = () => {
   );
 };
 
-export default ChallanPrintPage;
+export default PvcChallanPrintPage;

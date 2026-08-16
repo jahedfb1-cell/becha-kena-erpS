@@ -27,6 +27,8 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
   }, [isOpen, challan?.brand_id]);
 
   const brand = brandFields(companyProfile);
+  const invoice = challan.invoice || {};
+  const customer = challan.customer || invoice.customer || {};
 
   React.useEffect(() => {
     if (challan) {
