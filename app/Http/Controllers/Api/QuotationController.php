@@ -139,65 +139,88 @@ class QuotationController extends Controller
     public function store(QuotationRequest $request): JsonResponse
     {
         $user = $request->user();
+        $status = $request->get('status', 'quotation');
 
-        return DB::transaction(function () use ($request, $user) {
-            $quotationNumber = $this->quotationService->generateQuotationNumber();
-            $status = $request->get('status', 'quotation');
+        try {
+            return DB::transaction(function () use ($request, $user, $status) {
+                $quotationNumber = $this->quotationService->generateQuotationNumber();
 
-            $quotation = Quotation::create([
-                'quotation_number'   => $quotationNumber,
-                'customer_id'        => $request->customer_id,
-                'salesman_id'        => $request->get('salesman_id', $user->id),
-                'status'             => $status,
-                'convenience_charge' => $request->get('convenience_charge', 0),
-                'other_charge'       => $request->get('other_charge', 0),
-                'other_charge_label' => $request->get('other_charge_label', null),
-                'vat_percentage'     => $request->get('vat_percentage', 0),
-                'discount_type'      => $request->get('discount_type', 'flat'),
-                'discount_value'     => $request->get('discount_value', 0),
-                'note'               => $request->note,
-                'delivery_address'   => $request->delivery_address,
-                'created_by'         => $user->id,
-                'approved_by'        => $status === 'approved' ? $user->id : null,
-                'approved_at'        => $status === 'approved' ? now() : null,
+                $quotation = Quotation::create([
+                    'quotation_number'   => $quotationNumber,
+                    'customer_id'        => $request->customer_id,
+                    'salesman_id'        => $request->get('salesman_id', $user->id),
+                    'status'             => $status,
+                    'convenience_charge' => $request->get('convenience_charge', 0),
+                    'other_charge'       => $request->get('other_charge', 0),
+                    'other_charge_label' => $request->get('other_charge_label', null),
+                    'vat_percentage'     => $request->get('vat_percentage', 0),
+                    'discount_type'      => $request->get('discount_type', 'flat'),
+                    'discount_value'     => $request->get('discount_value', 0),
+                    'note'               => $request->note,
+                    'delivery_address'   => $request->delivery_address,
+                    'created_by'         => $user->id,
+                    'approved_by'        => $status === 'approved' ? $user->id : null,
+                    'approved_at'        => $status === 'approved' ? now() : null,
+                ]);
+
+                // Save line items & get subtotal
+                $subtotal = $this->quotationService->processAndSaveItems($quotation, $request->items, $user->id);
+
+                // Summary calculations
+                $summary = $this->quotationService->calculateSummary(
+                    $subtotal,
+                    (float) $quotation->convenience_charge,
+                    (float) $quotation->other_charge,
+                    (float) $quotation->vat_percentage,
+                    $quotation->discount_type,
+                    (float) $quotation->discount_value
+                );
+
+                $quotation->update($summary);
+
+                // If direct order created with approved status, generate purchase entries
+                if ($status === 'approved') {
+                    $this->quotationService->createPurchaseEntries($quotation, $user->id);
+                    $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'approved');
+                }
+
+                AuditLog::record(
+                    $user->id,
+                    $user->name,
+                    'create',
+                    Quotation::class,
+                    $quotation->id,
+                    null,
+                    $quotation->load('items')->toArray(),
+                    "Created {$status} {$quotation->quotation_number}"
+                );
+                return $this->createdResponse(
+                    $quotation->load(['items.product', 'items.variant', 'items.supplier', 'customer', 'salesman']),
+                    "Record {$quotation->quotation_number} created successfully."
+                );
+            });
+        } catch (\Throwable $e) {
+            // Standardized failure path — see the matching catch in approve().
+            // A "Direct Confirmed Order" (status=approved) goes through this
+            // same purchase-entry auto-creation step, so it needs the same
+            // safety net: the transaction already rolled back everything,
+            // but the salesman still needs to see why nothing was created.
+            \Illuminate\Support\Facades\Log::error('Quotation creation failed', [
+                'status' => $status,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            // Save line items & get subtotal
-            $subtotal = $this->quotationService->processAndSaveItems($quotation, $request->items, $user->id);
+            $reason = $status === 'approved'
+                ? "could not auto-create the purchase entry ({$e->getMessage()})"
+                : $e->getMessage();
 
-            // Summary calculations
-            $summary = $this->quotationService->calculateSummary(
-                $subtotal,
-                (float) $quotation->convenience_charge,
-                (float) $quotation->other_charge,
-                (float) $quotation->vat_percentage,
-                $quotation->discount_type,
-                (float) $quotation->discount_value
+            return $this->errorResponse(
+                "Failed to save the order: {$reason}. No changes were saved.",
+                500
             );
-
-            $quotation->update($summary);
-
-            // If direct order created with approved status, generate purchase entries
-            if ($status === 'approved') {
-                $this->quotationService->createPurchaseEntries($quotation, $user->id);
-                $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'approved');
-            }
-
-            AuditLog::record(
-                $user->id,
-                $user->name,
-                'create',
-                Quotation::class,
-                $quotation->id,
-                null,
-                $quotation->load('items')->toArray(),
-                "Created {$status} {$quotation->quotation_number}"
-            );
-            return $this->createdResponse(
-                $quotation->load(['items.product', 'items.variant', 'items.supplier', 'customer', 'salesman']),
-                "Record {$quotation->quotation_number} created successfully."
-            );
-        });
+        }
     }
 
     /**
@@ -406,35 +429,58 @@ class QuotationController extends Controller
         $user = $request->user();
         $oldSnapshot = $quotation->toArray();
 
-        return DB::transaction(function () use ($quotation, $user, $oldSnapshot) {
-            $quotation->update([
-                'status'      => 'approved',
-                'approved_by' => $user->id,
-                'approved_at' => now(),
+        try {
+            return DB::transaction(function () use ($quotation, $user, $oldSnapshot) {
+                $quotation->update([
+                    'status'      => 'approved',
+                    'approved_by' => $user->id,
+                    'approved_at' => now(),
+                ]);
+
+                // Auto-create Purchase Entries & Supplier Ledger credits
+                $this->quotationService->createPurchaseEntries($quotation, $user->id);
+
+                AuditLog::record(
+                    $user->id,
+                    $user->name,
+                    'approve',
+                    Quotation::class,
+                    $quotation->id,
+                    $oldSnapshot,
+                    $quotation->toArray(),
+                    "Approved quotation {$quotation->quotation_number}"
+                );
+
+                // Trigger Notification Event: Order Approved -> Notify Salesman + Suppliers
+                $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'approved');
+
+                return $this->successResponse(
+                    $quotation->load(['items', 'purchaseEntries', 'customer']),
+                    "Quotation {$quotation->quotation_number} approved successfully and purchase entries generated."
+                );
+            });
+        } catch (\Throwable $e) {
+            // Standardized failure path: the DB transaction already rolled
+            // back everything (the order stays un-approved, no partial
+            // Purchase Entry / Supplier Ledger rows survive), but that alone
+            // is invisible to the salesman — without this they'd either see
+            // a generic 500 page or, worse, nothing at all. Logged here for
+            // whoever checks storage/logs/laravel.log, and the real reason
+            // is also handed back in the response so the "Approve Order &
+            // Route Purchase Entry" button's error alert can show it directly.
+            \Illuminate\Support\Facades\Log::error('Order approval failed while auto-creating purchase entries', [
+                'quotation_id' => $quotation->id,
+                'quotation_number' => $quotation->quotation_number,
+                'user_id' => $user->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            // Auto-create Purchase Entries & Supplier Ledger credits
-            $this->quotationService->createPurchaseEntries($quotation, $user->id);
-
-            AuditLog::record(
-                $user->id,
-                $user->name,
-                'approve',
-                Quotation::class,
-                $quotation->id,
-                $oldSnapshot,
-                $quotation->toArray(),
-                "Approved quotation {$quotation->quotation_number}"
+            return $this->errorResponse(
+                "Order approval failed: could not auto-create the purchase entry ({$e->getMessage()}). No changes were saved — the order is still pending approval.",
+                500
             );
-
-            // Trigger Notification Event: Order Approved -> Notify Salesman + Suppliers
-            $this->notificationService->notifyOrderApprovedOrRejected($quotation, 'approved');
-
-            return $this->successResponse(
-                $quotation->load(['items', 'purchaseEntries', 'customer']),
-                "Quotation {$quotation->quotation_number} approved successfully and purchase entries generated."
-            );
-        });
+        }
     }
 
     /**

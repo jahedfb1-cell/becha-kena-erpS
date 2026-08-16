@@ -208,7 +208,7 @@ const Orders = () => {
   const handleApprove = async (id) => {
     try {
       await api.post(`/quotations/${id}/approve`);
-      alert('Order approved successfully. Supplier Purchase Entries created.');
+      alert('Order approved. Supplier Purchase Entries created and marked Purchased — Generate Invoice whenever ready.');
       loadOrderDetails(id);
       fetchOrders();
     } catch (err) {

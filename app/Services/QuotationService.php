@@ -313,6 +313,13 @@ class QuotationService
                 $totalCost = round((float) $item->cost_price * (float) $item->billed_sqft, 2);
                 $groupTotalCost += $totalCost;
 
+                // Auto-complete on approval rather than leaving the entry
+                // "pending" for someone to mark received by hand later — the
+                // supplier delivery step isn't tracked separately in this
+                // system, so there's no real moment for a human to flip this
+                // switch. Once auto-created, the Purchase Entry is
+                // immediately ready for its Invoice to be generated from
+                // Orders whenever the salesman chooses to.
                 PurchaseEntry::create([
                     'purchase_number'    => $purchaseNumber,
                     'quotation_id'       => $quotation->id,
@@ -327,7 +334,9 @@ class QuotationService
                     'cost_price'         => $item->cost_price,
                     'total_cost'         => $totalCost,
                     'purchase_date'      => now()->toDateString(),
-                    'status'             => 'pending',
+                    'status'             => 'received',
+                    'received_at'        => now(),
+                    'received_by'        => $userId,
                     'created_by'         => $userId,
                 ]);
             }
@@ -413,7 +422,16 @@ class QuotationService
             $groupTotalCost = 0;
 
             foreach ($group as $pe) {
-                $pe->update(['is_reversed' => false, 'status' => 'pending']);
+                // Restored back to 'received', matching what createPurchaseEntries()
+                // now sets on a fresh approval — a reversed entry was already
+                // auto-completed before it got reversed, so restoring it
+                // shouldn't reintroduce a manual "mark received" step.
+                $pe->update([
+                    'is_reversed' => false,
+                    'status'      => 'received',
+                    'received_at' => $pe->received_at ?? now(),
+                    'received_by' => $pe->received_by ?? $userId,
+                ]);
                 $groupTotalCost += (float) $pe->total_cost;
             }
 
