@@ -281,33 +281,54 @@ const MoneyReceiptPage = () => {
         }}
       >
         {/* Header: logo + address block, centered, no rule beneath it */}
-        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          {/* Centered Receipt Verification QR Code */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent(window.location.origin + '/payments/' + payment.id + '/receipt')}`}
-              alt="Receipt Verification QR"
-              style={{ width: '70px', height: '70px', display: 'block' }}
-            />
-          </div>
-
+        <div style={{ textAlign: 'center', marginBottom: '8px', position: 'relative' }}>
           {companyLogoUrl ? (
-            <img
-              src={companyLogoUrl}
-              alt={companyName}
-              style={{
-                width: '100%',
-                maxWidth: '100%',
-                height: 'auto',
-                maxHeight: '120px',
-                objectFit: 'contain',
-                display: 'block',
-                margin: '0 auto'
-              }}
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
+            <div style={{ position: 'relative', display: 'block', width: '100%' }}>
+              <img
+                src={companyLogoUrl}
+                alt={companyName}
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  height: 'auto',
+                  maxHeight: '120px',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto'
+                }}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              {/* Overlay QR Code in the middle whitespace of the header banner */}
+              <div style={{
+                position: 'absolute',
+                top: '46%',
+                left: '51.5%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#fff',
+                padding: '2px',
+                border: '1px solid #ddd',
+                borderRadius: '2px'
+              }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent(window.location.origin + '/payments/' + payment.id + '/receipt')}`}
+                  alt="Receipt Verification QR"
+                  style={{ width: '60px', height: '60px', display: 'block' }}
+                />
+              </div>
+            </div>
           ) : (
             <>
+              {/* Centered QR Code fallback for text layout */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent(window.location.origin + '/payments/' + payment.id + '/receipt')}`}
+                  alt="Receipt Verification QR"
+                  style={{ width: '70px', height: '70px', display: 'block' }}
+                />
+              </div>
               <div style={{ fontSize: '20px', fontWeight: 900, marginBottom: '4px' }}>{companyName}</div>
               {companyAddress && <div style={{ fontSize: '11px' }}>{companyAddress}</div>}
               {companyPhone && <div style={{ fontSize: '11px' }}>{companyPhone}</div>}
