@@ -542,15 +542,19 @@ const InvoicePrintPage = () => {
               const optionLabel = group.optionLabel;
               const isSelectedChoice = firstItem && firstItem.is_selected !== false;
 
+              // Both fallbacks use getDisplayWidth() rather than the raw
+              // item width, so a PVC row's total-width figure (what the
+              // T. Width column actually shows) drives the sq.ft math here
+              // too, not the doorway width.
               const groupTotalSqft = group.rows.reduce((sum, e) => {
-                const w = parseFloat(e.item.width) || 0;
+                const w = getDisplayWidth(e.item);
                 const h = parseFloat(e.item.height) || 0;
                 const fallback = Math.round(((w * h) / 144) * 100) / 100;
                 return sum + (parseFloat(e.item.billed_sqft) || fallback);
               }, 0);
 
               const groupTotalAmount = group.rows.reduce((sum, e) => {
-                const w = parseFloat(e.item.width) || 0;
+                const w = getDisplayWidth(e.item);
                 const h = parseFloat(e.item.height) || 0;
                 const fallbackSqft = Math.round(((w * h) / 144) * 100) / 100;
                 const billedSqft = parseFloat(e.item.billed_sqft) || fallbackSqft;

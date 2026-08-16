@@ -286,8 +286,11 @@ const ChallanPrintPage = () => {
               groups.map((rows, groupIdx) => {
                 const firstItem = rows[0];
                 const span = rows.length;
+                // getDisplayWidth() rather than the raw item width, so a
+                // PVC row's total-width figure drives the sq.ft math here
+                // too, not the doorway width.
                 const groupTotalSqft = rows.reduce((sum, item) => {
-                  const w = parseFloat(item.width) || 0;
+                  const w = getDisplayWidth(item);
                   const h = parseFloat(item.height) || 0;
                   const fallback = Math.round(((w * h) / 144) * 100) / 100;
                   return sum + (parseFloat(item.billed_sqft) || fallback);

@@ -5,6 +5,27 @@ import { pvcSlatCount } from '../utils/billing';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
+// PVC strip-curtain items are billed by total width — slat count × each
+// slat's width — rather than the customer's requested opening width. Used
+// to keep every sq.ft/total fallback in this modal consistent with the
+// T. Width figure the detailed table itself shows for these rows.
+const isPvcItem = (item) => {
+  const unit = (item.product?.unit || item.unit || '').toLowerCase();
+  const category = (item.product?.category?.name || item.category_name || '').toLowerCase();
+  const name = (item.product?.name || item.product_name || '').toLowerCase();
+  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
+};
+
+const getDisplayWidth = (item) => {
+  const width = parseFloat(item.width) || 0;
+  if (!isPvcItem(item)) return width;
+  const slatSize = parseFloat(item.product?.product_size || item.product_size) || 8;
+  const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
+    ? parseInt(item.slats)
+    : pvcSlatCount(width);
+  return Math.round(slats * slatSize * 100) / 100;
+};
+
 const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' }) => {
   const [logoSrc, setLogoSrc] = useState(DEMO_LOGO);
   const [companyProfile, setCompanyProfile] = useState(null);
@@ -365,15 +386,18 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                   const optionLabel = group.optionLabel;
                   const isSelectedChoice = firstItem && firstItem.is_selected !== false;
 
+                  // Both fallbacks use getDisplayWidth() rather than the raw
+                  // item width, so a PVC row's total-width figure drives
+                  // the sq.ft math here too, not the doorway width.
                   const groupTotalSqft = group.rows.reduce((sum, e) => {
-                    const w = parseFloat(e.item.width) || 0;
+                    const w = getDisplayWidth(e.item);
                     const h = parseFloat(e.item.height) || 0;
                     const fallback = Math.round(((w * h) / 144) * 100) / 100;
                     return sum + (parseFloat(e.item.billed_sqft) || fallback);
                   }, 0);
 
                   const groupTotalAmount = group.rows.reduce((sum, e) => {
-                    const w = parseFloat(e.item.width) || 0;
+                    const w = getDisplayWidth(e.item);
                     const h = parseFloat(e.item.height) || 0;
                     const fallbackSqft = Math.round(((w * h) / 144) * 100) / 100;
                     const billedSqft = parseFloat(e.item.billed_sqft) || fallbackSqft;

@@ -5,6 +5,27 @@ import { pvcSlatCount } from '../utils/billing';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
+// PVC strip-curtain items are billed by total width — slat count × each
+// slat's width — rather than the customer's requested opening width. Used
+// to keep every sq.ft/total fallback in this modal consistent with the
+// T. Width figure the detailed table itself shows for these rows.
+const isPvcItem = (item) => {
+  const unit = (item.product?.unit || item.unit || '').toLowerCase();
+  const category = (item.product?.category?.name || item.category_name || '').toLowerCase();
+  const name = (item.product?.name || item.product_name || '').toLowerCase();
+  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
+};
+
+const getDisplayWidth = (item) => {
+  const width = parseFloat(item.width) || 0;
+  if (!isPvcItem(item)) return width;
+  const slatSize = parseFloat(item.product?.product_size || item.product_size) || 8;
+  const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
+    ? parseInt(item.slats)
+    : pvcSlatCount(width);
+  return Math.round(slats * slatSize * 100) / 100;
+};
+
 const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed', isOrderPrint = false }) => {
   const [logoSrc, setLogoSrc] = useState(DEMO_LOGO);
   const [companyProfile, setCompanyProfile] = useState(null);
@@ -52,7 +73,10 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
     if (!rawItems || rawItems.length === 0) return 0;
     return rawItems.reduce((sum, item) => {
       if (isOrder || (item.is_selected !== false && item.is_enabled_for_print !== false && item.is_enabled_for_print !== 0 && item.is_enabled_for_print !== '0')) {
-        const w = parseFloat(item.width) || 0;
+        // getDisplayWidth() rather than the raw item width, so a PVC row's
+        // total-width figure drives this fallback the same way it drives
+        // the printed T. Width column.
+        const w = getDisplayWidth(item);
         const h = parseFloat(item.height) || 0;
         const pcs = parseInt(item.pcs) || 1;
         const actualSqft = Math.round(((w * h) / 144) * 100) / 100;
@@ -95,7 +119,11 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
   const items = isOrder
     ? rawItems
     : rawItems.filter(i => (i.is_enabled_for_print !== false && i.is_enabled_for_print !== 0 && i.is_enabled_for_print !== '0'));
-  
+
+  // Whether the extra "T. Width" column shows at all - only meaningful once
+  // a PVC item is anywhere in the list, same rule the quotation builder uses.
+  const hasPvc = items.some(isPvcItem);
+
   const uniqueSections = new Set(rawItems.map(i => i.section_name).filter(Boolean));
   const hasMultipleSectionsOrOptions = rawItems.some(i => i.option_group_id || i.is_optional) || 
     uniqueSections.size > 1 || 
@@ -494,15 +522,18 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                   const optionLabel = group.optionLabel;
                   const isSelectedChoice = firstItem && firstItem.is_selected !== false;
 
+                  // Both fallbacks use getDisplayWidth() rather than the raw
+                  // item width, so a PVC row's total-width figure drives
+                  // the sq.ft math here too, not the doorway width.
                   const groupTotalSqft = group.rows.reduce((sum, e) => {
-                    const w = parseFloat(e.item.width) || 0;
+                    const w = getDisplayWidth(e.item);
                     const h = parseFloat(e.item.height) || 0;
                     const fallback = Math.round(((w * h) / 144) * 100) / 100;
                     return sum + (parseFloat(e.item.billed_sqft) || fallback);
                   }, 0);
 
                   const groupTotalAmount = group.rows.reduce((sum, e) => {
-                    const w = parseFloat(e.item.width) || 0;
+                    const w = getDisplayWidth(e.item);
                     const h = parseFloat(e.item.height) || 0;
                     const fallbackSqft = Math.round(((w * h) / 144) * 100) / 100;
                     const billedSqft = parseFloat(e.item.billed_sqft) || fallbackSqft;

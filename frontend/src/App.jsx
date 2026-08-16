@@ -25,6 +25,7 @@ import DatabaseBackup from './pages/DatabaseBackup';
 import Settings from './pages/Settings';
 
 import QuotationPrintPage from './pages/QuotationPrintPage';
+import PvcQuotationPrintPage from './pages/PvcQuotationPrintPage';
 import InvoicePrintPage from './pages/InvoicePrintPage';
 import ChallanPrintPage from './pages/ChallanPrintPage';
 import PvcChallanPrintPage from './pages/PvcChallanPrintPage';
@@ -40,6 +41,14 @@ function App() {
           element={
             <ProtectedRoute>
               <QuotationPrintPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/quotations/print/:id/pvc-quotation"
+          element={
+            <ProtectedRoute>
+              <PvcQuotationPrintPage />
             </ProtectedRoute>
           }
         />

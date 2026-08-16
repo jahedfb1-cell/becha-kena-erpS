@@ -16,7 +16,8 @@ import ItemLineHeader, { unitKindOf } from '../components/ItemLineHeader';
 // The order item-builder columns, in render order. Unlike the quotation
 // builder this table has no Approx Pcs / pcs of Slats columns, so it passes its
 // own list rather than sharing the quotation one.
-const ORDER_COLUMNS = ['product', 'unit_price', 'width', 'twidth', 'height', 'pcs', 'billing', 'total', 'action'];
+const ORDER_COLUMNS = ['unit_price', 'width', 'height', 'pcs', 'billing', 'total', 'action'];
+const ORDER_COLUMNS_WITH_PVC = ['unit_price', 'width', 'twidth', 'height', 'pcs', 'billing', 'total', 'action'];
 import CustomerModal from '../components/CustomerModal';
 import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
@@ -1871,6 +1872,83 @@ const Orders = () => {
                           || (block.category_name || '').toLowerCase().includes('pvc')
                           || (block.product_name || '').toLowerCase().includes('pvc')
                           || (block.product_name || '').toLowerCase().includes('clear water');
+                          
+                        const columnTitles = isPvcBlock ? ORDER_COLUMNS_WITH_PVC : ORDER_COLUMNS;
+
+                        const changeProductUI = productChangeBlockId === block.id ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <select
+                              value={block.product_id || ''}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleBlockChange(sec.id, block.id, 'product_id', e.target.value);
+                                  setProductChangeBlockId(null);
+                                  setProductChangeQuery('');
+                                }
+                              }}
+                              className="modern-form-control"
+                              style={{ fontWeight: '600', fontSize: '12px', padding: '6px', minWidth: '150px' }}
+                            >
+                              <option value="">-- Choose Product --</option>
+                              {products.map(p => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.product_code ? `(${p.product_code.toUpperCase()})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                type="text"
+                                placeholder="Search name/code..."
+                                value={productChangeQuery}
+                                onChange={(e) => setProductChangeQuery(e.target.value)}
+                                className="modern-form-control"
+                                style={{ fontSize: '11px', padding: '5px 8px', width: '130px' }}
+                              />
+                              {productChangeQuery.trim() !== '' && (
+                                <div className="search-dropdown-list" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', maxHeight: '200px', overflowY: 'auto' }}>
+                                  {filteredProductsForChange.length === 0 ? (
+                                    <div className="dropdown-item empty" style={{ padding: '8px', fontSize: '12px', color: '#94a3b8' }}>No matching products</div>
+                                  ) : (
+                                    filteredProductsForChange.map(p => (
+                                      <div
+                                        key={p.id}
+                                        className="dropdown-item"
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          handleBlockChange(sec.id, block.id, 'product_id', p.id);
+                                          setProductChangeBlockId(null);
+                                          setProductChangeQuery('');
+                                        }}
+                                        style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                                      >
+                                        <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{p.name}</div>
+                                        <div style={{ fontSize: '10px', color: '#64748b' }}>Code: {p.product_code || 'N/A'} {p.unit ? `| ${p.unit}` : ''}</div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setProductChangeBlockId(null)}
+                              style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
+                            style={{ fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Click to change to another product"
+                          >
+                            🔄 Change Product
+                          </button>
+                        );
 
                         return (
                           <div key={block.id} style={{ marginBottom: '16px', background: isOptionGroup ? (isSelected ? '#faf5ff' : '#f8fafc') : '#ffffff', border: isOptionGroup ? (isSelected ? '1px solid #c084fc' : '1px dashed #cbd5e1') : '1px solid #e2e8f0', borderRadius: '8px', padding: '12px' }}>
@@ -1904,10 +1982,9 @@ const Orders = () => {
                                     product line (its titles depend on that line's unit), and a
                                     colgroup keeps every line's columns aligned regardless. */}
                                 <colgroup>
-                                  <col style={{ width: '250px' }} />
                                   <col style={{ width: '110px' }} />
                                   <col style={{ width: '95px' }} />
-                                  <col style={{ width: '70px' }} />
+                                  {isPvcBlock && <col style={{ width: '70px' }} />}
                                   <col style={{ width: '95px' }} />
                                   <col style={{ width: '60px' }} />
                                   <col style={{ width: '100px' }} />
@@ -1919,12 +1996,13 @@ const Orders = () => {
                                     productCode={block.product_code}
                                     productName={block.product_name}
                                     kind={unitKindOf({ isPcsBlock, isPvcBlock })}
-                                    columns={ORDER_COLUMNS}
+                                    columns={columnTitles}
+                                    changeProductUI={changeProductUI}
                                   />
 
                                   {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
                                   <tr className="mobile-size-card-row">
-                                    <td colSpan={ORDER_COLUMNS.length} className="mobile-size-card-cell">
+                                    <td colSpan={columnTitles.length} className="mobile-size-card-cell">
                                       <div className="mobile-size-card">
                                         <div className="mobile-size-header-bar">
                                           {/* A per-piece item has no width or height, so the card
@@ -2019,95 +2097,7 @@ const Orders = () => {
                                   </tr>
                                   {block.sizes.map((sizeRow, sIdx) => (
                                     <tr key={sizeRow.id} className={sIdx > 0 ? 'mobile-subsequent-row' : ''}>
-                                      {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} className="cell-product" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
-                                           {productChangeBlockId === block.id ? (
-                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '180px' }}>
-                                               <select
-                                                 value={block.product_id || ''}
-                                                 onChange={(e) => {
-                                                   if (e.target.value) {
-                                                     handleBlockChange(sec.id, block.id, 'product_id', e.target.value);
-                                                     setProductChangeBlockId(null);
-                                                     setProductChangeQuery('');
-                                                   }
-                                                 }}
-                                                 className="modern-form-control"
-                                                 style={{ fontWeight: '600', fontSize: '12px', padding: '6px' }}
-                                               >
-                                                 <option value="">-- Choose Product --</option>
-                                                 {products.map(p => (
-                                                   <option key={p.id} value={p.id}>
-                                                     {p.name} {p.product_code ? `(${p.product_code.toUpperCase()})` : ''}
-                                                   </option>
-                                                 ))}
-                                               </select>
-                                               <div style={{ position: 'relative' }}>
-                                                 <input
-                                                   type="text"
-                                                   placeholder="Or search by name/code..."
-                                                   value={productChangeQuery}
-                                                   onChange={(e) => setProductChangeQuery(e.target.value)}
-                                                   className="modern-form-control"
-                                                   style={{ fontSize: '11px', padding: '5px 8px' }}
-                                                 />
-                                                 {productChangeQuery.trim() !== '' && (
-                                                   <div className="search-dropdown-list" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', maxHeight: '200px', overflowY: 'auto' }}>
-                                                     {filteredProductsForChange.length === 0 ? (
-                                                       <div className="dropdown-item empty" style={{ padding: '8px', fontSize: '12px', color: '#94a3b8' }}>No matching products</div>
-                                                     ) : (
-                                                       filteredProductsForChange.map(p => (
-                                                         <div
-                                                           key={p.id}
-                                                           className="dropdown-item"
-                                                           onMouseDown={(e) => {
-                                                             e.preventDefault();
-                                                             e.stopPropagation();
-                                                             handleBlockChange(sec.id, block.id, 'product_id', p.id);
-                                                             setProductChangeBlockId(null);
-                                                             setProductChangeQuery('');
-                                                           }}
-                                                           style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
-                                                         >
-                                                           <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{p.name}</div>
-                                                           <div style={{ fontSize: '10px', color: '#64748b' }}>Code: {p.product_code || 'N/A'} {p.unit ? `| ${p.unit}` : ''}</div>
-                                                         </div>
-                                                       ))
-                                                     )}
-                                                   </div>
-                                                 )}
-                                               </div>
-                                               <button
-                                                 type="button"
-                                                 onClick={() => setProductChangeBlockId(null)}
-                                                 style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', alignSelf: 'flex-start' }}
-                                               >
-                                                 Cancel
-                                               </button>
-                                             </div>
-                                           ) : (
-                                            <div style={{ padding: '4px 0' }}>
-                                              <div style={{ fontWeight: '700', fontSize: '13px', color: '#0f172a', lineHeight: '1.3' }}>
-                                                {block.product_name || '—'}
-                                              </div>
-                                              <div style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                                                <span style={{ background: '#e2e8f0', padding: '1px 6px', borderRadius: '4px', fontWeight: '600', color: '#334155' }}>
-                                                  {block.product_code ? block.product_code.toUpperCase() : 'NO CODE'}
-                                                </span>
-                                                {block.unit && <span style={{ color: '#059669', fontWeight: '600' }}>({block.unit})</span>}
-                                              </div>
-                                              <button
-                                                type="button"
-                                                onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
-                                                style={{ marginTop: '6px', fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '3px 9px', cursor: 'pointer', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                title="Click to change to another product"
-                                              >
-                                                🔄 Change Product
-                                              </button>
-                                            </div>
-                                          )}
-                                        </td>
-                                      )}
+                                      {/* Product Details Header Column was removed and moved to ItemLineHeader top row */}
 
                                       {sIdx === 0 && (
                                         <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
@@ -2123,7 +2113,7 @@ const Orders = () => {
 
                                       {/* Measurement Columns: Dynamic Row Pattern */}
                                       {isPcsBlock ? (
-                                        <td colSpan={4} className="cell-size cell-pcs-unified" style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                        <td colSpan={3} className="cell-size cell-pcs-unified" style={{ padding: '8px 12px', textAlign: 'center' }}>
                                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '6px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                                             <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>Quantity:</span>
                                             <input
@@ -2154,7 +2144,7 @@ const Orders = () => {
                                           </td>
 
                                           {/* T. Width (in) */}
-                                          {isPvcBlock ? (
+                                          {isPvcBlock && (
                                             <td className="cell-size" style={{ padding: '6px' }}>
                                               <input
                                                 type="text"
@@ -2170,7 +2160,7 @@ const Orders = () => {
                                                 style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '600', color: '#0f172a' }}
                                               />
                                             </td>
-                                          ) : <NotApplicableCell />}
+                                          )}
 
                                           {/* Height */}
                                           <td className="cell-size" style={{ padding: '6px' }}>

@@ -3,12 +3,24 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
-import { pvcSlatCount } from '../utils/billing';
+import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
 
+/**
+ * PVC Quotation print page - a second quotation layout for the "PVC Strip
+ * Curtains" category, matching QuotationPrintPage's Detailed/Pad(Sizes)
+ * tables exactly but adding a "Calculate the square feet of each slats"
+ * breakdown table underneath (Actual Width / Pcs of Strip / T. Width /
+ * Height / Door-Nos / Totals) so the customer can see how the T. Width
+ * figure in the main table was derived from the doorway width they gave.
+ *
+ * It only offers the two print types that show per-size detail (Detailed
+ * Print, Pad Print (Sizes)) - View Print/Pad Print collapse sizes into one
+ * total row, which would leave the slat breakdown with nothing to explain.
+ */
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  
+
   const inWords = (n) => {
     if ((n = n.toString()).length > 9) return 'overflow';
     let n_array = ('000000000' + n).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
@@ -33,12 +45,6 @@ const numberToWords = (num) => {
   return result.trim() + ' Only.';
 };
 
-// PVC strip-curtain items (e.g. "PVC Strip Door Curtain" / "2mm Clear Water
-// Co") are billed by total width — slat count × each slat's width — rather
-// than the customer's requested opening width. The printed Width column
-// shows that total-width figure for these items instead of the raw width,
-// matching the "T. Width (in)" figure shown for the same products in the
-// quotation builder.
 const isPvcItem = (item) => {
   const unit = (item.product?.unit || '').toLowerCase();
   const category = (item.product?.category?.name || '').toLowerCase();
@@ -46,21 +52,23 @@ const isPvcItem = (item) => {
   return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
 };
 
+const getSlatCount = (item) => {
+  if (item.slats !== undefined && item.slats !== null && item.slats !== '') {
+    return parseInt(item.slats);
+  }
+  const width = parseFloat(item.width) || 0;
+  return width > 0 ? pvcSlatCount(width) : 0;
+};
+
 const getDisplayWidth = (item) => {
   const width = parseFloat(item.width) || 0;
   if (!isPvcItem(item)) return width;
   const slatSize = parseFloat(item.product?.product_size) || 8;
-  // Falls back to the shared pvcSlatCount() rule (round up only past the
-  // 3/4-slat mark) rather than a plain Math.ceil, so an item whose slat
-  // count wasn't already saved on the record still bills the same width
-  // here as it would in the quotation builder or on the PVC Challan.
-  const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
-    ? parseInt(item.slats)
-    : pvcSlatCount(width);
-  return Math.round(slats * slatSize * 100) / 100;
+  const slats = getSlatCount(item);
+  return Math.round(slats * slatSize * 100) / 100 || pvcBillingWidth(width, slatSize);
 };
 
-const QuotationPrintPage = () => {
+const PvcQuotationPrintPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -69,7 +77,10 @@ const QuotationPrintPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const printType = searchParams.get('type') || 'detailed';
+  // Only two print types make sense here - both show the per-size Width/
+  // Height/Pcs columns that the slat breakdown table below explains.
+  const rawType = searchParams.get('type') || 'detailed';
+  const printType = rawType === 'pad-sizes' ? 'pad-sizes' : 'detailed';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,12 +93,9 @@ const QuotationPrintPage = () => {
         } else {
           setError('Quotation not found');
         }
-        // Sequential rather than parallel on purpose: the profile to load
-        // depends on the quotation's brand, which is only known once the
-        // quotation itself has come back.
         setCompanyProfile(await fetchProfileForRecord(api, record));
       } catch (err) {
-        console.error('Error loading print quotation:', err);
+        console.error('Error loading PVC quotation print data:', err);
         setError('Failed to load quotation');
       } finally {
         setLoading(false);
@@ -99,31 +107,10 @@ const QuotationPrintPage = () => {
   useEffect(() => {
     if (quotation) {
       const rawCustomerName = quotation.customer?.company_name || quotation.customer?.name || 'Customer';
-      
-      const categories = Array.from(new Set(
-        (quotation.items || [])
-          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
-          .filter(Boolean)
-      ));
-      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
-
-      const printButtonNames = {
-        'detailed': 'Detailed Print',
-        'simplified': 'View Print',
-        'pad-sizes': 'Pad Print (Sizes)',
-        'pad': 'Pad Print',
-        'pad-detailed': 'Pad Print (Sizes)',
-        'pad-simplified': 'Pad Print',
-      };
-      const buttonName = printButtonNames[printType] || 'View Print';
-
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-
-      // The PDF's filename comes from document.title, so it has to name the
-      // brand the quotation was raised under, not the app's default.
       const brandName = brandFields(companyProfile).footerName;
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by ${clean(brandName)}`;
-      document.title = customTitle;
+      const buttonName = printType === 'pad-sizes' ? 'Pad Print (Sizes)' : 'Detailed Print';
+      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
+      document.title = `${clean(rawCustomerName)} _ PVC Quotation _ ${clean(buttonName)} _ by ${clean(brandName)}`;
 
       return () => {
         document.title = 'Dhakablinds-Ims';
@@ -142,7 +129,7 @@ const QuotationPrintPage = () => {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif' }}>
-        <h2>Loading Quotation Document...</h2>
+        <h2>Loading PVC Quotation...</h2>
       </div>
     );
   }
@@ -158,21 +145,17 @@ const QuotationPrintPage = () => {
     );
   }
 
-  const isPad = printType === 'pad' || printType === 'pad-sizes';
-  const isDetailed = printType === 'detailed' || printType === 'pad-sizes';
+  const isPad = printType === 'pad-sizes';
 
   const brand = brandFields(companyProfile);
   const logoSrc = brand.logoSrc;
 
   const customer = quotation.customer || {};
   const items = quotation.items || [];
+  const pvcItems = items.filter(i => i.is_selected !== false && isPvcItem(i));
 
   const buildGroups = (rawItems) => {
     const map = new Map();
-    // Same product/section/price (e.g. several sizes of one item) needs to
-    // group together too, not just option-group items - otherwise
-    // Description of Goods/Colors repeats once per size instead of once
-    // per product.
     const unGroupedMap = new Map();
     let groupSeqCounter = 1;
 
@@ -210,158 +193,54 @@ const QuotationPrintPage = () => {
     return result;
   };
 
-  const calculatedNetTotal = (quotation.items || []).reduce((sum, item) => {
+  const calculatedNetTotal = items.reduce((sum, item) => {
     if (item.is_selected === false) return sum;
-    // getDisplayWidth() is the item's own raw width for a non-PVC row, so
-    // this fallback is unchanged for those - only a PVC row's total-width
-    // (slat count × slat width) now feeds the sq.ft math here instead of
-    // the doorway width, matching what the printed T. Width column shows.
-    const w = getDisplayWidth(item);
     const h = parseFloat(item.height) || 0;
-    const fallbackSqft = Math.round(((w * h) / 144) * 100) / 100;
+    const fallbackSqft = Math.round(((getDisplayWidth(item) * h) / 144) * 100) / 100;
     const billedSqft = parseFloat(item.billed_sqft) || fallbackSqft;
     const unitPrice = parseFloat(item.unit_price) || 0;
     const lineTotal = parseFloat(item.line_total) || Math.round(billedSqft * unitPrice * 100) / 100;
     return sum + lineTotal;
   }, 0) + (parseFloat(quotation.convenience_charge) || 0) + (parseFloat(quotation.other_charge) || 0) + (parseFloat(quotation.vat_amount) || 0);
 
-  const hasMultipleSectionsOrOptions = items.some(i => i.option_group_id || i.group_id);
+  const groups = buildGroups(items);
 
   return (
     <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
       <div className="no-print" style={{ maxWidth: '900px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', paddingRight: '4px' }}>🧵 PVC Quotation</div>
           <button
             onClick={() => setType('detailed')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'detailed' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
+            style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '6px', border: 'none', cursor: 'pointer', background: printType === 'detailed' ? '#2563eb' : '#334155', color: '#fff' }}
           >
             🖨️ Detailed Print
           </button>
           <button
-            onClick={() => setType('simplified')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'simplified' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
-          >
-            🖨️ View Print
-          </button>
-          <button
             onClick={() => setType('pad-sizes')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'pad-sizes' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
+            style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '6px', border: 'none', cursor: 'pointer', background: printType === 'pad-sizes' ? '#2563eb' : '#334155', color: '#fff' }}
           >
             📝 Pad Print (Sizes)
           </button>
-          <button
-            onClick={() => setType('pad')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'pad' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
-          >
-            📝 Pad Print
-          </button>
-          {items.some(isPvcItem) && (
-            <>
-              <button
-                onClick={() => navigate(`/quotations/print/${id}/pvc-quotation?type=detailed`)}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: '#7c3aed',
-                  color: '#fff'
-                }}
-              >
-                🧵 PVC Detailed Print
-              </button>
-              <button
-                onClick={() => navigate(`/quotations/print/${id}/pvc-quotation?type=pad-sizes`)}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: '#7c3aed',
-                  color: '#fff'
-                }}
-              >
-                🧵 PVC Pad Print (Sizes)
-              </button>
-            </>
-          )}
         </div>
 
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             onClick={handlePrint}
-            style={{
-              padding: '6px 16px',
-              fontSize: '13px',
-              fontWeight: 700,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: '#0066ff',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
+            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#0066ff', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>🖨️</span> Print PDF
           </button>
           <button
+            onClick={() => navigate(`/quotations/print/${id}`)}
+            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#059669', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            📄 Standard Quotation
+          </button>
+          <button
             onClick={() => navigate('/quotations')}
-            style={{
-              padding: '6px 16px',
-              fontSize: '13px',
-              fontWeight: 700,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: '#dc2626',
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
+            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>⬅️</span> Back
           </button>
@@ -372,20 +251,11 @@ const QuotationPrintPage = () => {
       <div
         style={{
           maxWidth: '850px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
-          // 281mm = 297mm A4 height minus the @page rule's 8mm top + 8mm
-          // bottom margins - the actual printable content area on one
-          // sheet. Using the full 297mm here would be taller than what
-          // fits on a page, spilling the filler's blank space onto a
-          // second, near-empty page. Applied for every print type (not
-          // just pad) so a short Detailed/View quotation also stretches to
-          // fill the sheet; real multi-page data still paginates normally
-          // since flex only ever grows into leftover space, never shrinks
-          // content that's already taller than one page.
           display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box'
         }}
         className={'printable-area a4-stretch-area' + (isPad ? ' pad-stretch-area' : '')}
       >
-        
+
         {/* HEADER */}
         {!isPad ? (
           <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
@@ -393,76 +263,41 @@ const QuotationPrintPage = () => {
               <img
                 src={logoSrc}
                 alt="Invoice & Print Header Logo"
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  height: 'auto',
-                  maxHeight: '140px',
-                  objectFit: 'contain',
-                  display: 'block',
-                  margin: '0 auto'
-                }}
+                style={{ width: '100%', maxWidth: '100%', height: 'auto', maxHeight: '140px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             </div>
 
-            {/* Office Address Centered Horizontal Line */}
-            <div style={{
-              fontSize: '11px',
-              color: '#222',
-              textAlign: 'center',
-              fontWeight: '700',
-              paddingBottom: '4px',
-              marginBottom: '2px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.3px'
-            }}>
+            <div style={{ fontSize: '11px', color: '#222', textAlign: 'center', fontWeight: '700', paddingBottom: '4px', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
               Office Address : {brand.officeAddress}
             </div>
 
-            {/* Red Divider Line under Logo */}
-            <div style={{
-              borderBottom: '1.5px solid #dc2626',
-              marginBottom: '12px',
-              width: '100%'
-            }}></div>
+            <div style={{ borderBottom: '1.5px solid #dc2626', marginBottom: '12px', width: '100%' }}></div>
 
-                {/* 3-Column Info Header */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
-                  <div>
-                    Mobile : {brand.mobile}<br/>
-                    Email : {brand.email}<br/>
-                    Web : {brand.web}
-                    {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
-                  </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
+              <div>
+                Mobile : {brand.mobile}<br/>
+                Email : {brand.email}<br/>
+                Web : {brand.web}
+                {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
+              </div>
 
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
-                      Quotation
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right', fontSize: '12px' }}>
-                    <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
-                    <div>Quotation No. : <strong>{quotation.quotation_number}</strong></div>
-                  </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
+                  Quotation
                 </div>
+              </div>
+
+              <div style={{ textAlign: 'right', fontSize: '12px' }}>
+                <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
+                <div>Quotation No. : <strong>{quotation.quotation_number}</strong></div>
+              </div>
+            </div>
           </div>
         ) : (
           <div style={{ display: 'block', marginBottom: '16px' }}>
             <div style={{ height: '36mm' }} className="pad-print-spacer"></div>
-            {/* Office Address Centered Line for Pad Paper Print */}
-            <div style={{
-              fontSize: '11px',
-              color: '#222',
-              textAlign: 'center',
-              fontWeight: '700',
-              paddingBottom: '4px',
-              borderBottom: '1px solid #cbd5e1',
-              marginBottom: '10px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.3px'
-            }}>
+            <div style={{ fontSize: '11px', color: '#222', textAlign: 'center', fontWeight: '700', paddingBottom: '4px', borderBottom: '1px solid #cbd5e1', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
               Office Address : {brand.officeAddress}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center' }}>
@@ -515,64 +350,39 @@ const QuotationPrintPage = () => {
           </div>
         )}
 
-        {/* Item Table - on pad paper the wrapper flex-grows to fill the
-            leftover page height; a blank filler row (added further down,
-            right after the real item rows) absorbs that height so the
-            summary rows and signature stay pinned to the bottom instead of
-            floating with empty white space below them. Nothing about the
-            table's own content, columns, or formatting changes either way. */}
+        {/* Item Table */}
         <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
         <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto' }}>
           <thead>
-            {isDetailed ? (
-              <>
-                <tr>
-                  <th rowSpan={2} style={{ width: '45px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Sl No.</th>
-                  <th rowSpan={2} style={{ textAlign: 'left', verticalAlign: 'middle', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af', minWidth: '320px' }}>Description of Goods</th>
-                  <th rowSpan={2} style={{ width: '70px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Colors</th>
-                  <th colSpan={3} style={{ textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Size</th>
-                  <th rowSpan={2} style={{ width: '85px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Quantity/Sq.ft</th>
-                  <th rowSpan={2} style={{ width: '75px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Rate Tk.</th>
-                  <th rowSpan={2} style={{ width: '95px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Amount Tk.</th>
-                </tr>
-                <tr>
-                  <th style={{ width: '58px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>T. Width (in)</th>
-                  <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Height</th>
-                  <th style={{ width: '35px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs</th>
-                </tr>
-              </>
-            ) : (
-              <tr>
-                <th style={{ width: '50px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Sl No.</th>
-                <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af', minWidth: '380px' }}>Description of Goods</th>
-                <th style={{ width: '80px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Colors</th>
-                <th style={{ width: '100px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Quantity/Sq.ft</th>
-                <th style={{ width: '80px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Rate Tk.</th>
-                <th style={{ width: '100px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Amount Tk.</th>
-              </tr>
-            )}
+            <tr>
+              <th rowSpan={2} style={{ width: '45px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Sl No.</th>
+              <th rowSpan={2} style={{ textAlign: 'left', verticalAlign: 'middle', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af', minWidth: '320px' }}>Description of Goods</th>
+              <th rowSpan={2} style={{ width: '70px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Colors</th>
+              <th colSpan={3} style={{ textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Size</th>
+              <th rowSpan={2} style={{ width: '85px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Quantity/Sq.ft</th>
+              <th rowSpan={2} style={{ width: '75px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Rate Tk.</th>
+              <th rowSpan={2} style={{ width: '95px', textAlign: 'center', verticalAlign: 'middle', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Amount Tk.</th>
+            </tr>
+            <tr>
+              <th style={{ width: '58px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>T. Width (in)</th>
+              <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Height</th>
+              <th style={{ width: '35px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs</th>
+            </tr>
           </thead>
           <tbody>
-            {buildGroups(items).map((group, groupIdx) => {
-              const firstItem = group.rows[0]?.item;
+            {groups.map((group, groupIdx) => {
               const optionLabel = group.optionLabel;
-              const isSelectedChoice = firstItem && firstItem.is_selected !== false;
+              const isSelectedChoice = group.rows[0]?.item && group.rows[0].item.is_selected !== false;
 
-              // Both fallbacks use getDisplayWidth() rather than the raw
-              // item width, so a PVC row's total-width figure (what the
-              // T. Width column actually shows) drives the sq.ft math here
-              // too, not the doorway width.
               const groupTotalSqft = group.rows.reduce((sum, e) => {
-                const w = getDisplayWidth(e.item);
                 const h = parseFloat(e.item.height) || 0;
-                const fallback = Math.round(((w * h) / 144) * 100) / 100;
+                const fallback = Math.round(((getDisplayWidth(e.item) * h) / 144) * 100) / 100;
                 return sum + (parseFloat(e.item.billed_sqft) || fallback);
               }, 0);
 
               const groupTotalAmount = group.rows.reduce((sum, e) => {
-                const w = getDisplayWidth(e.item);
                 const h = parseFloat(e.item.height) || 0;
-                const fallbackSqft = Math.round(((w * h) / 144) * 100) / 100;
+                const fallbackSqft = Math.round(((getDisplayWidth(e.item) * h) / 144) * 100) / 100;
                 const billedSqft = parseFloat(e.item.billed_sqft) || fallbackSqft;
                 const unitPrice = parseFloat(e.item.unit_price) || 0;
                 const lineTotal = parseFloat(e.item.line_total) || Math.round(billedSqft * unitPrice * 100) / 100;
@@ -583,18 +393,7 @@ const QuotationPrintPage = () => {
                 <React.Fragment key={`grp_${groupIdx}`}>
                   {optionLabel && (
                     <tr className="option-header-row">
-                      <td
-                        colSpan={isDetailed ? 9 : 6}
-                        style={{
-                          textAlign: 'center',
-                          padding: '8px 12px',
-                          fontSize: '14px',
-                          fontWeight: '700',
-                          color: isSelectedChoice ? '#111827' : '#475569',
-                          border: '1px solid #cbd5e1',
-                          background: isSelectedChoice ? '#ffffff' : '#f8fafc'
-                        }}
-                      >
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '8px 12px', fontSize: '14px', fontWeight: '700', color: isSelectedChoice ? '#111827' : '#475569', border: '1px solid #cbd5e1', background: isSelectedChoice ? '#ffffff' : '#f8fafc' }}>
                         {optionLabel}: {isSelectedChoice ? '✔ Selected Choice' : '⚪ Alternative Choice'}
                       </td>
                     </tr>
@@ -602,27 +401,22 @@ const QuotationPrintPage = () => {
 
                   {group.rows.map((entry, rowInGroup) => {
                     const { item, idx } = entry;
-                    const width      = parseFloat(item.width) || 0;
-                    const height     = parseFloat(item.height) || 0;
-                    const pcs        = parseInt(item.pcs) || 1;
-                    const unitPrice  = parseFloat(item.unit_price) || 0;
-                    const span       = group.rows.length;
-                    const isFirst    = rowInGroup === 0;
-
-                    if (!isDetailed && !isFirst) return null;
-
-                    const currentRowSpan = isDetailed ? span : 1;
+                    const height = parseFloat(item.height) || 0;
+                    const pcs = parseInt(item.pcs) || 1;
+                    const unitPrice = parseFloat(item.unit_price) || 0;
+                    const span = group.rows.length;
+                    const isFirst = rowInGroup === 0;
 
                     return (
                       <tr key={idx}>
                         {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
                             {groupIdx + 1}
                           </td>
                         )}
 
                         {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
+                          <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
                             <div>
                               <strong style={{ fontSize: '13px', color: '#111' }}>
                                 {item.product?.name || 'Blind Item'}
@@ -640,33 +434,29 @@ const QuotationPrintPage = () => {
                         )}
 
                         {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
                             {item.product?.product_code || item.variant?.name || '-'}
                           </td>
                         )}
 
-                        {isDetailed && (
-                          <>
-                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
-                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{height}</td>
-                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{pcs}</td>
-                          </>
-                        )}
+                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
+                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{height}</td>
+                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{pcs}</td>
 
                         {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
                             {groupTotalSqft.toFixed(2)}
                           </td>
                         )}
 
                         {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
+                          <td rowSpan={span} style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
                             {unitPrice.toFixed(2)}
                           </td>
                         )}
 
                         {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1', color: (item.is_selected !== false) ? '#000' : '#64748b' }}>
+                          <td rowSpan={span} style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1', color: (item.is_selected !== false) ? '#000' : '#64748b' }}>
                             {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
                           </td>
@@ -678,71 +468,54 @@ const QuotationPrintPage = () => {
               );
             })}
 
-            {/* Absorbs the leftover vertical space so the summary rows
-                below and the signature block stay pinned to the bottom of
-                the A4 sheet even when there's only 1-2 line items, instead
-                of leaving a blank gap. Each cell keeps the same left/right
-                column border as the real data cells so the vertical
-                column-divider lines run continuously down through the blank
-                space instead of stopping after the last real row - but NOT
-                a top border, so there's no extra horizontal line right
-                where the real content ends and the blank space begins.
-                Has no effect once real data already fills or exceeds a
-                page, since flex only grows into space that's actually left
-                over. */}
             <tr className="a4-filler-row">
-              {Array.from({ length: isDetailed ? 9 : 6 }).map((_, colIdx) => (
+              {Array.from({ length: 9 }).map((_, colIdx) => (
                 <td key={colIdx} style={{ borderTop: 'hidden', borderBottom: '1px solid #cbd5e1', borderLeft: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', padding: 0 }}></td>
               ))}
             </tr>
 
-            {/* Convenience Charge Row */}
             {parseFloat(quotation.convenience_charge) > 0 && (
               <tr>
-                <td style={{ textAlign: 'center', fontWeight: 600, border: '1px solid #cbd5e1' }}>{buildGroups(items).length + 1}</td>
-                <td colSpan={isDetailed ? 7 : 4} style={{ border: '1px solid #cbd5e1' }}><strong>Conveyance Charge</strong></td>
+                <td style={{ textAlign: 'center', fontWeight: 600, border: '1px solid #cbd5e1' }}>{groups.length + 1}</td>
+                <td colSpan={7} style={{ border: '1px solid #cbd5e1' }}><strong>Conveyance Charge</strong></td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingRight: '8px', border: '1px solid #cbd5e1' }}>
                   {parseFloat(quotation.convenience_charge).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
             )}
 
-            {/* Other Charge Row */}
             {parseFloat(quotation.other_charge) > 0 && (
               <tr>
                 <td style={{ textAlign: 'center', fontWeight: 600, border: '1px solid #cbd5e1' }}>
-                  {buildGroups(items).length + (parseFloat(quotation.convenience_charge) > 0 ? 2 : 1)}
+                  {groups.length + (parseFloat(quotation.convenience_charge) > 0 ? 2 : 1)}
                 </td>
-                <td colSpan={isDetailed ? 7 : 4} style={{ border: '1px solid #cbd5e1' }}><strong>Other Installation Charges</strong></td>
+                <td colSpan={7} style={{ border: '1px solid #cbd5e1' }}><strong>Other Installation Charges</strong></td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingRight: '8px', border: '1px solid #cbd5e1' }}>
                   {parseFloat(quotation.other_charge).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
             )}
 
-            {/* VAT Row */}
             {parseFloat(quotation.vat_percentage) > 0 && (
               <tr>
                 <td style={{ textAlign: 'center', fontWeight: 600, border: '1px solid #cbd5e1' }}>-</td>
-                <td colSpan={isDetailed ? 7 : 4} style={{ border: '1px solid #cbd5e1' }}><strong>VAT % ({quotation.vat_percentage}%)</strong></td>
+                <td colSpan={7} style={{ border: '1px solid #cbd5e1' }}><strong>VAT % ({quotation.vat_percentage}%)</strong></td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingRight: '8px', border: '1px solid #cbd5e1' }}>
                   {(parseFloat(quotation.vat_amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
             )}
 
-            {/* Excluding VAT Note */}
             {(!quotation.vat_percentage || parseFloat(quotation.vat_percentage) <= 0) && (
               <tr>
-                <td colSpan={isDetailed ? 9 : 6} style={{ fontSize: '11px', fontStyle: 'italic', color: '#333', background: '#fafafa', padding: '6px 12px', border: '1px solid #cbd5e1' }}>
+                <td colSpan={9} style={{ fontSize: '11px', fontStyle: 'italic', color: '#333', background: '#fafafa', padding: '6px 12px', border: '1px solid #cbd5e1' }}>
                   All prices quoted above are excluding VAT &amp; TAX
                 </td>
               </tr>
             )}
 
-            {/* Sub Total Row */}
             <tr style={{ background: '#d1d5db' }}>
-              <td colSpan={isDetailed ? 8 : 5} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#000', padding: '6px 12px', border: '1px solid #9ca3af' }}>
+              <td colSpan={8} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#000', padding: '6px 12px', border: '1px solid #9ca3af' }}>
                 Sub Total
               </td>
               <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '13px', color: '#000', padding: '6px 8px', border: '1px solid #9ca3af' }}>
@@ -753,8 +526,51 @@ const QuotationPrintPage = () => {
         </table>
         </div>
 
+        {/* PVC Slat Calculation - explains how each PVC row's T. Width (in)
+            figure above was derived from the doorway width the customer
+            gave, one line per PVC item. */}
+        {pvcItems.length > 0 && (
+          <div style={{ margin: '14px 0' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th colSpan={6} style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000', background: '#e5e7eb', border: '1px solid #9ca3af', padding: '6px' }}>
+                    Calculate the Square Feet of Each Slats
+                  </th>
+                </tr>
+                <tr>
+                  <th style={{ textAlign: 'center', fontSize: '11px', background: '#f1f5f9', color: '#111', border: '1px solid #cbd5e1', padding: '5px' }}>Actual Width</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', background: '#f1f5f9', color: '#111', border: '1px solid #cbd5e1', padding: '5px' }}>Pcs of Strip</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', background: '#f1f5f9', color: '#111', border: '1px solid #cbd5e1', padding: '5px' }}>T. Width - Inch</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', background: '#f1f5f9', color: '#111', border: '1px solid #cbd5e1', padding: '5px' }}>Height - Inch</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', background: '#f1f5f9', color: '#111', border: '1px solid #cbd5e1', padding: '5px' }}>Door / Nos</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', background: '#f1f5f9', color: '#111', border: '1px solid #cbd5e1', padding: '5px' }}>Totals (Sq.Ft)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pvcItems.map((item) => {
+                  const width = parseFloat(item.width) || 0;
+                  const height = parseFloat(item.height) || 0;
+                  const pcs = parseInt(item.pcs) || 1;
+                  const fallbackSqft = Math.round(((getDisplayWidth(item) * height) / 144) * pcs * 100) / 100;
+                  const totalSqft = parseFloat(item.billed_sqft) || fallbackSqft;
+                  return (
+                    <tr key={item.id}>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#dc2626', border: '1px solid #cbd5e1', padding: '5px' }}>{width}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', border: '1px solid #cbd5e1', padding: '5px' }}>{getSlatCount(item)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, border: '1px solid #cbd5e1', padding: '5px' }}>{getDisplayWidth(item)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, border: '1px solid #cbd5e1', padding: '5px' }}>{height}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', border: '1px solid #cbd5e1', padding: '5px' }}>{pcs}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, border: '1px solid #cbd5e1', padding: '5px' }}>{totalSqft.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* Amount in Words */}
-        {/* Amount in Words (Matching Reference Layout) */}
         <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', border: '1px solid #d1d5db', margin: '10px 0', fontSize: '12px', borderRadius: '2px' }}>
           <div style={{ background: '#f3f4f6', padding: '6px 12px', fontWeight: 'bold', color: '#111', borderRight: '1px solid #d1d5db' }}>
             Amount in Words
@@ -798,40 +614,14 @@ Please make your payment by cash or cheque in favour of "${brand.chequeFavourNam
           <button
             type="button"
             onClick={handlePrint}
-            style={{
-              background: '#0066ff',
-              color: '#ffffff',
-              border: 'none',
-              padding: '10px 28px',
-              borderRadius: '6px',
-              fontWeight: 700,
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: '0 4px 12px rgba(0, 102, 255, 0.3)'
-            }}
+            style={{ background: '#0066ff', color: '#ffffff', border: 'none', padding: '10px 28px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0, 102, 255, 0.3)' }}
           >
             <span>🖨️</span> Print
           </button>
           <button
             type="button"
             onClick={() => navigate('/quotations')}
-            style={{
-              background: '#dc2626',
-              color: '#ffffff',
-              border: 'none',
-              padding: '10px 28px',
-              borderRadius: '6px',
-              fontWeight: 700,
-              fontSize: '14px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
-            }}
+            style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '10px 28px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)' }}
           >
             <span>⬅️</span> Back
           </button>
@@ -842,4 +632,4 @@ Please make your payment by cash or cheque in favour of "${brand.chequeFavourNam
   );
 };
 
-export default QuotationPrintPage;
+export default PvcQuotationPrintPage;

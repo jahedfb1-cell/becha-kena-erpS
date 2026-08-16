@@ -71,38 +71,33 @@ export const itemColumnTitles = (columns, kind) =>
  * the first cell of a wide, horizontally scrolling table - on a narrow screen
  * it scrolls out of view and leaves a row of numbers with nothing naming them.
  */
-const ItemLineHeader = ({ productCode, productName, kind, columns }) => {
+const ItemLineHeader = ({ productCode, productName, kind, columns, changeProductUI }) => {
   const isPcs = kind === 'pcs';
   const sizeColsCount = columns.filter(c => !['product', 'unit_price', 'billing', 'total', 'action'].includes(c)).length;
   const titles = itemColumnTitles(columns, kind);
 
+  const combinedProductName = (
+    <div style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+      <span>Product Code / Name * </span>
+      <strong style={{ marginLeft: '4px' }}>
+        {productCode ? productCode.toUpperCase() : 'NO CODE'}, {productName || 'Unnamed product'}, {UNIT_LABELS[kind]}
+      </strong>
+    </div>
+  );
+
   return (
     <>
-      <tr className="block-product-row">
-        <td
-          colSpan={columns.length}
-          style={{ padding: '8px 10px', background: '#f8fafc', borderTop: '2px solid #cbd5e1', borderBottom: '1px solid #e2e8f0' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#0f172a', background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px' }}>
-              {productCode ? productCode.toUpperCase() : 'NO CODE'}
-            </span>
-            <span style={{ fontWeight: '600', fontSize: '13px', color: '#334155' }}>
-              {productName || 'Unnamed product'}
-            </span>
-            <span style={{ fontSize: '11px', fontWeight: '600', color: '#0369a1', background: '#e0f2fe', padding: '2px 8px', borderRadius: '10px' }}>
-              {UNIT_LABELS[kind]}
-            </span>
+      <tr className="block-header-product-row">
+        <th colSpan={columns.length} style={{ padding: '8px 12px', textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', overflow: 'visible' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', overflowX: 'auto' }}>
+            {combinedProductName}
+            <div style={{ flexShrink: 0 }}>{changeProductUI}</div>
           </div>
-        </td>
+        </th>
       </tr>
-
       <tr className="block-header-row">
         {isPcs ? (
           <>
-            <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'left', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
-              Product Code / Name *
-            </th>
             <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
               Unit Price
             </th>
@@ -128,14 +123,14 @@ const ItemLineHeader = ({ productCode, productName, kind, columns }) => {
                 padding: '6px 8px',
                 fontSize: '11px',
                 fontWeight: '700',
-                textAlign: idx === 0 ? 'left' : 'center',
+                textAlign: 'center',
                 color: '#475569',
                 background: '#f1f5f9',
                 borderBottom: '1px solid #e2e8f0',
                 whiteSpace: 'nowrap',
               }}
             >
-              {title || ' '}
+              {title || ' '}
             </th>
           ))
         )}
