@@ -20,7 +20,11 @@ class PaymentService
         $year = now()->format('Y');
         $prefix = "PAY-{$year}-";
 
-        $last = Payment::where('payment_number', 'LIKE', "{$prefix}%")
+        // Numbers are one shared sequence across every brand, not scoped
+        // per brand — without this a brand with no payments yet would
+        // restart at 0001 and collide with another brand's number.
+        $last = Payment::withoutGlobalScope('brand')
+            ->where('payment_number', 'LIKE', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(payment_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
             ->first();
 

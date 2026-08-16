@@ -20,7 +20,12 @@ class QuotationService
         $year = now()->format('Y');
         $prefix = "QT-{$year}-";
 
-        $lastQuotation = Quotation::where('quotation_number', 'LIKE', "{$prefix}%")
+        // Numbers are one shared sequence across every brand — not scoped
+        // per brand — since quotation_number is globally unique; without
+        // this, a brand with no quotations yet would restart at 0001 and
+        // collide with another brand's existing number.
+        $lastQuotation = Quotation::withoutGlobalScope('brand')
+            ->where('quotation_number', 'LIKE', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(quotation_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
             ->first();
 
@@ -40,7 +45,9 @@ class QuotationService
         $year = now()->format('Y');
         $prefix = "PO-{$year}-";
 
-        $last = PurchaseEntry::where('purchase_number', 'LIKE', "{$prefix}%")
+        // Same shared-sequence reasoning as generateQuotationNumber() above.
+        $last = PurchaseEntry::withoutGlobalScope('brand')
+            ->where('purchase_number', 'LIKE', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(purchase_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
             ->first();
 

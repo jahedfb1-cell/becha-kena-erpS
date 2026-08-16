@@ -17,7 +17,11 @@ class InvoiceService
         $year = now()->format('Y');
         $prefix = "INV-{$year}-";
 
-        $last = Invoice::where('invoice_number', 'LIKE', "{$prefix}%")
+        // Numbers are one shared sequence across every brand, not scoped
+        // per brand — without this a brand with no invoices yet would
+        // restart at 0001 and collide with another brand's number.
+        $last = Invoice::withoutGlobalScope('brand')
+            ->where('invoice_number', 'LIKE', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(invoice_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
             ->first();
 

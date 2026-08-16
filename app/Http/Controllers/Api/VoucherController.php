@@ -25,7 +25,11 @@ class VoucherController extends Controller
         $year = now()->format('Y');
         $prefix = "VOU-{$year}-";
 
-        $last = Voucher::where('voucher_number', 'LIKE', "{$prefix}%")
+        // Numbers are one shared sequence across every brand, not scoped
+        // per brand — without this a brand with no vouchers yet would
+        // restart at 0001 and collide with another brand's number.
+        $last = Voucher::withoutGlobalScope('brand')
+            ->where('voucher_number', 'LIKE', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(voucher_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
             ->first();
 

@@ -26,7 +26,11 @@ class ExpenseController extends Controller
         $year = now()->format('Y');
         $prefix = "EXP-{$year}-";
 
-        $last = Expense::where('expense_number', 'LIKE', "{$prefix}%")
+        // Numbers are one shared sequence across every brand, not scoped
+        // per brand — without this a brand with no expenses yet would
+        // restart at 0001 and collide with another brand's number.
+        $last = Expense::withoutGlobalScope('brand')
+            ->where('expense_number', 'LIKE', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(expense_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
             ->first();
 

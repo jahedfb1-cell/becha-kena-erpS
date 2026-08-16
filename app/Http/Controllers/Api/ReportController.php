@@ -77,12 +77,19 @@ class ReportController extends Controller
         $salesDueReport     = (float) (clone $invQuery)->sum('due_amount');
         $saleDuePayReport   = (float) $payQuery->sum('amount');
 
-        // Supplier Dues (Optimized SQL aggregate instead of N+1 PHP loop)
-        $supplierDuesSum = (float) DB::table('supplier_ledgers as sl1')
-            ->join(DB::raw('(SELECT supplier_id, MAX(id) as max_id FROM supplier_ledgers GROUP BY supplier_id) as sl2'), function($join) {
+        // Supplier Dues (Optimized SQL aggregate instead of N+1 PHP loop).
+        // Raw DB::table query, so it doesn't get BelongsToBrand's automatic
+        // scoping — filtered by hand here. "Latest row per supplier" is
+        // grouped by (supplier_id, brand_id) rather than supplier_id alone:
+        // a shared supplier can carry a separate running balance per brand.
+        $supplierDuesQuery = DB::table('supplier_ledgers as sl1')
+            ->join(DB::raw('(SELECT supplier_id, brand_id, MAX(id) as max_id FROM supplier_ledgers GROUP BY supplier_id, brand_id) as sl2'), function($join) {
                 $join->on('sl1.id', '=', 'sl2.max_id');
-            })
-            ->sum('sl1.balance');
+            });
+        if ($request->user()?->brand_id) {
+            $supplierDuesQuery->where('sl1.brand_id', $request->user()->brand_id);
+        }
+        $supplierDuesSum = (float) $supplierDuesQuery->sum('sl1.balance');
 
         // Supplier Payments
         $supplierPaySum = (float) SupplierLedger::where('transaction_type', 'payment')->sum('debit');

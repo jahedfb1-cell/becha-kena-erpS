@@ -15,7 +15,11 @@ class DeliveryChallanService
         $year = now()->format('Y');
         $prefix = "DC-{$year}-";
 
-        $last = DeliveryChallan::where('challan_number', 'LIKE', "{$prefix}%")
+        // Numbers are one shared sequence across every brand, not scoped
+        // per brand — without this a brand with no challans yet would
+        // restart at 0001 and collide with another brand's number.
+        $last = DeliveryChallan::withoutGlobalScope('brand')
+            ->where('challan_number', 'LIKE', "{$prefix}%")
             ->orderByRaw("CAST(SUBSTRING(challan_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
             ->first();
 
