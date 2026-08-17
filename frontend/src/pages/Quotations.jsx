@@ -2250,60 +2250,110 @@ const Quotations = () => {
                                                 className="modern-form-control"
                                                 style={{ textAlign: 'center' }}
                                               />
-                                              {block.sizes.length > 1 && (
-                                                <>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
-                                                    className="btn-action-circle btn-action-delete"
-                                                    style={{ padding: '4px 6px', fontSize: '12px' }}
-                                                  >
-                                                    🗑️
-                                                  </button>
-                                                     <button
-                                                       type="button"
-                                                       onClick={() => {
-                                                         setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
-                                                         setExcelPasteText('');
-                                                       }}
-                                                       style={{
-                                                         background: '#059669',
-                                                         color: '#ffffff',
-                                                         border: 'none',
-                                                         borderRadius: '6px',
-                                                         padding: '4px 7px',
-                                                         fontSize: '11px',
-                                                         fontWeight: 'bold',
-                                                         cursor: 'pointer'
-                                                       }}
-                                                       title="Paste Width, Height, Pcs from Excel"
-                                                     >
-                                                       📋 Excel
-                                                     </button>
-                                                     <button
-                                                       type="button"
-                                                       onClick={() => setAiScanTargetBlock({ sectionId: sec.id, blockId: block.id })}
-                                                       style={{
-                                                         background: '#0891b2',
-                                                         color: '#ffffff',
-                                                         border: 'none',
-                                                         borderRadius: '6px',
-                                                         padding: '4px 7px',
-                                                         fontSize: '11px',
-                                                         fontWeight: 'bold',
-                                                         cursor: 'pointer'
-                                                       }}
-                                                       title="AI Measure (OCR Bill/Slip Scan)"
-                                                     >
-                                                       📷 AI Scan
-                                                     </button>
-                                                   </>
-                                                 )}
                                               </div>
                                             </td>
                                           </>
                                           )}
-                                          </tr>
+
+                                          {/* Total Billing (desktop-only) */}
+                                          {sIdx === 0 && (
+                                            <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '6px' }}>
+                                              <input
+                                                type="text"
+                                                value={isPcsBlock ? `${totalPcs} pcs` : totalBilledSqft.toFixed(2)}
+                                                readOnly
+                                                className="modern-form-control"
+                                                style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
+                                              />
+                                            </td>
+                                          )}
+
+                                          {/* Total Price */}
+                                          {sIdx === 0 && (
+                                            <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                              <input
+                                                type="text"
+                                                value={totalPrice.toFixed(2)}
+                                                readOnly
+                                                className="modern-form-control"
+                                                style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '13px' }}
+                                              />
+                                            </td>
+                                          )}
+
+                                          {/* Block Actions */}
+                                          <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                              {!isPcsBlock && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                                  className="btn-action-circle btn-action-add"
+                                                  title="Add Size Row"
+                                                  style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                                >
+                                                  ➕
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  if (!isPcsBlock && block.sizes.length > 1) {
+                                                    removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
+                                                  } else {
+                                                    removeProductBlock(sec.id, block.id);
+                                                  }
+                                                }}
+                                                className="btn-action-circle btn-action-delete"
+                                                title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
+                                                style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                              >
+                                                🗑️
+                                              </button>
+                                              {sIdx === 0 && !isPcsBlock && (
+                                                <>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                                      setExcelPasteText('');
+                                                    }}
+                                                    style={{
+                                                      background: '#059669',
+                                                      color: '#ffffff',
+                                                      border: 'none',
+                                                      borderRadius: '6px',
+                                                      padding: '4px 7px',
+                                                      fontSize: '11px',
+                                                      fontWeight: 'bold',
+                                                      cursor: 'pointer'
+                                                    }}
+                                                    title="Paste Width, Height, Pcs from Excel"
+                                                  >
+                                                    📋 Excel
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setAiScanTargetBlock({ sectionId: sec.id, blockId: block.id })}
+                                                    style={{
+                                                      background: '#0891b2',
+                                                      color: '#ffffff',
+                                                      border: 'none',
+                                                      borderRadius: '6px',
+                                                      padding: '4px 7px',
+                                                      fontSize: '11px',
+                                                      fontWeight: 'bold',
+                                                      cursor: 'pointer'
+                                                    }}
+                                                    title="AI Measure (OCR Bill/Slip Scan)"
+                                                  >
+                                                    📷 AI Scan
+                                                  </button>
+                                                </>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
                                         ))}
 
                                       {/* Product Specification Box */}
