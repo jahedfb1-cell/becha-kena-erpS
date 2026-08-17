@@ -2016,7 +2016,9 @@ const Quotations = () => {
                                   <col style={{ width: '60px' }} />
                                   <col style={{ width: '95px' }} />
                                   <col style={{ width: '120px' }} />
-                                  <col style={{ width: '85px' }} />
+                                  {/* Wide enough for the first row's full button set:
+                                      add row, delete, Excel paste and AI Scan. */}
+                                  <col style={{ width: '200px' }} />
                                 </colgroup>
                                 <tbody>
                                   <ItemLineHeader
