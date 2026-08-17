@@ -1863,6 +1863,7 @@ const Orders = () => {
                         const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
                         const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
                         const isOptionGroup = Boolean(block.option_group_id);
+                        const isSelected = block.is_selected !== false;
                         const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs' ||
                                            (block.unit || '').trim().toLowerCase() === 'pieces' ||
                                            (block.unit || '').trim().toLowerCase() === 'piece' ||
