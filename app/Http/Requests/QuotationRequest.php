@@ -41,6 +41,13 @@ class QuotationRequest extends FormRequest
             'other_charge'        => 'nullable|numeric|min:0',
             'other_charge_label'  => 'nullable|string|max:255',
             'vat_percentage'      => 'nullable|numeric|min:0|max:100',
+
+            // VAT challan (Mushak 6.3) settings. The rate is only meaningful
+            // when the order is marked VAT-applicable, and is required then —
+            // a challan with no rate on it cannot be issued.
+            'vat_enabled'         => 'nullable|boolean',
+            'vat_rate'            => 'nullable|required_if:vat_enabled,true,1|numeric|min:0|max:100',
+            'vat_inclusive'       => 'nullable|boolean',
             'discount_type'       => 'nullable|in:percentage,flat',
             'discount_value'      => 'nullable|numeric|min:0',
             'note'                => 'nullable|string|max:2000',
@@ -73,6 +80,8 @@ class QuotationRequest extends FormRequest
             'items.min'                   => 'At least one quotation item is required.',
             'items.*.width.min'           => 'Width must be at least 0.01 inches.',
             'items.*.height.min'          => 'Height must be at least 0.01 inches.',
+            'vat_rate.required_if'        => 'A VAT rate is required when VAT is applicable.',
+            'vat_rate.max'                => 'VAT rate cannot be more than 100 percent.',
         ];
     }
 }

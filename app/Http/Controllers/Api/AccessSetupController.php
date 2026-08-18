@@ -82,6 +82,17 @@ class AccessSetupController extends Controller
                 ],
             ],
             [
+                'id'          => 'mushak',
+                'name'        => 'VAT Challan (Mushak 6.3)',
+                'icon'        => '🧾',
+                'page'        => 'Mushak 6.3 Page',
+                'page_permission' => 'mushak:view',
+                'functions'   => [
+                    ['key' => 'mushak:view', 'label' => 'View VAT Challans'],
+                    ['key' => 'mushak:issue', 'label' => 'Issue VAT Challan'],
+                ],
+            ],
+            [
                 'id'          => 'vouchers',
                 'name'        => 'Vouchers',
                 'icon'        => '📄',

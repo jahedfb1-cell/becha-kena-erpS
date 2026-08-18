@@ -104,6 +104,11 @@ const Orders = () => {
   const [otherCharge, setOtherCharge] = useState(0);
   const [otherChargeLabel, setOtherChargeLabel] = useState('');
   const [vatPercentage, setVatPercentage] = useState(0);
+  // VAT challan (Mushak 6.3). Separate from vatPercentage above, which
+  // drives this order's own totals; these two only decide what the VAT
+  // challan says. Default rate is 10 and only applies once ticked.
+  const [vatEnabled, setVatEnabled] = useState(false);
+  const [vatRate, setVatRate] = useState(10);
   const [discountType, setDiscountType] = useState('flat');
   const [discountValue, setDiscountValue] = useState(0);
   const [remark, setRemark] = useState('');
@@ -898,6 +903,8 @@ const Orders = () => {
       setOtherCharge(parseFloat(fullQ.other_charge) || 0);
       setOtherChargeLabel(fullQ.other_charge_label || '');
       setVatPercentage(parseFloat(fullQ.vat_percentage) || 0);
+      setVatEnabled(!!fullQ.vat_enabled);
+      setVatRate(fullQ.vat_rate == null ? 10 : parseFloat(fullQ.vat_rate));
       setDiscountType(fullQ.discount_type || 'flat');
       setDiscountValue(parseFloat(fullQ.discount_value) || 0);
       setRemark(fullQ.note || '');
@@ -1083,6 +1090,8 @@ const Orders = () => {
       other_charge: parseFloat(otherCharge) || 0,
       other_charge_label: otherChargeLabel || null,
       vat_percentage: parseFloat(vatPercentage) || 0,
+      vat_enabled: vatEnabled,
+      vat_rate: vatEnabled ? (parseFloat(vatRate) || 0) : null,
       discount_type: discountType,
       discount_value: parseFloat(discountValue) || 0,
       note: remark || null,
@@ -2405,6 +2414,30 @@ const Orders = () => {
                     <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '4px', textAlign: 'right' }}>
                       Amt: <strong>{formatCurrency(financialSummary.vatAmount)}</strong>
                     </div>
+
+                <div className="form-group">
+                  <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={vatEnabled}
+                      onChange={(e) => setVatEnabled(e.target.checked)}
+                      style={{ width: 'auto', margin: 0 }}
+                    />
+                    VAT applicable
+                  </label>
+                  {vatEnabled && (
+                    <input
+                      type="number"
+                      value={vatRate}
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      onChange={(e) => setVatRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                      placeholder="VAT rate (%)"
+                      style={{ marginTop: '6px' }}
+                    />
+                  )}
+                </div>
                   </div>
 
                   <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: '12px' }}>

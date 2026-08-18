@@ -13,6 +13,7 @@ import Products from './pages/Products';
 import Quotations from './pages/Quotations';
 import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
+import Mushak from './pages/Mushak';
 import Payments from './pages/Payments';
 import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
@@ -117,6 +118,8 @@ function App() {
           <Route path="orders" element={<Orders />} />
           
           <Route path="invoices" element={<Invoices />} />
+
+          <Route path="mushak" element={<Mushak />} />
           
           {/* Admin and Manager only route */}
           <Route

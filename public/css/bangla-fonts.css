@@ -1,0 +1,46 @@
+/*
+ * Bengali fonts for printed documents (Mushak 6.3 and anything that follows).
+ *
+ * The two families here are NOT interchangeable and must never be chained
+ * as fallbacks for one another.
+ *
+ * SolaimanLipi is a Unicode font: the text is real Bengali, the browser
+ * assembles conjuncts and reorders vowel signs, and the output can be
+ * copied, searched and read back correctly. Everything coming out of the
+ * database — customer names, addresses, product descriptions — is Unicode,
+ * so it must be rendered in this family.
+ *
+ * SutonnyMJ is a legacy Bijoy/ANSI font: the underlying bytes are Latin
+ * letters and the font simply draws a Bengali glyph in each slot, with the
+ * conjuncts already drawn as single characters. Nothing has to assemble
+ * anything, which is why it survives PDF engines that cannot do complex
+ * script shaping. It only renders correctly for text that was typed in
+ * Bijoy layout in the first place; feed it Unicode Bengali and every
+ * character comes out as an unrelated glyph.
+ *
+ * So: static form labels typed in Bijoy may use SutonnyMJ, database values
+ * must use SolaimanLipi, and a fallback list containing both would silently
+ * turn readable text into garbage the moment the first font failed to load.
+ */
+
+@font-face {
+  font-family: 'SolaimanLipi';
+  src: url('/fonts/SolaimanLipi.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'SutonnyMJ';
+  src: url('/fonts/SutonnyMJ.ttf') format('truetype');
+  font-display: swap;
+}
+
+/* Unicode Bengali — use for anything read out of the database. */
+.bn {
+  font-family: 'SolaimanLipi', sans-serif;
+}
+
+/* Bijoy-encoded Bengali — use only for text typed in Bijoy layout. */
+.bn-bijoy {
+  font-family: 'SutonnyMJ', sans-serif;
+}

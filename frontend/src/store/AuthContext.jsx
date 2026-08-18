@@ -16,6 +16,21 @@ export const AuthProvider = ({ children }) => {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+
+      // The cached copy is whatever login returned, possibly months ago, so
+      // it goes stale whenever the account changes â a role or permission
+      // edited in Admin Access, or the brand the user trades under. Re-read
+      // it once on startup so those take effect without forcing a re-login.
+      // The cached value is shown first and only replaced on success, so a
+      // failed request leaves the session exactly as it was.
+      api.get('/auth/me')
+        .then((res) => {
+          const fresh = res.data?.data;
+          if (!fresh) return;
+          localStorage.setItem('user', JSON.stringify(fresh));
+          setUser(fresh);
+        })
+        .catch(() => {});
     }
     setLoading(false);
 

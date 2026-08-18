@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\MushakController;
 use App\Http\Controllers\Api\DeliveryChallanController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AuditLogController;
@@ -79,6 +80,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/approve', [DeliveryChallanController::class, 'approve']);
         Route::post('/{id}/send-email', [DeliveryChallanController::class, 'sendEmail']);
         Route::delete('/{id}', [DeliveryChallanController::class, 'destroy']);
+    });
+
+    // NBR Mushak 6.3 (VAT challans). Western Blinds Ltd only — the model's
+    // brand scope keeps a Dhaka Blinds login from seeing or issuing any.
+    Route::prefix('mushak')->group(function () {
+        Route::get('/', [MushakController::class, 'index']);
+        Route::get('/issuable', [MushakController::class, 'issuable']);
+        Route::post('/issue/{invoiceId}', [MushakController::class, 'issue']);
+        Route::get('/{id}', [MushakController::class, 'show']);
+        Route::delete('/{id}', [MushakController::class, 'destroy']);
     });
 
     // Payments

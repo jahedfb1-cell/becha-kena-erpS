@@ -56,6 +56,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'challans:generate',
             'challans:view',
 
+            // Mushak 6.3 (VAT challan)
+            'mushak:view',
+            'mushak:issue',
+
             // Payments
             'payments:create',
             'payments:apply-discount',

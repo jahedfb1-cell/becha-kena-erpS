@@ -22,6 +22,7 @@ class Customer extends Model
         'customer_code',
         'name',
         'company_name',
+        'bin',
         'phone',
         'second_contact_number',
         'third_contact_number',

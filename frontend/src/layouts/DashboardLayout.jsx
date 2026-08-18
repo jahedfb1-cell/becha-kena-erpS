@@ -21,6 +21,7 @@ const getPageTitle = (pathname, search, role) => {
     if (tab === 'confirmed') return role === 'salesman' ? 'My Confirmed Orders' : 'Confirmed Orders';
     return 'Orders';
   }
+  if (path === 'mushak') return 'VAT Challan';
   if (path === 'reports') return role === 'manager' ? 'Reports (Ltd)' : 'Reports';
   if (path.startsWith('reports/')) return role === 'manager' ? 'Reports (Ltd)' : 'Reports';
 
@@ -132,6 +133,7 @@ const DashboardLayout = () => {
       { path: '/orders?tab=pending', label: 'Placed Orders (Pending)', roles: ['admin', 'manager', 'salesman'], icon: 'clock', keywords: ['order', 'pending'] },
       { path: '/orders?tab=confirmed', label: role === 'salesman' ? 'My Confirmed Orders' : 'Confirmed Orders', roles: ['admin', 'manager', 'salesman'], icon: 'shopping-cart', keywords: ['order', 'confirmed'] },
       { path: '/invoices', label: 'Invoices & Deliveries', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'invoice', keywords: ['bill', 'delivery', 'challan'] },
+      { path: '/mushak', label: 'VAT Challan', roles: ['admin', 'manager'], icon: 'invoice', brandOnly: 2, keywords: ['mushak', 'vat', 'challan', 'nbr', 'tax'] },
       { path: '/payments', label: 'Payments', roles: ['admin'], icon: 'credit-card', keywords: ['money', 'transaction', 'receipt'] },
       { path: '/notifications', label: 'Notifications', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'bell', keywords: ['alert', 'messages'] },
       { path: '/products', label: 'Products & Stock', roles: ['admin', 'manager', 'staff'], icon: 'box', keywords: ['product', 'stock', 'measurement unit', 'unit', 'variant', 'supplier link', 'product category'] },
@@ -145,7 +147,10 @@ const DashboardLayout = () => {
       { path: '/settings', label: 'Setting', roles: ['admin'], icon: 'cog', keywords: ['measurement unit', 'unit', 'bank account', 'mobile account', 'department', 'pipeline mode', 'company profile'] },
     ];
 
-    return links.filter(link => link.roles.includes(role));
+    return links.filter(link =>
+      link.roles.includes(role) &&
+      (!link.brandOnly || user?.brand_id === link.brandOnly)
+    );
   };
 
   const renderIcon = (type) => {

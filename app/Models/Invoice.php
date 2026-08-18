@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Invoice extends Model
 {
@@ -94,6 +95,16 @@ class Invoice extends Model
     public function complaintTickets(): HasMany
     {
         return $this->hasMany(ComplaintTicket::class, 'invoice_id');
+    }
+
+    /**
+     * Relationship: The NBR Mushak 6.3 VAT challan issued against this
+     * invoice, if one has been issued. At most one exists — the unique
+     * constraint on mushak_invoices.sales_invoice_id enforces it.
+     */
+    public function mushakInvoice(): HasOne
+    {
+        return $this->hasOne(MushakInvoice::class, 'sales_invoice_id');
     }
 
     /**
