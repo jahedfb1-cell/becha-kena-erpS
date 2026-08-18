@@ -90,7 +90,7 @@ class MushakController extends Controller
         $invoices = Invoice::with(['customer:id,name,company_name,bin', 'quotation:id,vat_enabled,vat_rate'])
             ->active()
             ->where('brand_id', MushakService::VAT_REGISTERED_BRAND_ID)
-            ->whereDoesntHave('mushakInvoice')
+            ->whereDoesntHave('activeMushakInvoice')
             ->whereHas('quotation', fn ($q) => $q->where('vat_enabled', true))
             ->orderBy('id', 'desc')
             ->get();

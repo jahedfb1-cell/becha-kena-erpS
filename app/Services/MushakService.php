@@ -58,7 +58,10 @@ class MushakService
             throw new RuntimeException('Cannot issue a VAT challan against an archived invoice.');
         }
 
-        if ($invoice->mushakInvoice()->exists()) {
+        // Only a challan that still stands blocks a new one. An archived
+        // challan was withdrawn precisely so a correct one could replace it,
+        // so it must not stand in the way of its own replacement.
+        if ($invoice->activeMushakInvoice()->exists()) {
             throw new RuntimeException('A VAT challan has already been issued for this invoice.');
         }
 

@@ -13,7 +13,13 @@ use Illuminate\Support\Facades\Route;
 // the invoice and challan ones, because the form is in Bengali and is meant
 // to be filed with the VAT office as-is. It is deliberately separate from
 // the existing print pages, which are untouched.
-Route::get('/mushak/{id}/print', function (int $id) {
+Route::get('/mushak/{id}/print', function (int $id, Illuminate\Http\Request $request) {
+    // The same permission the API endpoints check. Being logged in under the
+    // VAT-registered brand is not enough on its own: without this, anyone in
+    // that brand could read a challan by walking the URL, whatever Admin
+    // Access says about their access to VAT documents.
+    abort_unless($request->user()->can('mushak:view'), 403, 'Unauthorized action.');
+
     $challan = MushakInvoice::with(['items', 'salesInvoice:id,invoice_number'])->find($id);
 
     abort_if(!$challan, 404, 'VAT challan not found.');

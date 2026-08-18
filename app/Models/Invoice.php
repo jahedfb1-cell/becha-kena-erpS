@@ -98,13 +98,29 @@ class Invoice extends Model
     }
 
     /**
-     * Relationship: The NBR Mushak 6.3 VAT challan issued against this
-     * invoice, if one has been issued. At most one exists — the unique
-     * constraint on mushak_invoices.sales_invoice_id enforces it.
+     * Relationship: every NBR Mushak 6.3 VAT challan ever issued against
+     * this invoice, archived ones included.
+     *
+     * There can be more than one row: a challan issued at the wrong rate is
+     * corrected by archiving it and issuing a fresh one, and the archived
+     * row stays for the audit trail. Use activeMushakInvoice() for "the
+     * challan that currently stands" — this relation answers "has one ever
+     * been issued", which is rarely the question worth asking.
      */
-    public function mushakInvoice(): HasOne
+    public function mushakInvoices(): HasMany
     {
-        return $this->hasOne(MushakInvoice::class, 'sales_invoice_id');
+        return $this->hasMany(MushakInvoice::class, 'sales_invoice_id');
+    }
+
+    /**
+     * Relationship: the VAT challan that currently stands for this invoice,
+     * ignoring any that were archived and replaced. At most one of these
+     * exists at a time, enforced by MushakService::assertIssuable().
+     */
+    public function activeMushakInvoice(): HasOne
+    {
+        return $this->hasOne(MushakInvoice::class, 'sales_invoice_id')
+            ->where('is_archived', false);
     }
 
     /**
