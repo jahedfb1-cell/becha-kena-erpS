@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount } from '../utils/billing';
+import renderRichText from '../utils/renderRichText';
 
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -610,9 +611,7 @@ const InvoicePrintPage = () => {
                               {item.product?.name || 'Blind Item'}
                             </strong>
                             {(item.notes || item.product?.details) ? (
-                              <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                {item.notes || item.product.details}
-                              </div>
+                              renderRichText(item.notes || item.product.details)
                             ) : null}
                           </td>
                         )}

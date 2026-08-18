@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
+import RichTextEditor from './RichTextEditor';
 
 /* ─── tiny inline styles object ─── */
 const S = {
@@ -86,10 +87,18 @@ const S = {
     display: 'block', fontSize: '12px', fontWeight: 700,
     color: '#374151', marginBottom: '2px', letterSpacing: '0.3px',
   },
+  // Border is spelled out as its three longhand properties, not the
+  // `border` shorthand, because inputStyle()/textareaStyle() below layer
+  // inputDisabled and a focus state on top of this object, and both of
+  // those only ever override `borderColor`. React warns when a shorthand
+  // and one of its longhands apply to the same element across renders (it
+  // can't tell which should win), which fired on every keystroke while a
+  // field was focused. Keeping this object all-longhand from the start
+  // means every state that layers on top of it can stay longhand too.
   input: {
     width: '100%', padding: '10px 14px',
     fontSize: '13.5px', fontWeight: 500,
-    border: '1.5px solid #e2e8f0',
+    borderWidth: '1.5px', borderStyle: 'solid', borderColor: '#e2e8f0',
     borderRadius: '10px', background: '#fff',
     color: '#111827', boxSizing: 'border-box',
     outline: 'none', transition: 'all 0.2s ease',
@@ -102,7 +111,7 @@ const S = {
   textarea: {
     width: '100%', padding: '10px 14px',
     fontSize: '13.5px', fontWeight: 500,
-    border: '1.5px solid #e2e8f0',
+    borderWidth: '1.5px', borderStyle: 'solid', borderColor: '#e2e8f0',
     borderRadius: '10px', background: '#fff',
     color: '#111827', boxSizing: 'border-box',
     outline: 'none', transition: 'all 0.2s ease',
@@ -621,16 +630,12 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                         (shown on Quotation & Invoice)
                       </span>
                     </label>
-                    <textarea
-                      className="pm-input"
-                      style={textareaStyle('details')}
-                      rows={3}
-                      placeholder="Specs, notes, or print description for quotation & invoice..."
+                    <RichTextEditor
                       value={details}
-                      onChange={e => setDetails(e.target.value)}
-                      onFocus={() => setFocusedField('details')}
-                      onBlur={() => setFocusedField(null)}
+                      onChange={val => setDetails(val)}
+                      placeholder="Specs, notes, or print description for quotation & invoice..."
                       disabled={loading || isViewOnly}
+                      minHeight="100px"
                     />
                   </div>
                 </>

@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount } from '../utils/billing';
+import renderRichText from '../utils/renderRichText';
 
 /**
  * Delivery Challan print page - design matches the reference "Dhaka Blinds"
@@ -309,9 +310,7 @@ const ChallanPrintPage = () => {
                         <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
                           <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
                           {(firstItem.notes || firstItem.product?.details) ? (
-                            <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                              {firstItem.notes || firstItem.product.details}
-                            </div>
+                            renderRichText(firstItem.notes || firstItem.product.details)
                           ) : null}
                         </td>
                       )}

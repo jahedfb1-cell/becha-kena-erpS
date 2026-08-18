@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount } from '../utils/billing';
+import renderRichText from '../utils/renderRichText';
 
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -629,9 +630,7 @@ const QuotationPrintPage = () => {
                               </strong>
                             </div>
                             {(item.notes || item.product?.details) ? (
-                              <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                {item.notes || item.product.details}
-                              </div>
+                              renderRichText(item.notes || item.product.details)
                             ) : null}
                             <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>
                               Per Blinds Minimum Quantity (MOQ): {(parseFloat(item.min_billing_sqft) || 10).toFixed(2)} Sft

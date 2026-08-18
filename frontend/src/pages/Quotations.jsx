@@ -1191,7 +1191,7 @@ const Quotations = () => {
           <div className="page-header-row">
             <div>
               <h1>Quotations & Offers</h1>
-              <p>Create and edit active customer quotes, price bids, and convert orders</p>
+              <p className="quotation-subtitle-text">Create and edit active customer quotes, price bids, and convert orders</p>
             </div>
             <button className="primary-btn" onClick={() => { resetForm(); setView('form'); }}>
               + Create Quotation
@@ -1454,7 +1454,7 @@ const Quotations = () => {
             )}
           </div>
 
-          <div className="entries-search-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+          <div className="entries-search-row mobile-entries-search-row">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: 'var(--text-main, #475569)' }}>
               <span>Show</span>
               <select
@@ -1491,7 +1491,8 @@ const Quotations = () => {
           {loading ? (
             <div className="flex-center" style={{ padding: '40px' }}><div className="spinner"></div></div>
           ) : (
-            <div className="card-table-wrapper">
+            <>
+              <div className="card-table-wrapper quotations-desktop-table">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -1600,6 +1601,124 @@ const Quotations = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card list for Quotations */}
+            <div className="quotations-mobile-list">
+                {paginatedQuotations.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>No quotations found.</div>
+                ) : (
+                  paginatedQuotations.map((q, idx) => (
+                    <div className="invoice-mobile-card" key={q.id}>
+                      {/* Horizontal Action Pills Bar matching reference screenshot */}
+                      <div className="mobile-card-actions-scroll">
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-purple"
+                          onClick={() => handleEditClick(q)}
+                          disabled={q.status === 'invoiced'}
+                        >
+                          👁 View / Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-cyan"
+                          onClick={() => handlePrintClick(q, 'detailed')}
+                        >
+                          🖨 Print
+                        </button>
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-indigo"
+                          onClick={() => handlePrintClick(q, 'pad-detailed')}
+                        >
+                          📝 Pad Print
+                        </button>
+                        {q.status === 'quotation' && (
+                          <button
+                            type="button"
+                            className="mobile-action-pill pill-green"
+                            onClick={() => setConvertConfirmTarget(q)}
+                          >
+                            🛒 Convert to Order
+                          </button>
+                        )}
+                        {(q.status === 'pending_approval' || q.status === 'pending_reapproval') && (can('quotations:approve') || user?.role === 'admin') && (
+                          <button
+                            type="button"
+                            className="mobile-action-pill pill-green"
+                            onClick={() => setApproveConfirmTarget(q)}
+                          >
+                            ✅ Approve
+                          </button>
+                        )}
+                        {q.status !== 'invoiced' && (
+                          <button
+                            type="button"
+                            className="mobile-action-pill pill-red"
+                            onClick={() => handleArchive(q.id)}
+                          >
+                            🗑 Archive
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="invoice-mobile-card-header">
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{(currentPage - 1) * entriesPerPage + idx + 1}</span>
+                          <strong style={{ color: '#0f172a', display: 'block', fontSize: '15px' }}>
+                            {q.customer?.company_name || q.customer?.name || 'Walk-in Customer'}
+                          </strong>
+                          {q.customer?.name && q.customer?.name !== q.customer?.company_name && (
+                            <span style={{ fontSize: '12px', color: '#64748b', display: 'block' }}>👤 {q.customer.name}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="invoice-mobile-card-body">
+                        <div className="invoice-mobile-card-row">
+                          <span>Quotation No</span>
+                          <button
+                            type="button"
+                            className="clickable-link"
+                            onClick={() => handleEditClick(q)}
+                            style={{ fontWeight: 800, color: '#007bff' }}
+                          >
+                            {q.quotation_number} ↗
+                          </button>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Date</span>
+                          <span>{formatDate(q.date || q.created_at)}</span>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Salesman</span>
+                          <span>{q.salesman?.name || q.creator?.name || '-'}</span>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Total</span>
+                          <span style={{ fontWeight: 800 }}>{formatCurrency(q.net_amount || q.grand_total || 0)}</span>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Status</span>
+                          <span className={`badge ${
+                            q.status === 'approved' ? 'badge-success' :
+                            q.status === 'invoiced' ? 'badge-info' :
+                            (q.status === 'pending_approval' || q.status === 'pending_reapproval') ? 'badge-warning' :
+                            q.status === 'rejected' ? 'badge-danger' : 'badge-outline'
+                          }`}>
+                            {q.status === 'pending_reapproval' ? 'Pending Re-Approval' :
+                             q.status === 'pending_approval' ? 'Pending Approval' :
+                             q.status === 'approved' ? 'Approved' :
+                             q.status === 'invoiced' ? 'Invoiced' :
+                             q.status === 'rejected' ? 'Rejected' : q.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 16px', borderTop: '1px solid var(--border, #e2e8f0)', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
@@ -1640,7 +1759,7 @@ const Quotations = () => {
                   </button>
                 </div>
               </div>
-            </div>
+            </>
           )}
         </>
       ) : (

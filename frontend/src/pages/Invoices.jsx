@@ -423,48 +423,57 @@ const Invoices = () => {
                 ) : (
                   paginatedInvoices.map((inv, idx) => (
                     <div className="invoice-mobile-card" key={inv.id}>
+                      {/* Horizontal Action Pills Bar matching reference screenshot */}
+                      <div className="mobile-card-actions-scroll">
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-purple"
+                          onClick={() => loadInvoiceDetails(inv.id)}
+                        >
+                          👁 View Details
+                        </button>
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-cyan"
+                          onClick={() => handlePrintClick(inv, 'detailed')}
+                        >
+                          🖨 Print
+                        </button>
+                        {inv.payment_status !== 'paid' && (
+                          <button
+                            type="button"
+                            className="mobile-action-pill pill-green"
+                            onClick={() => { setSelectedInvoice(inv); setIsPaymentModalOpen(true); }}
+                          >
+                            💳 Record
+                          </button>
+                        )}
+                        {can('challans:generate') && (
+                          <button
+                            type="button"
+                            className="mobile-action-pill pill-indigo"
+                            onClick={() => handleGenerateChallan(inv.id)}
+                          >
+                            🚚 Challan
+                          </button>
+                        )}
+                        {can('invoices:delete') && (
+                          <button
+                            type="button"
+                            className="mobile-action-pill pill-red"
+                            onClick={() => handleArchiveInvoice(inv.id)}
+                          >
+                            🗑 Archive Invoice
+                          </button>
+                        )}
+                      </div>
+
                       <div className="invoice-mobile-card-header">
                         <div style={{ minWidth: 0 }}>
                           <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{(currentPage - 1) * entriesPerPage + idx + 1}</span>
-                          <strong style={{ color: '#0f172a', display: 'block', fontSize: '14px' }}>{inv.companyName}</strong>
+                          <strong style={{ color: '#0f172a', display: 'block', fontSize: '15px' }}>{inv.companyName}</strong>
                           {inv.customer?.name && inv.customer?.name !== inv.companyName && (
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>👤 {inv.customer.name}</span>
-                          )}
-                        </div>
-
-                        <div className="invoice-mobile-actions-wrap">
-                          <button
-                            type="button"
-                            className="invoice-mobile-kebab-btn"
-                            onClick={() => setOpenActionsId(openActionsId === inv.id ? null : inv.id)}
-                            title="Actions"
-                          >
-                            ⋮
-                          </button>
-                          {openActionsId === inv.id && (
-                            <div className="invoice-mobile-actions-dropdown">
-                              <button className="text-btn" onClick={() => { setOpenActionsId(null); loadInvoiceDetails(inv.id); }}>
-                                👁️ View Details
-                              </button>
-                              <button className="text-btn" style={{ color: '#17a2b8' }} onClick={() => { setOpenActionsId(null); handlePrintClick(inv, 'detailed'); }}>
-                                🖨️ Print Invoice
-                              </button>
-                              {inv.payment_status !== 'paid' && (
-                                <button className="text-btn" style={{ color: '#16a34a' }} onClick={() => { setOpenActionsId(null); setSelectedInvoice(inv); setIsPaymentModalOpen(true); }}>
-                                  💳 Record Payment
-                                </button>
-                              )}
-                              {can('challans:generate') && (
-                                <button className="text-btn" style={{ color: '#8b5cf6' }} onClick={() => { setOpenActionsId(null); handleGenerateChallan(inv.id); }}>
-                                  🚚 Generate Challan
-                                </button>
-                              )}
-                              {can('invoices:delete') && (
-                                <button className="text-btn" style={{ color: '#dc2626' }} onClick={() => { setOpenActionsId(null); handleArchiveInvoice(inv.id); }}>
-                                  🗑️ Archive Invoice
-                                </button>
-                              )}
-                            </div>
+                            <span style={{ fontSize: '12px', color: '#64748b', display: 'block' }}>👤 {inv.customer.name}</span>
                           )}
                         </div>
                       </div>

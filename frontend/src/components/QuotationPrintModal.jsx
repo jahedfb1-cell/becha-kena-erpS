@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
+import renderRichText from '../utils/renderRichText';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -596,9 +597,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                                   </strong>
                                 </div>
                                 {!isOrder && (item.notes || item.product?.details) ? (
-                                  <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                    {item.notes || item.product.details}
-                                  </div>
+                                  renderRichText(item.notes || item.product.details)
                                 ) : null}
                                 {!isOrder && (
                                   <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>

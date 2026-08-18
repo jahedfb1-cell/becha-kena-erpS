@@ -1368,71 +1368,77 @@ const Orders = () => {
               {filteredOrders.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>No confirmed orders found.</div>
               ) : (
-                filteredOrders.map((o) => (
+                filteredOrders.map((o, idx) => (
                   <div className="order-mobile-card" key={o.id}>
+                    {/* Horizontal Action Pills Bar matching reference screenshot */}
+                    <div className="mobile-card-actions-scroll">
+                      <button
+                        type="button"
+                        className="mobile-action-pill pill-purple"
+                        onClick={() => loadOrderDetails(o.id)}
+                      >
+                        👁 View Details
+                      </button>
+                      <button
+                        type="button"
+                        className="mobile-action-pill pill-cyan"
+                        onClick={async () => {
+                          try {
+                            const res = await api.get(`/quotations/${o.id}`);
+                            const fullOrder = res.data?.data || res.data || o;
+                            setPrintingOrder(fullOrder);
+                            setIsPrintModalOpen(true);
+                          } catch (err) {
+                            setPrintingOrder(o);
+                            setIsPrintModalOpen(true);
+                          }
+                        }}
+                      >
+                        🖨 Print
+                      </button>
+                      {o.status === 'approved' && (
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-green"
+                          onClick={() => handleGenerateInvoice(o.id, o.quotation_number)}
+                        >
+                          🧾 Invoice
+                        </button>
+                      )}
+                      {(o.status === 'approved' || o.status === 'invoiced') && (
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-indigo"
+                          onClick={() => navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`)}
+                        >
+                          🛒 Purchase
+                        </button>
+                      )}
+                      {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-purple"
+                          onClick={() => handleEditClick(o)}
+                        >
+                          ✏️ Edit
+                        </button>
+                      )}
+                    </div>
+
                     <div className="order-mobile-card-header">
                       <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{(currentPage - 1) * entriesPerPage + idx + 1}</span>
                         <button
                           type="button"
                           className="clickable-link"
                           onClick={() => loadOrderDetails(o.id)}
-                          style={{ fontWeight: 800, display: 'block' }}
+                          style={{ fontWeight: 800, display: 'block', fontSize: '15px' }}
                         >
-                          {o.quotation_number}
+                          {o.quotation_number} ↗
                         </button>
                         <span style={{ fontSize: '12px', color: '#475569', fontWeight: 600 }}>
                           {o.customer?.company_name || o.customer?.name || 'N/A'}
                         </span>
-                      </div>
-
-                      <div className="order-mobile-actions-wrap">
-                        <button
-                          type="button"
-                          className="order-mobile-kebab-btn"
-                          onClick={() => setOpenActionsId(openActionsId === o.id ? null : o.id)}
-                          title="Actions"
-                        >
-                          ⋮
-                        </button>
-                        {openActionsId === o.id && (
-                          <div className="order-mobile-actions-dropdown">
-                            <button className="text-btn" onClick={() => { setOpenActionsId(null); loadOrderDetails(o.id); }}>
-                              👁️ View Details
-                            </button>
-                            {(o.status === 'approved' || o.status === 'invoiced') && (
-                              <button className="text-btn" style={{ color: '#b45309' }} onClick={() => { setOpenActionsId(null); navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`); }}>
-                                🛒 Go to Purchase
-                              </button>
-                            )}
-                            {o.status === 'approved' && (
-                              <button className="text-btn" style={{ color: '#15803d' }} onClick={() => { setOpenActionsId(null); handleGenerateInvoice(o.id, o.quotation_number); }}>
-                                🧾 Generate Sales / Invoice
-                              </button>
-                            )}
-                            {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
-                              <button className="text-btn" style={{ color: '#1d4ed8' }} onClick={() => { setOpenActionsId(null); handleEditClick(o); }}>
-                                ✏️ Edit Order
-                              </button>
-                            )}
-                            <button
-                              className="text-btn"
-                              onClick={async () => {
-                                setOpenActionsId(null);
-                                try {
-                                  const res = await api.get(`/quotations/${o.id}`);
-                                  const fullOrder = res.data?.data || res.data || o;
-                                  setPrintingOrder(fullOrder);
-                                  setIsPrintModalOpen(true);
-                                } catch (err) {
-                                  setPrintingOrder(o);
-                                  setIsPrintModalOpen(true);
-                                }
-                              }}
-                            >
-                              🖨️ Print Order
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
 
