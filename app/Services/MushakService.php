@@ -145,7 +145,21 @@ class MushakService
     }
 
     /**
-     * One row per printable order line.
+     * One row per product category, not per order line.
+     *
+     * An order of blinds is usually one kind of goods cut to a dozen
+     * different window sizes. On the challan that is a single supply: the
+     * NBR form wants the goods named once ("Roller Blinds") with the whole
+     * area against it, the way the pads are filled in by hand — not a row
+     * per window listing its measurements. So the printable lines are
+     * grouped and their areas added up, which also makes the challan's
+     * quantity equal the invoice's total sq.ft.
+     *
+     * Unit is part of the grouping key, never just the category. A category
+     * can hold both sq.ft and per-piece products — "Automatic Smart Roller
+     * blinds Motor" has motors sold by the piece next to track sold by the
+     * foot — and adding an area to a piece count would produce a quantity
+     * that means nothing.
      *
      * Optional variations the customer did not take, and lines switched off
      * for print, are skipped: they are not being supplied, so charging VAT
@@ -153,7 +167,7 @@ class MushakService
      */
     private function buildItems(MushakInvoice $challan, $quotation, float $rate, bool $inclusive): void
     {
-        $serial = 1;
+        $groups = [];
 
         foreach ($quotation->items as $item) {
             if ($item->is_optional && !$item->is_selected) {
@@ -163,11 +177,34 @@ class MushakService
                 continue;
             }
 
-            $split = VatCalculator::split((float) $item->line_total, $rate, $inclusive);
+            // Read the unit off the product, the way QuotationService does.
+            // It cannot be inferred from billed_sqft: a per-piece line stores
+            // its piece count in that column too, so testing it would label
+            // every motor and every bracket as sq.ft.
+            $unit        = $this->unitOf($item);
+            $description = $this->describe($item);
+            $key         = $description . '|' . $unit;
 
-            // Quantity is whatever this line was actually billed on, so the
-            // challan's arithmetic matches the invoice the customer holds.
-            $quantity = (float) ($item->billed_sqft ?: $item->pcs ?: 1);
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'description' => $description,
+                    'unit'        => $unit,
+                    'quantity'    => 0.0,
+                    'amount'      => 0.0,
+                ];
+            }
+
+            $groups[$key]['quantity'] += (float) ($item->billed_sqft ?: $item->pcs ?: 1);
+            $groups[$key]['amount']   += (float) $item->line_total;
+        }
+
+        $serial = 1;
+
+        foreach ($groups as $group) {
+            // Split the group's own total rather than each line's, so the
+            // row's three money columns stay exactly consistent with each
+            // other instead of carrying the sum of several roundings.
+            $split = VatCalculator::split(round($group['amount'], 2), $rate, $inclusive);
 
             // Columns 5 and 6 of the form are both "ভ্যাট ব্যতীত": the rate
             // has to be the VAT-excluded one so that quantity x unit price
@@ -177,15 +214,15 @@ class MushakService
             // Deriving it from the taxable value covers both directions —
             // on an exclusive order the taxable value is the line total, so
             // this returns the order's unit price unchanged.
-            $unitPrice = $quantity > 0
-                ? round($split['taxable'] / $quantity, 2)
+            $unitPrice = $group['quantity'] > 0
+                ? round($split['taxable'] / $group['quantity'], 2)
                 : $split['taxable'];
 
             $challan->items()->create([
                 'serial_no'           => $serial++,
-                'description'         => $this->describe($item),
-                'unit'                => $item->billed_sqft ? 'sqft' : 'pcs',
-                'quantity'            => $quantity,
+                'description'         => $group['description'],
+                'unit'                => $group['unit'],
+                'quantity'            => round($group['quantity'], 2),
                 'unit_price'          => $unitPrice,
                 'total_value'         => $split['taxable'],
                 'sd_rate'             => 0,
@@ -197,20 +234,31 @@ class MushakService
         }
     }
 
-    /** Readable goods description for the challan's second column. */
+    /**
+     * What the goods are called in the challan's second column, and the
+     * thing lines are grouped by.
+     *
+     * The category is the name of the goods as the VAT office reads it, so
+     * it wins over the individual product. Sizes are deliberately left out:
+     * they are what makes two lines of the same goods look different, and
+     * naming them here would defeat the grouping. Products with no category
+     * fall back to their own name so they still group with their like.
+     */
     private function describe($item): string
     {
-        $size = ($item->width && $item->height)
-            ? $item->width . ' x ' . $item->height . ' inch'
-            : null;
+        return $item->product?->category?->name
+            ?: ($item->product?->name ?: 'Item');
+    }
 
-        $parts = array_filter([
-            $item->product?->name,
-            $item->variant?->name,
-            $size,
-        ]);
-
-        return implode(' - ', $parts) ?: 'Item';
+    /**
+     * "pcs" for per-piece goods, "sqft" for anything measured by area —
+     * the same test QuotationService applies when it bills the line.
+     */
+    private function unitOf($item): string
+    {
+        return strtolower(trim((string) ($item->product?->unit ?? ''))) === 'pcs'
+            ? 'pcs'
+            : 'sqft';
     }
 
     /**

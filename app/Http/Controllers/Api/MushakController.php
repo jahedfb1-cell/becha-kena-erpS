@@ -114,7 +114,7 @@ class MushakController extends Controller
             'issued_by_designation' => 'nullable|string|max:150',
         ]);
 
-        $invoice = Invoice::with(['quotation.items.product', 'quotation.items.variant', 'customer'])
+        $invoice = Invoice::with(['quotation.items.product.category', 'quotation.items.variant', 'customer'])
             ->find($invoiceId);
 
         if (!$invoice) {
