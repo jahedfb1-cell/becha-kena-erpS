@@ -169,12 +169,24 @@ class MushakService
             // challan's arithmetic matches the invoice the customer holds.
             $quantity = (float) ($item->billed_sqft ?: $item->pcs ?: 1);
 
+            // Columns 5 and 6 of the form are both "ভ্যাট ব্যতীত": the rate
+            // has to be the VAT-excluded one so that quantity x unit price
+            // reconciles with the taxable total in column 6. On an inclusive
+            // order the order's own unit price still has the VAT inside it,
+            // so taking it as-is would leave the two columns disagreeing.
+            // Deriving it from the taxable value covers both directions —
+            // on an exclusive order the taxable value is the line total, so
+            // this returns the order's unit price unchanged.
+            $unitPrice = $quantity > 0
+                ? round($split['taxable'] / $quantity, 2)
+                : $split['taxable'];
+
             $challan->items()->create([
                 'serial_no'           => $serial++,
                 'description'         => $this->describe($item),
                 'unit'                => $item->billed_sqft ? 'sqft' : 'pcs',
                 'quantity'            => $quantity,
-                'unit_price'          => (float) $item->unit_price,
+                'unit_price'          => $unitPrice,
                 'total_value'         => $split['taxable'],
                 'sd_rate'             => 0,
                 'sd_amount'           => 0,

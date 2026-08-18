@@ -109,6 +109,7 @@ const Orders = () => {
   // challan says. Default rate is 10 and only applies once ticked.
   const [vatEnabled, setVatEnabled] = useState(false);
   const [vatRate, setVatRate] = useState(10);
+  const [vatInclusive, setVatInclusive] = useState(false);
   const [discountType, setDiscountType] = useState('flat');
   const [discountValue, setDiscountValue] = useState(0);
   const [remark, setRemark] = useState('');
@@ -905,6 +906,7 @@ const Orders = () => {
       setVatPercentage(parseFloat(fullQ.vat_percentage) || 0);
       setVatEnabled(!!fullQ.vat_enabled);
       setVatRate(fullQ.vat_rate == null ? 10 : parseFloat(fullQ.vat_rate));
+      setVatInclusive(!!fullQ.vat_inclusive);
       setDiscountType(fullQ.discount_type || 'flat');
       setDiscountValue(parseFloat(fullQ.discount_value) || 0);
       setRemark(fullQ.note || '');
@@ -1092,6 +1094,7 @@ const Orders = () => {
       vat_percentage: parseFloat(vatPercentage) || 0,
       vat_enabled: vatEnabled,
       vat_rate: vatEnabled ? (parseFloat(vatRate) || 0) : null,
+      vat_inclusive: vatEnabled ? vatInclusive : false,
       discount_type: discountType,
       discount_value: parseFloat(discountValue) || 0,
       note: remark || null,
@@ -2426,16 +2429,35 @@ const Orders = () => {
                     VAT applicable
                   </label>
                   {vatEnabled && (
-                    <input
-                      type="number"
-                      value={vatRate}
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      onChange={(e) => setVatRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                      placeholder="VAT rate (%)"
-                      style={{ marginTop: '6px' }}
-                    />
+                    <>
+                      <input
+                        type="number"
+                        value={vatRate}
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        onChange={(e) => setVatRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        placeholder="VAT rate (%)"
+                        style={{ marginTop: '6px' }}
+                      />
+                      {/* Which way the agreed price was struck. Exclusive adds
+                          VAT on top of it; inclusive means the price already
+                          contains the VAT and the challan has to extract it
+                          back out. */}
+                      <select
+                        value={vatInclusive ? 'inclusive' : 'exclusive'}
+                        onChange={(e) => setVatInclusive(e.target.value === 'inclusive')}
+                        style={{ width: '100%', padding: '6px', marginTop: '6px' }}
+                      >
+                        <option value="exclusive">Price excludes VAT — add on top</option>
+                        <option value="inclusive">Price includes VAT — extract from it</option>
+                      </select>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '4px' }}>
+                        {vatInclusive
+                          ? 'Customer pays the agreed price; the VAT challan splits it.'
+                          : 'VAT is charged above the agreed price.'}
+                      </div>
+                    </>
                   )}
                 </div>
                   </div>
