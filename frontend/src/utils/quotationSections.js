@@ -14,6 +14,8 @@
  * whose builders have otherwise drifted apart.
  */
 
+import { pvcSlatCount, billableSqft } from './billing';
+
 /** Rebuilds one section, leaving the rest of the list untouched. */
 const mapSection = (sections, sectionId, fn) =>
   sections.map(sec => (sec.id === sectionId ? fn(sec) : sec));
@@ -124,4 +126,76 @@ export const removeSizeRow = (sections, sectionId, blockId, sizeId) =>
     }
 
     return { ...block, sizes };
+  });
+
+/**
+ * Whether a block is PVC strip curtain, which is billed across whole slats
+ * rather than the measured opening.
+ *
+ * Nothing on the product marks this, so it is read out of whatever text is
+ * to hand — unit, category or name. "Clear water" is in the list because
+ * that range is PVC without saying so anywhere.
+ */
+export const isPvcBlock = (block) => {
+  const haystack = [
+    block.unit,
+    block.category_name,
+    block.product_name,
+  ].map(value => (value || '').toLowerCase());
+
+  return haystack.some(text => text.includes('pvc'))
+    || haystack[2].includes('clear water');
+};
+
+/**
+ * Prices measured rows and appends them to a block, keeping whichever of the
+ * block's own rows already carry measurements.
+ *
+ * Used for both spreadsheet pastes and AI photo scans: it is the same size
+ * grid either way, only the source of the numbers differs, and the two had
+ * been carrying identical copies of this arithmetic in both builders.
+ *
+ * Note this prices strictly by area, with no per-piece branch — matching
+ * what both import paths have always done. `handleSizeChange` in the pages
+ * does have that branch, so the two are deliberately not merged.
+ */
+export const appendMeasuredRows = (sections, sectionId, blockId, rows) =>
+  mapBlock(sections, sectionId, blockId, block => {
+    const unitPrice = parseFloat(block.unit_price) || 0;
+    const minSqft = parseFloat(block.min_billing_sqft) || 0;
+
+    const priced = rows.map(row => {
+      const width = parseFloat(row.width) || 0;
+      const height = parseFloat(row.height) || 0;
+      const pcs = parseInt(row.pcs) || 1;
+
+      const perPieceSqft = Math.round(((width * height) / 144) * 100) / 100;
+
+      let billedSqft;
+      if (isPvcBlock(block)) {
+        const slatSize = parseFloat(block.product_size) || 8;
+        const slatWidth = pvcSlatCount(width) * slatSize;
+        billedSqft = Math.round(((slatWidth * height) / 144 * pcs) * 100) / 100;
+      } else {
+        billedSqft = billableSqft(Math.max(perPieceSqft, minSqft), pcs);
+      }
+
+      return {
+        id: newId(),
+        width,
+        height,
+        pcs,
+        actual_sqft: perPieceSqft,
+        billed_sqft: billedSqft,
+        line_total: Math.round((billedSqft * unitPrice) * 100) / 100,
+      };
+    });
+
+    // A row with no measurements is a blank waiting to be filled in, so the
+    // imported rows take its place rather than stacking up underneath it.
+    const measured = block.sizes.filter(
+      size => parseFloat(size.width) > 0 && parseFloat(size.height) > 0
+    );
+
+    return { ...block, sizes: [...measured, ...priced] };
   });

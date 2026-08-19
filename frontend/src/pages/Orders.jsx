@@ -17,6 +17,7 @@ import {
   selectOptionVariant,
   addSizeRow,
   removeSizeRow,
+  appendMeasuredRows,
 } from '../utils/quotationSections';
 import { describeSaveError } from '../utils/apiError';
 import NotApplicableCell from '../components/NotApplicableCell';
@@ -559,50 +560,7 @@ const Orders = () => {
       return;
     }
 
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: sec.blocks.map(block => {
-          if (block.id !== blockId) return block;
-
-          const unitPrice = parseFloat(block.unit_price) || 0;
-          const minSqft = parseFloat(block.min_billing_sqft) || 0;
-
-          const calculatedRows = newSizeRows.map(row => {
-            const w = parseFloat(row.width) || 0;
-            const h = parseFloat(row.height) || 0;
-            const pcs = parseInt(row.pcs) || 1;
-            const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
-            let totalBilledSqft = 0;
-            const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
-            if (isPvc) {
-              const slatSize = parseFloat(block.product_size) || 8;
-              const slats = pvcSlatCount(w);
-              const calcWidth = slats * slatSize;
-              totalBilledSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
-            } else {
-              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-              totalBilledSqft = billableSqft(sqftPerPiece, pcs);
-            }
-            const lineTotal = Math.round((totalBilledSqft * unitPrice) * 100) / 100;
-
-            return {
-              ...row,
-              actual_sqft: singlePieceSqft,
-              billed_sqft: totalBilledSqft,
-              line_total: lineTotal
-            };
-          });
-
-          const existingValidSizes = block.sizes.filter(s => parseFloat(s.width) > 0 && parseFloat(s.height) > 0);
-          return {
-            ...block,
-            sizes: [...existingValidSizes, ...calculatedRows]
-          };
-        })
-      };
-    }));
+    setSections(prev => appendMeasuredRows(prev, sectionId, blockId, newSizeRows));
 
     setExcelPasteTargetBlock(null);
     setExcelPasteText('');
@@ -618,53 +576,7 @@ const Orders = () => {
     if (!aiScanTargetBlock || !parsedRows || parsedRows.length === 0) return;
     const { sectionId, blockId } = aiScanTargetBlock;
 
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: sec.blocks.map(block => {
-          if (block.id !== blockId) return block;
-
-          const unitPrice = parseFloat(block.unit_price) || 0;
-          const minSqft = parseFloat(block.min_billing_sqft) || 0;
-
-          const calculatedRows = parsedRows.map(row => {
-            const w = parseFloat(row.width) || 0;
-            const h = parseFloat(row.height) || 0;
-            const pcs = parseInt(row.pcs) || 1;
-            const singlePieceSqft = Math.round(((w * h) / 144) * 100) / 100;
-            let totalBilledSqft = 0;
-            const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
-            if (isPvc) {
-              const slatSize = parseFloat(block.product_size) || 8;
-              const slats = pvcSlatCount(w);
-              const calcWidth = slats * slatSize;
-              totalBilledSqft = Math.round(((calcWidth * h) / 144 * pcs) * 100) / 100;
-            } else {
-              const sqftPerPiece = Math.max(singlePieceSqft, minSqft);
-              totalBilledSqft = billableSqft(sqftPerPiece, pcs);
-            }
-            const lineTotal = Math.round((totalBilledSqft * unitPrice) * 100) / 100;
-
-            return {
-              id: Date.now() + Math.random(),
-              width: w,
-              height: h,
-              pcs: pcs,
-              actual_sqft: singlePieceSqft,
-              billed_sqft: totalBilledSqft,
-              line_total: lineTotal
-            };
-          });
-
-          const existingValidSizes = block.sizes.filter(s => parseFloat(s.width) > 0 && parseFloat(s.height) > 0);
-          return {
-            ...block,
-            sizes: [...existingValidSizes, ...calculatedRows]
-          };
-        })
-      };
-    }));
+    setSections(prev => appendMeasuredRows(prev, sectionId, blockId, parsedRows));
 
     setAiScanTargetBlock(null);
   };
