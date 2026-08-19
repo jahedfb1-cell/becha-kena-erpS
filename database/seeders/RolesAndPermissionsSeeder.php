@@ -45,6 +45,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'orders:view-all',
             'orders:edit-approved',
 
+            // Price lists (saved rate cards). Separate from quotations:
+            // these quote rates only and never convert into an order.
+            'price_lists:create',
+            'price_lists:view-team',
+            'price_lists:view-all',
+            'price_lists:archive',
+
             // Purchase Entries
             'purchase_entries:view',
             'purchase_entries:create',
@@ -144,6 +151,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'quotations:approve',
             'quotations:reject',
             'orders:view-team',
+            'price_lists:create',
+            'price_lists:view-team',
+            'price_lists:archive',
             'payments:create',
             'complaints:create',
             'reports:view-sales',
@@ -166,6 +176,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'quotations:edit-own',
             'quotations:convert',
             'orders:view-own',
+            'price_lists:create',
+            'price_lists:archive',
             'complaints:create',
             'payments:create',
         ];

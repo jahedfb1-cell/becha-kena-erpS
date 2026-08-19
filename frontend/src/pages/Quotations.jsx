@@ -981,9 +981,14 @@ const Quotations = () => {
               <h1>Quotations & Offers</h1>
               <p className="quotation-subtitle-text">Create and edit active customer quotes, price bids, and convert orders</p>
             </div>
-            <button className="primary-btn" onClick={() => { resetForm(); setView('form'); }}>
-              + Create Quotation
-            </button>
+            <div className="page-header-actions">
+              <Link to="/price-lists" className="secondary-btn">
+                📑 Price Lists
+              </Link>
+              <button className="primary-btn" onClick={() => { resetForm(); setView('form'); }}>
+                + Create Quotation
+              </button>
+            </div>
           </div>
 
           {/* Top Filter Card Section */}

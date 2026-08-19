@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\MushakController;
 use App\Http\Controllers\Api\DeliveryChallanController;
+use App\Http\Controllers\Api\PriceListController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\NotificationController;
@@ -62,6 +63,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/convert-to-order', [QuotationController::class, 'convertToOrder']);
         Route::post('/{id}/approve', [QuotationController::class, 'approve']);
         Route::post('/{id}/reject', [QuotationController::class, 'reject']);
+    });
+
+    // Saved price lists / rate cards. Not part of the quotation pipeline —
+    // these quote rates only and never convert into an order.
+    Route::prefix('price-lists')->group(function () {
+        Route::get('/', [PriceListController::class, 'index']);
+        Route::post('/', [PriceListController::class, 'store']);
+        Route::get('/{id}', [PriceListController::class, 'show']);
+        Route::put('/{id}', [PriceListController::class, 'update']);
+        Route::delete('/{id}', [PriceListController::class, 'destroy']);
+        Route::post('/{id}/restore', [PriceListController::class, 'restore']);
     });
 
     // Invoices

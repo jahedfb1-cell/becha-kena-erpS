@@ -524,6 +524,37 @@ body {
   background-color: var(--primary-hover);
 }
 
+/* Wrapper for header rows that carry several actions (e.g. Quotations:
+   Price List + Create Quotation) instead of a single primary button. */
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Secondary page action: same shape as .primary-btn, lower emphasis, so a
+   header can offer two actions without them competing for the eye. */
+.secondary-btn {
+  padding: 8px 16px;
+  background-color: var(--info);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.secondary-btn:hover {
+  filter: brightness(0.92);
+}
+
 .text-btn {
   background: none;
   border: none;
@@ -953,6 +984,162 @@ body {
   color: var(--text-main);
   text-align: center;
   font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
+   SearchableSelect (components/SearchableSelect.jsx)
+
+   Builds on .search-dropdown-list / .dropdown-item above, so a combobox
+   dropped into a light page needs no extra styling. The .is-dark modifier
+   re-skins it for the dark modal shell (.custom-modal-container), where the
+   default white popover would fight the surrounding chrome.
+
+   The menu is portalled to <body> and positioned with `position: fixed` from
+   JS, because .custom-modal-container sets `overflow: hidden` around a
+   scrolling body — an in-flow popover would be clipped. That also means the
+   .is-dark modifier has to sit on the menu itself, not on an ancestor.
+   -------------------------------------------------------------------------- */
+.searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-select-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Two-class selector on purpose: callers pass their own compact input class
+   (e.g. .pricelist-input) which also sets padding with !important, and the
+   clear button needs its gutter reserved regardless of who wins on padding. */
+.searchable-select .searchable-select-input {
+  width: 100%;
+  padding-right: 30px !important;
+}
+
+.searchable-select-clear {
+  position: absolute;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.searchable-select-clear:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.searchable-select-clear.is-dark {
+  color: #94a3b8;
+}
+
+.searchable-select-clear.is-dark:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+/* Placement comes from inline style; these only neutralise the absolute
+   positioning .search-dropdown-list assumes, and lift the menu above the
+   modal overlay (z-index 2000). */
+.searchable-select-list {
+  right: auto;
+  margin-top: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 3000;
+}
+
+/* The scroll lives on the option list, not the popover, so the result
+   counter below stays pinned and visible while scrolling. */
+.searchable-select-list > [role='listbox'] {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.searchable-select-option {
+  border-bottom: 1px solid var(--border);
+}
+
+.searchable-select-option:last-child {
+  border-bottom: none;
+}
+
+/* Keyboard focus and mouse hover share one highlight, so arrow keys and the
+   pointer cannot disagree about which row is current. */
+.searchable-select-option.is-active {
+  background-color: var(--bg-base);
+  color: var(--text-heading);
+}
+
+.searchable-select-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-heading);
+}
+
+.searchable-select-sublabel {
+  font-size: 11px;
+  color: var(--text-main);
+  margin-top: 2px;
+}
+
+.searchable-select-more {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-main);
+  background: var(--bg-base);
+  border-top: 1px solid var(--border);
+}
+
+/* -- Dark variant, for use inside the dark modal shell -------------------- */
+.searchable-select-list.is-dark {
+  background-color: #1e293b;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 30px -12px rgba(0, 0, 0, 0.7);
+}
+
+.searchable-select-list.is-dark .dropdown-item {
+  color: #cbd5e1;
+}
+
+.searchable-select-list.is-dark .searchable-select-option {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.searchable-select-list.is-dark .searchable-select-option.is-active,
+.searchable-select-list.is-dark .dropdown-item:hover {
+  background-color: rgba(56, 189, 248, 0.16);
+}
+
+.searchable-select-list.is-dark .searchable-select-label {
+  color: #f1f5f9;
+}
+
+.searchable-select-list.is-dark .searchable-select-sublabel,
+.searchable-select-list.is-dark .searchable-select-more {
+  color: #94a3b8;
+}
+
+.searchable-select-list.is-dark .searchable-select-more {
+  background: rgba(15, 23, 42, 0.6);
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 /* ==========================================================================
@@ -2393,6 +2580,19 @@ select.custom-form-input {
     width: 100%;
   }
 
+  /* A header carrying more than one action wraps them in
+     .page-header-actions, so the rule above (which only matches direct
+     children) no longer reaches the buttons - stretch the group instead. */
+  .page-header-actions {
+    width: 100%;
+  }
+
+  .page-header-actions > button,
+  .page-header-actions > a {
+    flex: 1 1 160px;
+    justify-content: center;
+  }
+
   /* Main content column + financial summary sidebar: stack to single column.
      minmax(0, 1fr) (not plain 1fr) is required here — a bare 1fr track keeps
      an implicit minimum size equal to its content's min-content width, so
@@ -3563,6 +3763,506 @@ a, button, select, input, textarea, .nav-item {
     font-size: 12px !important;
   }
 }
+
+/* ==========================================================================
+   Price List Builder (PriceListModal)
+
+   The builder is one row per rate-card line, and a row carries far more
+   fields than fit side by side on a phone. So the same markup is laid out
+   two different ways: a spreadsheet-style column grid on desktop (with a
+   header strip naming the columns once, at the top) and a stacked card on
+   mobile (where each field carries its own inline label instead). That is
+   why every field ships with a .pricelist-field-label - it is hidden on
+   desktop, where the header strip already names the column.
+   ========================================================================== */
+.pricelist-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.pricelist-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pricelist-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.pricelist-section-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* Ghost button for the section-level actions (Add Customer / Add Item). */
+.pricelist-ghost-btn {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.pricelist-ghost-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateY(-1px);
+}
+
+/* Selected-customer recap strip. */
+.pricelist-customer-chips {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(56, 189, 248, 0.07);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 8px;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.pricelist-customer-chips strong {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+/* -- Item rows ---------------------------------------------------------- */
+.pricelist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pricelist-row {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pricelist-row:focus-within {
+  border-color: rgba(0, 242, 254, 0.45);
+  box-shadow: 0 0 0 3px rgba(0, 242, 254, 0.08);
+}
+
+/* Shared track definition: the column header strip and every item row use
+   the same grid so the headings stay aligned over their inputs. */
+.pricelist-item-grid,
+.pricelist-col-head {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 1fr) 96px 110px 36px;
+  gap: 10px;
+  align-items: center;
+}
+
+.pricelist-col-head {
+  padding: 0 14px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.pricelist-col-head .align-right {
+  text-align: right;
+}
+
+.pricelist-row-index {
+  font-weight: 800;
+  color: #64748b;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* Description + remarks sit on their own line beneath the main fields. */
+.pricelist-sub-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.pricelist-delete-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  line-height: 1;
+  transition: var(--transition);
+}
+
+.pricelist-delete-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.3);
+  color: #fecaca;
+}
+
+.pricelist-delete-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Compact input variant - .custom-form-input's 10px/14px padding is too
+   airy once seven of them share one row. */
+.pricelist-input {
+  padding: 7px 10px !important;
+  font-size: 12.5px !important;
+  border-radius: 8px !important;
+}
+
+.pricelist-input.is-rate {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Per-field labels: redundant on desktop (the header strip names the
+   columns), essential once the row stacks on mobile. */
+.pricelist-field-label {
+  display: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 3px;
+}
+
+.pricelist-footer-meta {
+  font-size: 12.5px;
+  color: #94a3b8;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pricelist-footer-meta strong {
+  color: #e2e8f0;
+}
+
+/* -- Tablet: drop the column strip, give each field its own label -------- */
+@media (max-width: 1024px) {
+  .pricelist-col-head {
+    display: none;
+  }
+
+  .pricelist-field-label {
+    display: block;
+  }
+
+  .pricelist-item-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    align-items: end;
+  }
+
+  /* Row number and delete button share one strip at the top, so the
+     destructive control never sits under a thumb-sized input. The delete
+     button is last in the DOM (it belongs after the fields for keyboard
+     order), so `order` — not auto-placement — is what lifts it up here:
+     grid auto-placement only ever moves forward, and would otherwise drop
+     a column-2-pinned item below every field that precedes it. */
+  .pricelist-item-grid > .pricelist-row-index {
+    order: -2;
+    grid-column: 1;
+    text-align: left;
+    font-size: 12px;
+    color: #38bdf8;
+  }
+
+  .pricelist-item-grid > .pricelist-cell-actions {
+    order: -1;
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .pricelist-item-grid > .pricelist-cell-product {
+    grid-column: 1 / -1;
+  }
+}
+
+/* -- Phone: everything single column ------------------------------------ */
+@media (max-width: 640px) {
+  .pricelist-section {
+    padding: 12px 10px;
+  }
+
+  .pricelist-row {
+    padding: 10px;
+  }
+
+  .pricelist-item-grid > .pricelist-cell-name,
+  .pricelist-item-grid > .pricelist-cell-color,
+  .pricelist-item-grid > .pricelist-cell-uom,
+  .pricelist-item-grid > .pricelist-cell-rate {
+    grid-column: 1 / -1;
+  }
+
+  .pricelist-sub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pricelist-customer-chips {
+    gap: 6px;
+    flex-direction: column;
+  }
+}
+
+/* ==========================================================================
+   Price Lists page (pages/PriceLists.jsx)
+
+   The saved rate cards list. A light-theme page, unlike the builder modal
+   above, so everything here reads from the :root tokens.
+
+   One row of data is rendered twice: as a table row on desktop and as a card
+   below 768px, with only one of the two ever visible. A rate card row
+   carries eight columns, and squeezing those into a phone width produces an
+   unreadable table however it is scrolled.
+   ========================================================================== */
+.pricelist-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.pricelist-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pricelist-filter-field > label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.pricelist-filter-actions {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Spans the full width so it drops onto its own line under the inputs,
+   rather than stretching the fixed-width filter columns. */
+.pricelist-archive-toggle {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.pricelist-archive-toggle input {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.pricelist-alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  white-space: pre-line;
+}
+
+.pricelist-alert.is-error {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.pricelist-alert.is-ok {
+  background: var(--success-bg);
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.pricelist-row-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* -- Desktop table vs mobile cards --------------------------------------- */
+.pricelist-mobile-list {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .pricelist-table-wrapper {
+    display: none;
+  }
+
+  .pricelist-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pricelist-filter-bar {
+    grid-template-columns: 1fr 1fr;
+    padding: 12px;
+  }
+
+  /* Search and the button row each take the full width; the two date
+     pickers keep sharing a line, which they fit on comfortably. */
+  .pricelist-filter-search,
+  .pricelist-filter-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+.pricelist-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.pricelist-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.pricelist-card-top strong {
+  color: var(--text-heading);
+  font-weight: 700;
+}
+
+.pricelist-card-customer {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.pricelist-card-subject {
+  font-size: 12px;
+  color: var(--text-main);
+}
+
+.pricelist-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-main);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pricelist-card .pricelist-row-actions {
+  justify-content: flex-start;
+}
+
+/* -- Pagination ---------------------------------------------------------- */
+.pricelist-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.pricelist-pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pricelist-pagination-info select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-heading);
+  font-size: 13px;
+}
+
+.pricelist-pagination-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.pricelist-pagination-controls button {
+  padding: 6px 16px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-heading);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.pricelist-pagination-controls button:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.pricelist-pagination-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 
 
 

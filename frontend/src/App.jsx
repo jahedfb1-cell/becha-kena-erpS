@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './layouts/DashboardLayout';
@@ -11,6 +11,10 @@ import Suppliers from './pages/Suppliers';
 import Purchases from './pages/Purchases';
 import Products from './pages/Products';
 import Quotations from './pages/Quotations';
+
+// Kept out of the initial bundle: the price list page pulls in its own
+// builder and print sheet, and it is a side tool most visits never open.
+const PriceLists = lazy(() => import('./pages/PriceLists'));
 import Orders from './pages/Orders';
 import Invoices from './pages/Invoices';
 import Mushak from './pages/Mushak';
@@ -31,12 +35,21 @@ import InvoicePrintPage from './pages/InvoicePrintPage';
 import ChallanPrintPage from './pages/ChallanPrintPage';
 import PvcChallanPrintPage from './pages/PvcChallanPrintPage';
 import MoneyReceiptPage from './pages/MoneyReceiptPage';
+import PriceListPrintPage from './pages/PriceListPrintPage';
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         {/* Standalone Isolated Clean Print Views (No Dashboard background) */}
+        <Route
+          path="/price-lists/print/:id"
+          element={
+            <ProtectedRoute>
+              <PriceListPrintPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/quotations/print/:id"
           element={
@@ -114,6 +127,15 @@ function App() {
           <Route path="products" element={<Products />} />
           
           <Route path="quotations" element={<Quotations />} />
+
+          <Route
+            path="price-lists"
+            element={
+              <Suspense fallback={null}>
+                <PriceLists />
+              </Suspense>
+            }
+          />
           
           <Route path="orders" element={<Orders />} />
           

@@ -41,6 +41,19 @@ class AccessSetupController extends Controller
                 ],
             ],
             [
+                'id'          => 'price_lists',
+                'name'        => 'Price Lists',
+                'icon'        => '📑',
+                'page'        => 'Price Lists Page',
+                'page_permission' => 'price_lists:create',
+                'functions'   => [
+                    ['key' => 'price_lists:create', 'label' => 'New / Edit Price List'],
+                    ['key' => 'price_lists:view-team', 'label' => 'View Team Price Lists'],
+                    ['key' => 'price_lists:view-all', 'label' => 'View All Price Lists'],
+                    ['key' => 'price_lists:archive', 'label' => 'Delete / Archive Price List'],
+                ],
+            ],
+            [
                 'id'          => 'products',
                 'name'        => 'Products & Stock',
                 'icon'        => '📦',
