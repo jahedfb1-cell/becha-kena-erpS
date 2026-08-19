@@ -14,7 +14,9 @@
  * whose builders have otherwise drifted apart.
  */
 
-import { pvcSlatCount, billableSqft } from './billing';
+// Explicit extension so this module also loads under plain Node, which is
+// how the checks in verify-sections.mjs exercise it without a test runner.
+import { pvcSlatCount, billableSqft } from './billing.js';
 
 /** Rebuilds one section, leaving the rest of the list untouched. */
 const mapSection = (sections, sectionId, fn) =>
