@@ -47,7 +47,8 @@ class ReportController extends Controller
             $quoQuery->whereDate('created_at', '>=', $from);
             $expQuery->whereDate('expense_date', '>=', $from);
             $payQuery->whereDate('payment_date', '>=', $from);
-            $vchQuery->whereDate('voucher_date', '>=', $from);
+            // Vouchers date column is plainly `date`, not `voucher_date`.
+            $vchQuery->whereDate('date', '>=', $from);
         }
         if ($to) {
             $invQuery->whereDate('invoice_date', '<=', $to);
@@ -55,7 +56,7 @@ class ReportController extends Controller
             $quoQuery->whereDate('created_at', '<=', $to);
             $expQuery->whereDate('expense_date', '<=', $to);
             $payQuery->whereDate('payment_date', '<=', $to);
-            $vchQuery->whereDate('voucher_date', '<=', $to);
+            $vchQuery->whereDate('date', '<=', $to);
         }
 
         // Calculations
