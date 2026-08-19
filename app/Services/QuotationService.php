@@ -380,7 +380,18 @@ class QuotationService
             $groupTotalCost = 0;
 
             foreach ($group as $pe) {
-                $pe->update(['is_reversed' => true, 'status' => 'cancelled']);
+                // The line item is released along with the reversal. An edit
+                // replaces a quotation's items, and the FK onto them is
+                // RESTRICT, so an entry still holding its old item would
+                // block the edit outright. A cancelled purchase has no live
+                // line to point at anyway — the size it was raised for is no
+                // longer on the order — while the entry itself stays for the
+                // audit trail.
+                $pe->update([
+                    'is_reversed'       => true,
+                    'status'            => 'cancelled',
+                    'quotation_item_id' => null,
+                ]);
                 $groupTotalCost += (float) $pe->total_cost;
             }
 

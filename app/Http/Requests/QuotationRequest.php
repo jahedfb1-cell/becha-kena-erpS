@@ -37,6 +37,11 @@ class QuotationRequest extends FormRequest
     {
         return [
             'customer_id'         => 'required|exists:customers,id',
+
+            // Matches the column's own enum. Without this the value went
+            // through to the database unchecked, so a typo surfaced as a
+            // failed write rather than a readable validation error.
+            'status'              => 'nullable|in:quotation,pending_approval,approved,rejected,pending_reapproval,invoiced',
             'convenience_charge'  => 'nullable|numeric|min:0',
             'other_charge'        => 'nullable|numeric|min:0',
             'other_charge_label'  => 'nullable|string|max:255',

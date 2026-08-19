@@ -288,10 +288,19 @@ class QuotationController extends Controller
         $oldSnapshot = $quotation->toArray();
 
         return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot) {
+            $wasApproved = $quotation->status === 'approved';
+
             $newStatus = $request->get('status', $quotation->status);
-            if ($quotation->status === 'approved' && !$request->has('status')) {
+            if ($wasApproved && !$request->has('status')) {
                 $newStatus = 'pending_reapproval';
             }
+
+            // Whatever was purchased against the old line items is reversed
+            // before those items are replaced. The edit changes what was
+            // ordered, so the old debt no longer describes anything real —
+            // and the entries reference the very rows that are about to be
+            // deleted, which the database would otherwise refuse.
+            $this->quotationService->reversePurchaseEntries($quotation, $user->id);
 
             $quotation->update([
                 'customer_id'        => $request->customer_id,
@@ -325,9 +334,22 @@ class QuotationController extends Controller
 
             $quotation->update($summary);
 
-            // If pending_reapproval, re-sync purchase entries
-            if ($newStatus === 'pending_reapproval') {
-                $this->quotationService->reversePurchaseEntries($quotation, $user->id);
+            // An order that still stands approved after the edit owes its
+            // supplier the cost of what it now contains, so the purchase is
+            // raised again against the new line items. The Orders screen
+            // sends status "approved" on every save, which is how an order
+            // can also arrive here straight from pending approval — that is
+            // an approval in all but name, and is stamped as one so the
+            // audit trail shows who allowed it.
+            if ($newStatus === 'approved') {
+                if (!$wasApproved) {
+                    $quotation->update([
+                        'approved_by' => $user->id,
+                        'approved_at' => now(),
+                    ]);
+                }
+
+                $this->quotationService->createPurchaseEntries($quotation, $user->id);
             }
 
             AuditLog::record(
