@@ -198,7 +198,13 @@ const PvcChallanPrintPage = () => {
       </div>
 
       {/* ── PRINTABLE DOCUMENT CANVAS ── */}
-      <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)' }} className="quotation-print-container printable-area">
+      <div
+        style={{
+          maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
+          display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box'
+        }}
+        className="quotation-print-container printable-area a4-stretch-area"
+      >
 
         {/* ── HEADER ──
             The standard letterhead every printed document in this app uses
@@ -296,7 +302,8 @@ const PvcChallanPrintPage = () => {
         </div>
 
         {/* Items table - PVC-specific columns */}
-        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
+        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto' }}>
           <thead>
             <tr>
               <th style={{ width: '40px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
@@ -362,8 +369,16 @@ const PvcChallanPrintPage = () => {
                 });
               })
             )}
+
+            {/* Absorbs leftover space so signature/notes stay pinned at bottom of A4 */}
+            <tr className="a4-filler-row">
+              {Array.from({ length: 8 }).map((_, colIdx) => (
+                <td key={colIdx} style={{ borderTop: 'hidden', borderBottom: '1px solid #cbd5e1', borderLeft: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', padding: 0 }}></td>
+              ))}
+            </tr>
           </tbody>
         </table>
+        </div>
 
         {/* Signatures */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', margin: '40px 0 16px' }}>
