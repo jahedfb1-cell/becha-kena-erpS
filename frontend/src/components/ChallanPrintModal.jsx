@@ -1,5 +1,5 @@
 import React from 'react';
-import axios from '../api/axios';
+import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
 import { brandFields } from '../utils/brandProfile';
@@ -19,7 +19,7 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
   // challan's own brand profile, so the modal matches the printed challan.
   React.useEffect(() => {
     if (!isOpen) return;
-    axios.get('/company-profile', {
+    api.get('/company-profile', {
       params: challan?.brand_id ? { brand_id: challan.brand_id } : {},
     })
       .then(res => setCompanyProfile(res.data?.data || res.data || null))

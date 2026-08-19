@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from '../api/axios';
+import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
 
@@ -40,7 +40,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
     if (!isOpen) return;
     // Scoped to the record's brand, not the logged-in user's: reopening
     // an old document must show the branding it was created under.
-    axios.get('/company-profile', {
+    api.get('/company-profile', {
       params: invoice?.brand_id ? { brand_id: invoice.brand_id } : {},
     })
       .then(res => {

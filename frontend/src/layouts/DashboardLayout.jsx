@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext';
 import NotificationBell from '../components/NotificationBell';
-import axios from '../api/axios';
+import api from '../api/axios';
 
 /**
  * Tab title per page: "{Company Name} - {Page Name}", e.g.
@@ -60,7 +60,7 @@ const DashboardLayout = () => {
   const userMenuRef = useRef(null);
 
   useEffect(() => {
-    axios.get('/company-profile')
+    api.get('/company-profile')
       .then(res => {
         const d = res.data?.data;
         if (!d) return;

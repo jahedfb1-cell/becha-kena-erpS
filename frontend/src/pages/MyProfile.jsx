@@ -3,7 +3,7 @@
 // Rule 7 (Button 6-States & 4-Variants & Destructive Confirm Modal), Rule 8 (4px/8px Spacing).
 
 import React, { useState, useEffect } from 'react';
-import axios from '../api/axios';
+import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { normalizeBdPhone } from '../utils/format';
 import { usePWAInstall } from '../hooks/usePWAInstall';
@@ -41,7 +41,7 @@ const MyProfile = () => {
 
   // Assumption: Fetching user profile via /auth/me returns latest user data from server.
   useEffect(() => {
-    axios.get('/auth/me')
+    api.get('/auth/me')
       .then(res => {
         const d = res.data?.data || res.data;
         setProfileForm({
@@ -71,7 +71,7 @@ const MyProfile = () => {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      const res = await axios.put('/auth/profile', profileForm);
+      const res = await api.put('/auth/profile', profileForm);
       const updatedUser = res.data?.data || res.data;
       if (setUser) {
         setUser(prev => ({ ...prev, ...updatedUser }));
@@ -95,7 +95,7 @@ const MyProfile = () => {
 
     setSavingPassword(true);
     try {
-      await axios.post('/auth/change-password', {
+      await api.post('/auth/change-password', {
         old_password: passwordForm.old_password,
         new_password: passwordForm.new_password,
         new_password_confirmation: passwordForm.new_password_confirmation,

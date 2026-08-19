@@ -3,7 +3,7 @@
 // Rule 7 (Button 6-States & 4-Variants & Confirmation), Rule 8 (4px/8px Spacing).
 
 import React, { useState, useEffect, useRef } from 'react';
-import axios from '../api/axios';
+import api from '../api/axios';
 
 const CompanyProfile = () => {
   const [form, setForm] = useState({
@@ -124,7 +124,7 @@ const CompanyProfile = () => {
     setFaviconFile(null);
     setAppIconFile(null);
 
-    return axios.get('/company-profile', { params: brandId ? { brand_id: brandId } : {} })
+    return api.get('/company-profile', { params: brandId ? { brand_id: brandId } : {} })
       .then(res => {
         const d = res.data?.data || res.data;
         setForm({
@@ -158,7 +158,7 @@ const CompanyProfile = () => {
   // failing is not fatal — the page then behaves exactly as it did before
   // brands existed, editing the current user's profile with no tabs shown.
   useEffect(() => {
-    axios.get('/brands')
+    api.get('/brands')
       .then(res => setBrands(res.data?.data || res.data || []))
       .catch(() => setBrands([]));
 
@@ -220,7 +220,7 @@ const CompanyProfile = () => {
       if (faviconFile) fd.append('favicon', faviconFile);
       if (appIconFile) fd.append('app_icon', appIconFile);
 
-      const res = await axios.post('/company-profile', fd, {
+      const res = await api.post('/company-profile', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const d = res.data?.data || res.data;

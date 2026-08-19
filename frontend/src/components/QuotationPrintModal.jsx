@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from '../api/axios';
+import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
@@ -53,7 +53,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
     if (!isOpen) return;
     // Scoped to the record's brand, not the logged-in user's: reopening
     // an old document must show the branding it was created under.
-    axios.get('/company-profile', {
+    api.get('/company-profile', {
       params: quotation?.brand_id ? { brand_id: quotation.brand_id } : {},
     })
       .then(res => {
