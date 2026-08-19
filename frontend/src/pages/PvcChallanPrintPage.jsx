@@ -198,52 +198,99 @@ const PvcChallanPrintPage = () => {
       </div>
 
       {/* ── PRINTABLE DOCUMENT CANVAS ── */}
-      <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)' }} className="printable-area">
+      <div style={{ maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)' }} className="quotation-print-container printable-area">
 
-        {/* HEADER: company name, subtitle, contact lines */}
-        <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-          <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>{brand.name}</h1>
-          <div style={{ fontSize: '11px', color: '#333', margin: '4px 0' }}>
-            (VERTICAL BLINDS, VENETIAN, SINGLE, DOUBLE ROLLER, PVC CURTAIN, REMOTE CONTROL CURTAIN SYSTEM SUPPLIER)
+        {/* ── HEADER ──
+            The standard letterhead every printed document in this app uses
+            (see QuotationPrintPage): brand logo image, office address, red
+            rule, then contact details / document title / document meta laid
+            out in three columns. This page previously typed the company name
+            as an <h1> and stacked the contact lines, which is why its header
+            did not match the rest. `display: block` overrides the flex on
+            .print-header while keeping that class's orange bottom rule. */}
+        <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
+          {/* brandFields() falls back to /logo-demo.svg, which is a real file
+              — so onError never fires and a brand with no uploaded logo would
+              print the demo placeholder on a customer's challan. Fall back to
+              the trade name as text instead, which is what this page printed
+              before it gained the standard letterhead. */}
+          <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+            {(companyProfile?.invoice_logo_url || companyProfile?.company_logo_url) ? (
+              <img
+                src={brand.logoSrc}
+                alt="Invoice & Print Header Logo"
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  height: 'auto',
+                  maxHeight: '140px',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto'
+                }}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>
+                {brand.name}
+              </h1>
+            )}
           </div>
-          <div style={{ fontSize: '12px', color: '#111' }}>
-            <strong>Office:</strong> {brand.companyAddress || brand.officeAddress}
+
+          {/* Office Address Centered Horizontal Line */}
+          <div style={{
+            fontSize: '11px',
+            color: '#222',
+            textAlign: 'center',
+            fontWeight: '700',
+            paddingBottom: '4px',
+            marginBottom: '2px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.3px'
+          }}>
+            Office Address : {brand.officeAddress}
           </div>
-          <div style={{ fontSize: '12px', color: '#111' }}>
-            <strong>Cell:</strong> {brand.mobile}
-          </div>
-          <div style={{ fontSize: '12px', color: '#111' }}>
-            <strong>Email:</strong> {brand.email}
+
+          {/* Red Divider Line under Logo */}
+          <div style={{
+            borderBottom: '1.5px solid #dc2626',
+            marginBottom: '12px',
+            width: '100%'
+          }}></div>
+
+          {/* 3-Column Info Header */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
+            <div>
+              Mobile : {brand.mobile}<br/>
+              Email : {brand.email}<br/>
+              Web : {brand.web}
+              {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
+                PVC Challan
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right', fontSize: '12px' }}>
+              <div>Date : <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong></div>
+              <div>Challan No. : <strong>{challan.challan_number}</strong></div>
+            </div>
           </div>
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', letterSpacing: '6px', textDecoration: 'underline', margin: '12px 0 16px', color: '#000' }}>
-          PVC CHALLAN
-        </div>
-
-        {/* No / Date row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#111', marginBottom: '12px' }}>
-          <div>No: <strong>{challan.challan_number}</strong></div>
-          <div>Date: <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong></div>
-        </div>
-
-        {/* Bill To / Ship To boxes */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginBottom: '20px' }}>
-          <div style={{ flex: 1 }}>
+        {/* Delivery Challan to box */}
+        <div style={{ marginBottom: '20px', width: '30%', minWidth: '240px' }}>
+          <div>
             <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>DELIVERY CHALLAN to :</div>
-            <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px', height: 'calc(100% - 22px)' }}>
+            <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px' }}>
               <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
               <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka'}</div>
               {customer?.address_2 && (
                 <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
               )}
               <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
-            </div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Ship To:</div>
-            <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px', height: 'calc(100% - 22px)' }}>
-              <div style={{ fontSize: '12px', color: '#333' }}>{shipToAddress}</div>
             </div>
           </div>
         </div>
