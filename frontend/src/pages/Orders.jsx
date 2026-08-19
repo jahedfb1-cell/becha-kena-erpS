@@ -212,6 +212,53 @@ const Orders = () => {
     return groups;
   };
 
+  const [copiedDimensionsStatus, setCopiedDimensionsStatus] = useState(false);
+
+  const handleCopyDimensions = () => {
+    if (!selectedOrder?.items || selectedOrder.items.length === 0) return;
+
+    const textLines = [];
+    const groups = buildOrderLineItemGroups(selectedOrder.items);
+
+    groups.forEach(group => {
+      const firstItem = group.rows[0];
+      const prodTitle = `${firstItem?.product?.product_code || ''} ${firstItem?.product?.name || 'Blind Item'}`.trim();
+      if (prodTitle) {
+        textLines.push(`[${prodTitle}]`);
+      }
+
+      group.rows.forEach((item) => {
+        const w = parseFloat(item.width) || 0;
+        const h = parseFloat(item.height) || 0;
+        const pcs = parseInt(item.pcs) || 1;
+        const billedSqft = parseFloat(item.billed_sqft) || 0;
+
+        if (w > 0 && h > 0) {
+          textLines.push(`${item.width} x ${item.height} - ${pcs} = ${billedSqft}`);
+        } else {
+          textLines.push(`${pcs} Pcs = ${billedSqft}`);
+        }
+      });
+      textLines.push('');
+    });
+
+    const formattedText = textLines.join('\n').trim();
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(formattedText);
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = formattedText;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+
+    setCopiedDimensionsStatus(true);
+    setTimeout(() => setCopiedDimensionsStatus(false), 3000);
+  };
+
   const handleApprove = async (id) => {
     try {
       await api.post(`/quotations/${id}/approve`);
@@ -1521,7 +1568,30 @@ const Orders = () => {
 
               {/* Line Items Table */}
               <div className="welcome-banner" style={{ padding: '20px' }}>
-                <h3 style={{ margin: '0 0 16px', color: 'var(--text-heading)' }}>Product Line Items</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                  <h3 style={{ margin: 0, color: 'var(--text-heading)' }}>Product Line Items</h3>
+                  <button
+                    type="button"
+                    onClick={handleCopyDimensions}
+                    style={{
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 14px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 4px rgba(2,132,199,0.25)'
+                    }}
+                  >
+                    📋 Copy Dimensions
+                  </button>
+                </div>
+
                 <div style={{ overflowX: 'auto' }}>
                   <table className="data-table">
                     <thead>
@@ -1529,9 +1599,8 @@ const Orders = () => {
                         <th>Product</th>
                         <th style={{ textAlign: 'center' }}>
                           Dimensions<br />
-                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>widht &nbsp;|&nbsp; Height</span>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 'normal' }}>Width x Height - Pcs</span>
                         </th>
-                        <th style={{ textAlign: 'center' }}>Pcs</th>
                         <th style={{ textAlign: 'center' }}>Billed Sqft</th>
                       </tr>
                     </thead>
@@ -1544,14 +1613,46 @@ const Orders = () => {
                                 <strong>{item.product?.product_code || item.variant?.name}</strong> - {item.product?.name || 'Blind Item'}
                               </td>
                             )}
-                            <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.width} in &nbsp;|&nbsp; {item.height} in</td>
-                            <td style={{ textAlign: 'center' }}>{item.pcs}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '600' }}>
+                              {(parseFloat(item.width) > 0 && parseFloat(item.height) > 0)
+                                ? `${item.width} x ${item.height} - ${item.pcs} = ${item.billed_sqft}`
+                                : `${item.pcs} Pcs = ${item.billed_sqft}`
+                              }
+                            </td>
                             <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.billed_sqft} sqft</td>
                           </tr>
                         ))
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={handleCopyDimensions}
+                    style={{
+                      background: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 4px rgba(2,132,199,0.25)'
+                    }}
+                  >
+                    📋 Copy Dimensions (Width x Height - Pcs)
+                  </button>
+                  {copiedDimensionsStatus && (
+                    <span style={{ fontSize: '13px', color: '#16a34a', fontWeight: '700' }}>
+                      ✓ Dimensions Copied to Clipboard!
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
