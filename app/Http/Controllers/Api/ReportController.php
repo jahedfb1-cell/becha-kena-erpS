@@ -146,13 +146,6 @@ class ReportController extends Controller
         $isSalesman = $user->role === 'salesman';
         $userId = $user->id;
 
-        // Auto-heal users table for monthly_sales_target
-        if (!\Illuminate\Support\Facades\Schema::hasColumn('users', 'monthly_sales_target')) {
-            \Illuminate\Support\Facades\Schema::table('users', function (\Illuminate\Database\Schema\Blueprint $table) {
-                $table->decimal('monthly_sales_target', 14, 2)->default(0)->after('is_active');
-            });
-        }
-
         // Base Queries scoped by role
         $invQuery = Invoice::where('is_archived', false);
         $purQuery = PurchaseEntry::where('is_archived', false)->where('is_reversed', false);
