@@ -8,6 +8,16 @@ import { useCustomers, useProducts, masterDataKeys } from '../hooks/useMasterDat
 import { invalidateOrders } from '../api/invalidate';
 import { formatCurrency, formatDate, formatSqft } from '../utils/format';
 import { pvcSlatCount, pvcApproxSlats, billableSqft } from '../utils/billing';
+import {
+  createSection,
+  removeSection as removeSectionById,
+  renameSection,
+  removeBlock,
+  selectOptionVariant,
+  toggleBlockPrint,
+  addSizeRow,
+  removeSizeRow,
+} from '../utils/quotationSections';
 import { describeSaveError } from '../utils/apiError';
 import NotApplicableCell from '../components/NotApplicableCell';
 import ItemLineHeader, { unitKindOf } from '../components/ItemLineHeader';
@@ -286,12 +296,7 @@ const Quotations = () => {
   // ----------------------------------------------------
 
   const addSection = () => {
-    const char = String.fromCharCode(65 + sections.length);
-    const newSec = {
-      id: 'sec_' + Date.now() + Math.random(),
-      name: `Section ${char}: New Category`,
-      blocks: []
-    };
+    const newSec = createSection(sections.length);
     setSections(prev => [...prev, newSec]);
   };
 
@@ -300,11 +305,11 @@ const Quotations = () => {
       alert('At least 1 section must remain.');
       return;
     }
-    setSections(prev => prev.filter(s => s.id !== sectionId));
+    setSections(prev => removeSectionById(prev, sectionId));
   };
 
   const updateSectionName = (sectionId, newName) => {
-    setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name: newName } : s));
+    setSections(prev => renameSection(prev, sectionId, newName));
   };
 
   /**
@@ -424,99 +429,23 @@ const Quotations = () => {
   };
 
   const toggleOptionSelected = (sectionId, optionGroupId, blockId) => {
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: sec.blocks.map(b => {
-          if (b.option_group_id === optionGroupId) {
-            return { ...b, is_selected: b.id === blockId };
-          }
-          return b;
-        })
-      };
-    }));
+    setSections(prev => selectOptionVariant(prev, sectionId, optionGroupId, blockId));
   };
 
   const toggleBlockPrintEnabled = (sectionId, blockId) => {
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: sec.blocks.map(b => {
-          if (b.id === blockId) {
-            return { ...b, is_enabled_for_print: !b.is_enabled_for_print };
-          }
-          return b;
-        })
-      };
-    }));
+    setSections(prev => toggleBlockPrint(prev, sectionId, blockId));
   };
 
   const addSizeRowToBlock = (sectionId, blockId) => {
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: sec.blocks.map(block => {
-          if (block.id !== blockId) return block;
-          const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs';
-          return {
-            ...block,
-            sizes: [
-              ...block.sizes,
-              {
-                id: Date.now() + Math.random(),
-                width: isPcsBlock ? 1 : '',
-                height: isPcsBlock ? 1 : '',
-                pcs: 1,
-                actual_sqft: isPcsBlock ? 1 : 0,
-                billed_sqft: isPcsBlock ? 1 : 0,
-                line_total: isPcsBlock ? (parseFloat(block.unit_price) || 0) : 0
-              }
-            ]
-          };
-        })
-      };
-    }));
+    setSections(prev => addSizeRow(prev, sectionId, blockId));
   };
 
   const removeSizeRowFromBlock = (sectionId, blockId, sizeId) => {
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: sec.blocks.map(block => {
-          if (block.id !== blockId) return block;
-          const updatedSizes = block.sizes.filter(s => s.id !== sizeId);
-          if (updatedSizes.length === 0) {
-            updatedSizes.push({
-              id: Date.now() + Math.random(),
-              width: '',
-              height: '',
-              pcs: 1,
-              actual_sqft: 0,
-              billed_sqft: 0,
-              line_total: 0
-            });
-          }
-          return {
-            ...block,
-            sizes: updatedSizes
-          };
-        })
-      };
-    }));
+    setSections(prev => removeSizeRow(prev, sectionId, blockId, sizeId));
   };
 
   const removeProductBlock = (sectionId, blockId) => {
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: sec.blocks.filter(b => b.id !== blockId)
-      };
-    }));
+    setSections(prev => removeBlock(prev, sectionId, blockId));
   };
 
   const handleImportExcelSizes = () => {
