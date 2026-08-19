@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Brand;
 use App\Models\Invoice;
 use App\Models\MushakInvoice;
+use App\Traits\GeneratesDocumentNumbers;
 use RuntimeException;
 
 /**
@@ -17,6 +18,8 @@ use RuntimeException;
  */
 class MushakService
 {
+    use GeneratesDocumentNumbers;
+
     /**
      * VAT registration belongs to Western Blinds Ltd. Dhaka Blinds does not
      * issue Mushak documents, so a challan under brand 1 would be a document
@@ -32,19 +35,7 @@ class MushakService
      */
     public function generateChallanNumber(): string
     {
-        $prefix = 'MUSHAK-' . now()->format('Y') . '-';
-
-        $last = MushakInvoice::withoutGlobalScope('brand')
-            ->where('challan_number', 'LIKE', $prefix . '%')
-            ->orderByRaw('CAST(SUBSTRING(challan_number, ' . (strlen($prefix) + 1) . ') AS UNSIGNED) DESC')
-            ->first();
-
-        $next = 1;
-        if ($last && preg_match('/MUSHAK-\d{4}-(\d+)/', $last->challan_number, $m)) {
-            $next = (int) $m[1] + 1;
-        }
-
-        return $prefix . str_pad($next, 4, '0', STR_PAD_LEFT);
+        return $this->nextDocumentNumber(MushakInvoice::class, 'challan_number', 'MUSHAK');
     }
 
     /**

@@ -8,32 +8,19 @@ use App\Models\CustomerLedger;
 use App\Models\Invoice;
 use App\Models\MobileBookEntry;
 use App\Models\Payment;
+use App\Traits\GeneratesDocumentNumbers;
 use Illuminate\Support\Facades\DB;
 
 class PaymentService
 {
+    use GeneratesDocumentNumbers;
+
     /**
      * Generate next payment number: PAY-2025-0001
      */
     public function generatePaymentNumber(): string
     {
-        $year = now()->format('Y');
-        $prefix = "PAY-{$year}-";
-
-        // Numbers are one shared sequence across every brand, not scoped
-        // per brand — without this a brand with no payments yet would
-        // restart at 0001 and collide with another brand's number.
-        $last = Payment::withoutGlobalScope('brand')
-            ->where('payment_number', 'LIKE', "{$prefix}%")
-            ->orderByRaw("CAST(SUBSTRING(payment_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
-            ->first();
-
-        $nextNumber = 1;
-        if ($last && preg_match('/PAY-\d{4}-(\d+)/', $last->payment_number, $m)) {
-            $nextNumber = (int) $m[1] + 1;
-        }
-
-        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $this->nextDocumentNumber(Payment::class, 'payment_number', 'PAY');
     }
 
     /**

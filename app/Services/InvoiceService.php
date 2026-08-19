@@ -6,31 +6,18 @@ use App\Models\Invoice;
 use App\Models\Quotation;
 use App\Models\CustomerLedger;
 use App\Models\DeliveryChallan;
+use App\Traits\GeneratesDocumentNumbers;
 
 class InvoiceService
 {
+    use GeneratesDocumentNumbers;
+
     /**
      * Generate next invoice number: INV-2025-0001
      */
     public function generateInvoiceNumber(): string
     {
-        $year = now()->format('Y');
-        $prefix = "INV-{$year}-";
-
-        // Numbers are one shared sequence across every brand, not scoped
-        // per brand — without this a brand with no invoices yet would
-        // restart at 0001 and collide with another brand's number.
-        $last = Invoice::withoutGlobalScope('brand')
-            ->where('invoice_number', 'LIKE', "{$prefix}%")
-            ->orderByRaw("CAST(SUBSTRING(invoice_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
-            ->first();
-
-        $nextNumber = 1;
-        if ($last && preg_match('/INV-\d{4}-(\d+)/', $last->invoice_number, $m)) {
-            $nextNumber = (int) $m[1] + 1;
-        }
-
-        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $this->nextDocumentNumber(Invoice::class, 'invoice_number', 'INV');
     }
 
     /**

@@ -8,33 +8,19 @@ use App\Models\PurchaseEntry;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\SupplierLedger;
+use App\Traits\GeneratesDocumentNumbers;
 use Illuminate\Support\Facades\DB;
 
 class QuotationService
 {
+    use GeneratesDocumentNumbers;
+
     /**
      * Generate next quotation number: QT-2025-0001
      */
     public function generateQuotationNumber(): string
     {
-        $year = now()->format('Y');
-        $prefix = "QT-{$year}-";
-
-        // Numbers are one shared sequence across every brand — not scoped
-        // per brand — since quotation_number is globally unique; without
-        // this, a brand with no quotations yet would restart at 0001 and
-        // collide with another brand's existing number.
-        $lastQuotation = Quotation::withoutGlobalScope('brand')
-            ->where('quotation_number', 'LIKE', "{$prefix}%")
-            ->orderByRaw("CAST(SUBSTRING(quotation_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
-            ->first();
-
-        $nextNumber = 1;
-        if ($lastQuotation && preg_match('/QT-\d{4}-(\d+)/', $lastQuotation->quotation_number, $m)) {
-            $nextNumber = (int) $m[1] + 1;
-        }
-
-        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $this->nextDocumentNumber(Quotation::class, 'quotation_number', 'QT');
     }
 
     /**
@@ -42,21 +28,7 @@ class QuotationService
      */
     public function generatePurchaseNumber(): string
     {
-        $year = now()->format('Y');
-        $prefix = "PO-{$year}-";
-
-        // Same shared-sequence reasoning as generateQuotationNumber() above.
-        $last = PurchaseEntry::withoutGlobalScope('brand')
-            ->where('purchase_number', 'LIKE', "{$prefix}%")
-            ->orderByRaw("CAST(SUBSTRING(purchase_number, " . (strlen($prefix) + 1) . ") AS UNSIGNED) DESC")
-            ->first();
-
-        $nextNumber = 1;
-        if ($last && preg_match('/PO-\d{4}-(\d+)/', $last->purchase_number, $m)) {
-            $nextNumber = (int) $m[1] + 1;
-        }
-
-        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $this->nextDocumentNumber(PurchaseEntry::class, 'purchase_number', 'PO');
     }
 
     /**
