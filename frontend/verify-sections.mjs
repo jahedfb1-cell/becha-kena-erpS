@@ -14,6 +14,8 @@ import {
   removeSizeRow,
   appendMeasuredRows,
   isPvcBlock,
+  createProductBlock,
+  appendBlock,
 } from './src/utils/quotationSections.js';
 
 let failures = 0;
@@ -103,6 +105,41 @@ check('pvc keeps the real area', pvc[0].blocks[0].sizes[0].actual_sqft, 35);
 const mixed = block({ sizes: [{ id: 9, width: 10, height: 10 }, { id: 10, width: '', height: '' }] });
 const appended = appendMeasuredRows(sections([mixed]), 's1', 'b1', [{ width: 36, height: 48, pcs: 1 }]);
 check('blank row dropped, measured kept, new appended', appended[0].blocks[0].sizes.map(s => s.width), [10, 36]);
+
+// --- new product lines ------------------------------------------------
+const product = {
+  id: 7, name: 'Roller Blind', product_code: 'BL-001', unit: 'sqft',
+  default_unit_price: 120, product_size: 8, category: { name: 'Roller Blinds' },
+  details: 'MASTER SPEC',
+  supplier_links: [
+    { supplier_id: 3, priority_rank: 2, cost_price: 90, min_billing_sqft: 20 },
+    { supplier_id: 5, priority_rank: 1, cost_price: 70, min_billing_sqft: 15 },
+  ],
+};
+
+const line = createProductBlock(product, { sectionId: 's1' });
+check('routes to the preferred supplier', line.supplier_id, 5);
+check('takes that supplier cost and minimum', [line.cost_price, line.min_billing_sqft], [70, 15]);
+check('takes the product list price', line.unit_price, 120);
+check('takes the product specification', line.notes, 'MASTER SPEC');
+check('a blind starts with four blank rows', line.sizes.length, 4);
+check('those rows are blank', [line.sizes[0].width, line.sizes[0].billed_sqft], ['', 0]);
+
+const noSpec = createProductBlock({ ...product, details: null }, { sectionId: 's1' });
+check('falls back to the default specification', noSpec.notes.includes('Per Blinds Minimum Quantity 15 Sft'), true);
+
+const noSupplier = createProductBlock({ ...product, details: null, supplier_links: [] }, { sectionId: 's1' });
+check('default specification says 20 when there is no minimum', noSupplier.notes.includes('Per Blinds Minimum Quantity 20 Sft'), true);
+check('no supplier means no routing', [noSupplier.supplier_id, noSupplier.cost_price], ['', 0]);
+
+const motor = createProductBlock({ ...product, unit: 'pcs', default_unit_price: 5000 }, { sectionId: 's1' });
+check('per-piece line starts with one usable row', motor.sizes.length, 1);
+check('per-piece row is ready to price', [motor.sizes[0].width, motor.sizes[0].billed_sqft, motor.sizes[0].line_total], [1, 1, 5000]);
+
+const variant = createProductBlock(product, { sectionId: 's1', optionGroupId: 'g1', isOptional: true, isSelected: false });
+check('option variant carries its group', [variant.option_group_id, variant.is_optional, variant.is_selected], ['g1', true, false]);
+
+check('appended to its section', appendBlock(sections([]), 's1', line)[0].blocks.length, 1);
 
 // --- immutability -----------------------------------------------------
 const original = sections([block()]);

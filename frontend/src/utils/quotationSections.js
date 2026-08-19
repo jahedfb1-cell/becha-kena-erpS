@@ -131,6 +131,87 @@ export const removeSizeRow = (sections, sectionId, blockId, sizeId) =>
   });
 
 /**
+ * The specification a line starts with when its product carries none of its
+ * own — the wording the business quotes by default for a roller blind.
+ *
+ * It is a starting point, not a rule: the salesman edits it per order, and
+ * from then on the line's own text is what prints. See lineSpecification().
+ */
+const fallbackSpecification = (minBillingSqft) =>
+  `5% Sunscreen Fabrics\nHeavy Duty side clump & Controller\nFittings, Fixing, and installations\nWith all Accessories\nPer Blinds Minimum Quantity ${minBillingSqft || 20} Sft`;
+
+/**
+ * A new line for a product, priced and routed from the product's own
+ * defaults: the preferred supplier's cost and minimum, the product's list
+ * price, and its specification text.
+ *
+ * Per-piece goods (motors, brackets, remotes) have no width or height to
+ * measure, so they start with one usable quantity row at 1x1 rather than the
+ * four blank measurement rows a blind starts with — those four exist so
+ * someone on a phone can enter several windows without reaching for "add
+ * row" between each.
+ */
+export const createProductBlock = (product, {
+  sectionId,
+  optionGroupId = null,
+  isOptional = false,
+  isSelected = true,
+} = {}) => {
+  const priorityLink = product.supplier_links?.find(link => link.priority_rank === 1);
+  const minBillingSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
+  const unitPrice = parseFloat(product.default_unit_price) || 0;
+  const isPcsProduct = (product.unit || '').trim().toLowerCase() === 'pcs';
+
+  const stamp = Date.now();
+
+  return {
+    id: stamp + Math.random(),
+    section_id: sectionId,
+    option_group_id: optionGroupId,
+    is_optional: isOptional,
+    is_selected: isSelected,
+    is_enabled_for_print: true,
+    product_id: product.id,
+    product_code: product.product_code || '',
+    product_name: product.name,
+    product_size: product.product_size || null,
+    category_name: product.category?.name || '',
+    unit: product.unit || '',
+    product_variant_id: null,
+    supplier_id: priorityLink ? priorityLink.supplier_id : '',
+    unit_price: unitPrice,
+    cost_price: priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0,
+    min_billing_sqft: minBillingSqft,
+    notes: product.details || fallbackSpecification(minBillingSqft),
+    sizes: isPcsProduct
+      ? [{
+          id: stamp + 1,
+          width: 1,
+          height: 1,
+          pcs: 1,
+          actual_sqft: 1,
+          billed_sqft: 1,
+          line_total: unitPrice,
+        }]
+      : Array.from({ length: 4 }, (_, i) => ({
+          id: stamp + i + 1,
+          width: '',
+          height: '',
+          pcs: 1,
+          actual_sqft: 0,
+          billed_sqft: 0,
+          line_total: 0,
+        })),
+  };
+};
+
+export const appendBlock = (sections, sectionId, block) =>
+  mapSection(sections, sectionId, sec => ({
+    ...sec,
+    blocks: [...sec.blocks, block],
+  }));
+
+/**
  * Whether a block is PVC strip curtain, which is billed across whole slats
  * rather than the measured opening.
  *

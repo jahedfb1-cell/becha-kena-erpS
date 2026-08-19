@@ -18,6 +18,8 @@ import {
   addSizeRow,
   removeSizeRow,
   appendMeasuredRows,
+  createProductBlock,
+  appendBlock,
 } from '../utils/quotationSections';
 import { describeSaveError } from '../utils/apiError';
 import NotApplicableCell from '../components/NotApplicableCell';
@@ -332,69 +334,14 @@ const Quotations = () => {
     const prod = products.find(p => p.id === parseInt(pId));
     if (!prod) return null;
 
-    const priorityLink = prod.supplier_links?.find(link => link.priority_rank === 1);
-    const defaultMinSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
-    const defaultUnitPrice = parseFloat(prod.default_unit_price) || 0;
+    const newBlock = createProductBlock(prod, {
+      sectionId,
+      optionGroupId,
+      isOptional,
+      isSelected: initialSelected,
+    });
 
-    const defaultNotes = prod.details ||
-      `5% Sunscreen Fabrics\nHeavy Duty side clump & Controller\nFittings, Fixing, and installations\nWith all Accessories\nPer Blinds Minimum Quantity ${defaultMinSqft || 20} Sft`;
-
-    // Pcs-unit products (hardware, accessories, remote controls, etc.) have
-    // no meaningful width/height — they're billed by piece count instead, so
-    // default the dimensions to 1x1 (a valid, invisible placeholder) and
-    // start with a single quantity row rather than 4 blank size rows.
-    const isPcsProduct = (prod.unit || '').trim().toLowerCase() === 'pcs';
-
-    const newBlock = {
-      id: Date.now() + Math.random(),
-      section_id: sectionId,
-      option_group_id: optionGroupId,
-      is_optional: isOptional,
-      is_selected: initialSelected,
-      is_enabled_for_print: true,
-      product_id: prod.id,
-      product_code: prod.product_code || '',
-      product_name: prod.name,
-      product_size: prod.product_size || null,
-      category_name: prod.category?.name || '',
-      unit: prod.unit || '',
-      product_variant_id: null,
-      supplier_id: priorityLink ? priorityLink.supplier_id : '',
-      unit_price: defaultUnitPrice,
-      cost_price: priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0,
-      min_billing_sqft: defaultMinSqft,
-      notes: defaultNotes,
-      // Start with 4 empty size rows so mobile users can fill in
-      // multiple window sizes right away; unused rows can be deleted.
-      // Pcs-unit products get a single ready-to-use quantity row instead.
-      sizes: isPcsProduct
-        ? [{
-            id: Date.now() + 1,
-            width: 1,
-            height: 1,
-            pcs: 1,
-            actual_sqft: 1,
-            billed_sqft: 1,
-            line_total: defaultUnitPrice,
-          }]
-        : Array.from({ length: 4 }, (_, i) => ({
-        id: Date.now() + i + 1,
-        width: '',
-        height: '',
-        pcs: 1,
-        actual_sqft: 0,
-        billed_sqft: 0,
-        line_total: 0
-      }))
-    };
-
-    setSections(prev => prev.map(sec => {
-      if (sec.id !== sectionId) return sec;
-      return {
-        ...sec,
-        blocks: [...sec.blocks, newBlock]
-      };
-    }));
+    setSections(prev => appendBlock(prev, sectionId, newBlock));
     setSelectedTopProductId('');
     return newBlock.id;
   };
