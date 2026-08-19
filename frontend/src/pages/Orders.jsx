@@ -1269,7 +1269,7 @@ const Orders = () => {
 
                     <div className="order-mobile-card-header">
                       <div style={{ minWidth: 0 }}>
-                        <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{(currentPage - 1) * entriesPerPage + idx + 1}</span>
+                        <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{idx + 1}</span>
                         <button
                           type="button"
                           className="clickable-link"
