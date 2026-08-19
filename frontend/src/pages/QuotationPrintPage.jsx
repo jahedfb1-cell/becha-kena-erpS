@@ -5,6 +5,7 @@ import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
+import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -182,7 +183,7 @@ const QuotationPrintPage = () => {
       const isSel = item.is_selected !== false ? 'sel' : 'alt';
       const prodId = item.product_id || item.product?.id || 'noprod';
       const unitPrice = parseFloat(item.unit_price) || 0;
-      const notes = (item.notes || '').trim();
+      const notes = specificationKey(item);
       const sectionName = (item.section_name || item.section_title || '').trim();
 
       if (optGrpId) {
@@ -629,9 +630,7 @@ const QuotationPrintPage = () => {
                                 {item.product?.name || 'Blind Item'}
                               </strong>
                             </div>
-                            {((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product?.details) ? (
-                              renderRichText((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product.details)
-                            ) : null}
+                            {hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
                             <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>
                               Per Blinds Minimum Quantity (MOQ): {(parseFloat(item.min_billing_sqft) || 10).toFixed(2)} Sft
                             </div>

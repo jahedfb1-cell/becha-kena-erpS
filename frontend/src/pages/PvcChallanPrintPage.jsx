@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
+import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 
 /**
  * PVC Challan print page - a second delivery-challan layout for the "PVC
@@ -158,7 +159,7 @@ const PvcChallanPrintPage = () => {
       const prodId = item.product_id || item.product?.id || 'noprod';
       const variantName = item.variant?.name || item.product?.product_code || '';
       const unitPrice = parseFloat(item.unit_price) || 0;
-      const key = `${prodId}-${variantName}___${unitPrice}`;
+      const key = `${prodId}-${variantName}___${unitPrice}___${specificationKey(item)}`;
       if (!map.has(key)) {
         map.set(key, []);
       }
@@ -288,9 +289,9 @@ const PvcChallanPrintPage = () => {
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
                           <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'PVC Strip Curtain'}</strong>
-                          {(firstItem.notes || firstItem.product?.details) ? (
+                          {hasSpecification(firstItem) ? (
                             <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                              {firstItem.notes || firstItem.product.details}
+                              {lineSpecification(firstItem)}
                             </div>
                           ) : null}
                         </td>

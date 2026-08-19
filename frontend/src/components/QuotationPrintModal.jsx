@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
+import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -140,7 +141,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
       const variantName = item.variant?.name || item.product?.product_code || '';
       const isSel = item.is_selected !== false ? 'selected' : 'unselected';
       const optVarId = item.option_variant_id || item.notes || '';
-      const notes = (item.notes || '').trim();
+      const notes = specificationKey(item);
       const key = (optGrpId && optGrpId !== 'no_opt')
         ? `${sectionName}___${optGrpId}___${isSel}___${prodId}___${item.unit_price}___${optVarId}___${notes}`
         : `${sectionName}___${prodId}-${variantName}___${item.unit_price}___${notes}`;
@@ -596,9 +597,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                                     {item.product?.name || 'Blind Item'}
                                   </strong>
                                 </div>
-                                {!isOrder && ((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product?.details) ? (
-                                  renderRichText((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product.details)
-                                ) : null}
+                                {!isOrder && hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
                                 {!isOrder && (
                                   <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>
                                     Per Blinds Minimum Quantity (MOQ): {(parseFloat(item.min_billing_sqft) || 10).toFixed(2)} Sft

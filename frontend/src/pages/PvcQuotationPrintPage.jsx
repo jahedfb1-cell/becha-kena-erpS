@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
+import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 
 /**
  * PVC Quotation print page - a second quotation layout for the "PVC Strip
@@ -164,7 +165,7 @@ const PvcQuotationPrintPage = () => {
       const isSel = item.is_selected !== false ? 'sel' : 'alt';
       const prodId = item.product_id || item.product?.id || 'noprod';
       const unitPrice = parseFloat(item.unit_price) || 0;
-      const notes = (item.notes || '').trim();
+      const notes = specificationKey(item);
       const sectionName = (item.section_name || item.section_title || '').trim();
 
       if (optGrpId) {
@@ -179,7 +180,7 @@ const PvcQuotationPrintPage = () => {
         map.get(optionKey).rows.push({ item, idx: item.id });
       } else {
         const variantName = item.variant?.name || item.product?.product_code || '';
-        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}`;
+        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}___${notes}`;
         if (!unGroupedMap.has(groupKey)) {
           unGroupedMap.set(groupKey, { optionLabel: null, rows: [] });
         }
@@ -422,9 +423,9 @@ const PvcQuotationPrintPage = () => {
                                 {item.product?.name || 'Blind Item'}
                               </strong>
                             </div>
-                            {(item.notes || item.product?.details) ? (
+                            {hasSpecification(item) ? (
                               <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                {item.notes || item.product.details}
+                                {lineSpecification(item)}
                               </div>
                             ) : null}
                             <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>

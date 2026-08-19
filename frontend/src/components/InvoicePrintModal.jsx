@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
+import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -455,9 +456,9 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                                 <strong style={{ fontSize: '13px', color: '#111' }}>
                                   {item.product?.name || 'Blind Item'}
                                 </strong>
-                                {(item.notes || item.product?.details) ? (
+                                {hasSpecification(item) ? (
                                   <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                    {item.notes || item.product.details}
+                                    {lineSpecification(item)}
                                   </div>
                                 ) : null}
                               </td>

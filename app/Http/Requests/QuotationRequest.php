@@ -11,8 +11,29 @@ class QuotationRequest extends FormRequest
         return true;
     }
 
+    /**
+     * Fields where an empty value means "the user emptied this on purpose"
+     * rather than "nothing was sent".
+     *
+     * A line's specification prints the product's master details when the
+     * line has none of its own. That fallback is right for a line that never
+     * carried a specification and wrong for one whose text was deliberately
+     * cleared, where it puts back the very words that were just removed.
+     * Emptying the box is an instruction, so the empty string has to survive
+     * to the database instead of being folded into null with everything else.
+     */
+    private const PRESERVE_EMPTY_ITEM_FIELDS = ['notes'];
+
     protected function prepareForValidation(): void
     {
+        // Laravel's ConvertEmptyStringsToNull middleware has already folded
+        // every "" into null before a form request is prepared, which erases
+        // the very distinction the fields above depend on. The untouched body
+        // is read back to tell a cleared field from an absent one, rather than
+        // switching that middleware off for the whole route and changing how
+        // every other field arrives.
+        $submitted = $this->isJson() ? (json_decode($this->getContent(), true) ?: []) : [];
+
         $inputs = $this->all();
         foreach ($inputs as $key => $value) {
             if ($value === 'null' || $value === 'undefined' || $value === '') {
@@ -23,8 +44,21 @@ class QuotationRequest extends FormRequest
         if (isset($inputs['items']) && is_array($inputs['items'])) {
             foreach ($inputs['items'] as $index => $item) {
                 foreach ($item as $key => $value) {
-                    if ($value === 'null' || $value === 'undefined' || $value === '') {
+                    // These two literals normalise to null everywhere: they
+                    // are JavaScript leaking through, never a real value.
+                    if ($value === 'null' || $value === 'undefined') {
                         $inputs['items'][$index][$key] = null;
+                        continue;
+                    }
+
+                    if ($value === '') {
+                        $inputs['items'][$index][$key] = null;
+                    }
+                }
+
+                foreach (self::PRESERVE_EMPTY_ITEM_FIELDS as $field) {
+                    if (($submitted['items'][$index][$field] ?? null) === '') {
+                        $inputs['items'][$index][$field] = '';
                     }
                 }
             }

@@ -5,6 +5,7 @@ import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
+import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 
 /**
  * Delivery Challan print page - design matches the reference "Dhaka Blinds"
@@ -174,7 +175,7 @@ const ChallanPrintPage = () => {
       const prodId = item.product_id || item.product?.id || 'noprod';
       const variantName = item.variant?.name || item.product?.product_code || '';
       const unitPrice = parseFloat(item.unit_price) || 0;
-      const notes = (item.notes || '').trim();
+      const notes = specificationKey(item);
       const key = `${prodId}-${variantName}___${unitPrice}___${notes}`;
       if (!map.has(key)) {
         map.set(key, []);
@@ -310,9 +311,7 @@ const ChallanPrintPage = () => {
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
                           <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
-                          {((firstItem.notes !== undefined && firstItem.notes !== null && String(firstItem.notes).trim() !== '') ? firstItem.notes : firstItem.product?.details) ? (
-                            renderRichText((firstItem.notes !== undefined && firstItem.notes !== null && String(firstItem.notes).trim() !== '') ? firstItem.notes : firstItem.product.details)
-                          ) : null}
+                          {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
                         </td>
                       )}
                       {isFirst && (
