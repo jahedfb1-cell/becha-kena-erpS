@@ -174,7 +174,8 @@ const ChallanPrintPage = () => {
       const prodId = item.product_id || item.product?.id || 'noprod';
       const variantName = item.variant?.name || item.product?.product_code || '';
       const unitPrice = parseFloat(item.unit_price) || 0;
-      const key = `${prodId}-${variantName}___${unitPrice}`;
+      const notes = (item.notes || '').trim();
+      const key = `${prodId}-${variantName}___${unitPrice}___${notes}`;
       if (!map.has(key)) {
         map.set(key, []);
       }
@@ -309,8 +310,8 @@ const ChallanPrintPage = () => {
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
                           <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
-                          {(firstItem.notes || firstItem.product?.details) ? (
-                            renderRichText(firstItem.notes || firstItem.product.details)
+                          {((firstItem.notes !== undefined && firstItem.notes !== null && String(firstItem.notes).trim() !== '') ? firstItem.notes : firstItem.product?.details) ? (
+                            renderRichText((firstItem.notes !== undefined && firstItem.notes !== null && String(firstItem.notes).trim() !== '') ? firstItem.notes : firstItem.product.details)
                           ) : null}
                         </td>
                       )}

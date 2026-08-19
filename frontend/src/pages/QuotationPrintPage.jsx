@@ -197,7 +197,7 @@ const QuotationPrintPage = () => {
         map.get(optionKey).rows.push({ item, idx: item.id });
       } else {
         const variantName = item.variant?.name || item.product?.product_code || '';
-        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}`;
+        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}___${notes}`;
         if (!unGroupedMap.has(groupKey)) {
           unGroupedMap.set(groupKey, { optionLabel: null, rows: [] });
         }
@@ -629,8 +629,8 @@ const QuotationPrintPage = () => {
                                 {item.product?.name || 'Blind Item'}
                               </strong>
                             </div>
-                            {(item.notes || item.product?.details) ? (
-                              renderRichText(item.notes || item.product.details)
+                            {((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product?.details) ? (
+                              renderRichText((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product.details)
                             ) : null}
                             <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>
                               Per Blinds Minimum Quantity (MOQ): {(parseFloat(item.min_billing_sqft) || 10).toFixed(2)} Sft

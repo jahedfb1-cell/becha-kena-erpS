@@ -140,10 +140,10 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
       const variantName = item.variant?.name || item.product?.product_code || '';
       const isSel = item.is_selected !== false ? 'selected' : 'unselected';
       const optVarId = item.option_variant_id || item.notes || '';
-      
+      const notes = (item.notes || '').trim();
       const key = (optGrpId && optGrpId !== 'no_opt')
-        ? `${sectionName}___${optGrpId}___${isSel}___${prodId}___${item.unit_price}___${optVarId}`
-        : `${sectionName}___${prodId}-${variantName}___${item.unit_price}`;
+        ? `${sectionName}___${optGrpId}___${isSel}___${prodId}___${item.unit_price}___${optVarId}___${notes}`
+        : `${sectionName}___${prodId}-${variantName}___${item.unit_price}___${notes}`;
       
       let existing = groups.find(g => g.key === key);
       if (!existing) {
@@ -596,8 +596,8 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                                     {item.product?.name || 'Blind Item'}
                                   </strong>
                                 </div>
-                                {!isOrder && (item.notes || item.product?.details) ? (
-                                  renderRichText(item.notes || item.product.details)
+                                {!isOrder && ((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product?.details) ? (
+                                  renderRichText((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product.details)
                                 ) : null}
                                 {!isOrder && (
                                   <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>

@@ -199,7 +199,7 @@ const InvoicePrintPage = () => {
         map.get(optionKey).rows.push({ item, idx: item.id });
       } else {
         const variantName = item.variant?.name || item.product?.product_code || '';
-        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}`;
+        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}___${notes}`;
         if (!unGroupedMap.has(groupKey)) {
           unGroupedMap.set(groupKey, { optionLabel: null, rows: [] });
         }
@@ -610,8 +610,8 @@ const InvoicePrintPage = () => {
                             <strong style={{ fontSize: '13px', color: '#111' }}>
                               {item.product?.name || 'Blind Item'}
                             </strong>
-                            {(item.notes || item.product?.details) ? (
-                              renderRichText(item.notes || item.product.details)
+                            {((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product?.details) ? (
+                              renderRichText((item.notes !== undefined && item.notes !== null && String(item.notes).trim() !== '') ? item.notes : item.product.details)
                             ) : null}
                           </td>
                         )}
