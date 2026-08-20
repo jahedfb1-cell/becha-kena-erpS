@@ -5,37 +5,57 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import Customers from './pages/Customers';
-import Suppliers from './pages/Suppliers';
-import Purchases from './pages/Purchases';
-import Products from './pages/Products';
-import Quotations from './pages/Quotations';
 
-// Kept out of the initial bundle: the price list page pulls in its own
-// builder and print sheet, and it is a side tool most visits never open.
+/**
+ * Every routed page is lazy — this used to be true only for PriceLists.
+ * Before this, /login (which every signed-out visitor, and every Lighthouse
+ * mobile run, actually lands on) shipped the JS for all ~25 pages in one
+ * bundle before the login form could even paint: confirmed locally via
+ * Lighthouse against the production build (`vite preview`) — FCP 3.1s, LCP
+ * 5.1s, ~380ms of blocking time, and an `unused-javascript` audit flagging
+ * ~318 KiB never touched on that screen. Splitting per route means a
+ * visit only ever downloads the page it actually lands on; each one is
+ * fetched on demand exactly like PriceLists already was.
+ *
+ * Login/ForgotPassword/ResetPassword stay eager: they (or a redirect
+ * through them) are the literal first screen for almost every visit,
+ * signed in or not, so there is no "later" to defer them to. DashboardLayout
+ * (the sidebar/header shell) stays eager too, matching the existing
+ * PriceLists precedent of lazy-loading page content, not the layout it
+ * renders inside.
+ */
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Customers = lazy(() => import('./pages/Customers'));
+const Suppliers = lazy(() => import('./pages/Suppliers'));
+const Purchases = lazy(() => import('./pages/Purchases'));
+const Products = lazy(() => import('./pages/Products'));
+const Quotations = lazy(() => import('./pages/Quotations'));
 const PriceLists = lazy(() => import('./pages/PriceLists'));
-import Orders from './pages/Orders';
-import Invoices from './pages/Invoices';
-import Mushak from './pages/Mushak';
-import Payments from './pages/Payments';
-import Notifications from './pages/Notifications';
-import Reports from './pages/Reports';
-import AuditLogs from './pages/AuditLogs';
-import AccessSetup from './pages/AccessSetup';
-import VouchersExpenses from './pages/VouchersExpenses';
-import CompanyProfile from './pages/CompanyProfile';
-import MyProfile from './pages/MyProfile';
-import DatabaseBackup from './pages/DatabaseBackup';
-import Settings from './pages/Settings';
+const Orders = lazy(() => import('./pages/Orders'));
+const Invoices = lazy(() => import('./pages/Invoices'));
+const Mushak = lazy(() => import('./pages/Mushak'));
+const Payments = lazy(() => import('./pages/Payments'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const Reports = lazy(() => import('./pages/Reports'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const AccessSetup = lazy(() => import('./pages/AccessSetup'));
+const VouchersExpenses = lazy(() => import('./pages/VouchersExpenses'));
+const CompanyProfile = lazy(() => import('./pages/CompanyProfile'));
+const MyProfile = lazy(() => import('./pages/MyProfile'));
+const DatabaseBackup = lazy(() => import('./pages/DatabaseBackup'));
+const Settings = lazy(() => import('./pages/Settings'));
 
-import QuotationPrintPage from './pages/QuotationPrintPage';
-import PvcQuotationPrintPage from './pages/PvcQuotationPrintPage';
-import InvoicePrintPage from './pages/InvoicePrintPage';
-import ChallanPrintPage from './pages/ChallanPrintPage';
-import PvcChallanPrintPage from './pages/PvcChallanPrintPage';
-import MoneyReceiptPage from './pages/MoneyReceiptPage';
-import PriceListPrintPage from './pages/PriceListPrintPage';
+// Standalone print views — each one is its own isolated document (see
+// printing-uses-standalone-routes), opened from a link/new-tab rather than
+// as part of normal browsing, so deferring them costs nothing on the
+// screens people actually land on first.
+const QuotationPrintPage = lazy(() => import('./pages/QuotationPrintPage'));
+const PvcQuotationPrintPage = lazy(() => import('./pages/PvcQuotationPrintPage'));
+const InvoicePrintPage = lazy(() => import('./pages/InvoicePrintPage'));
+const ChallanPrintPage = lazy(() => import('./pages/ChallanPrintPage'));
+const PvcChallanPrintPage = lazy(() => import('./pages/PvcChallanPrintPage'));
+const MoneyReceiptPage = lazy(() => import('./pages/MoneyReceiptPage'));
+const PriceListPrintPage = lazy(() => import('./pages/PriceListPrintPage'));
 
 function App() {
   return (
@@ -46,7 +66,9 @@ function App() {
           path="/price-lists/print/:id"
           element={
             <ProtectedRoute>
-              <PriceListPrintPage />
+              <Suspense fallback={null}>
+                <PriceListPrintPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -54,7 +76,9 @@ function App() {
           path="/quotations/print/:id"
           element={
             <ProtectedRoute>
-              <QuotationPrintPage />
+              <Suspense fallback={null}>
+                <QuotationPrintPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -62,7 +86,9 @@ function App() {
           path="/quotations/print/:id/pvc-quotation"
           element={
             <ProtectedRoute>
-              <PvcQuotationPrintPage />
+              <Suspense fallback={null}>
+                <PvcQuotationPrintPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -70,7 +96,9 @@ function App() {
           path="/invoices/print/:id"
           element={
             <ProtectedRoute>
-              <InvoicePrintPage />
+              <Suspense fallback={null}>
+                <InvoicePrintPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -78,7 +106,9 @@ function App() {
           path="/invoices/print/:id/challan"
           element={
             <ProtectedRoute>
-              <ChallanPrintPage />
+              <Suspense fallback={null}>
+                <ChallanPrintPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -86,7 +116,9 @@ function App() {
           path="/invoices/print/:id/pvc-challan"
           element={
             <ProtectedRoute>
-              <PvcChallanPrintPage />
+              <Suspense fallback={null}>
+                <PvcChallanPrintPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -94,7 +126,9 @@ function App() {
           path="/payments/:id/receipt"
           element={
             <ProtectedRoute>
-              <MoneyReceiptPage />
+              <Suspense fallback={null}>
+                <MoneyReceiptPage />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -115,18 +149,60 @@ function App() {
         >
           {/* Default dashboard redirect */}
           <Route index element={<Navigate to="/dashboard" replace />} />
-          
-          <Route path="dashboard" element={<Dashboard />} />
-          
-          <Route path="customers" element={<Customers />} />
 
-          <Route path="suppliers" element={<Suppliers />} />
+          <Route
+            path="dashboard"
+            element={
+              <Suspense fallback={null}>
+                <Dashboard />
+              </Suspense>
+            }
+          />
 
-          <Route path="purchases" element={<Purchases />} />
+          <Route
+            path="customers"
+            element={
+              <Suspense fallback={null}>
+                <Customers />
+              </Suspense>
+            }
+          />
 
-          <Route path="products" element={<Products />} />
-          
-          <Route path="quotations" element={<Quotations />} />
+          <Route
+            path="suppliers"
+            element={
+              <Suspense fallback={null}>
+                <Suppliers />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="purchases"
+            element={
+              <Suspense fallback={null}>
+                <Purchases />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="products"
+            element={
+              <Suspense fallback={null}>
+                <Products />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="quotations"
+            element={
+              <Suspense fallback={null}>
+                <Quotations />
+              </Suspense>
+            }
+          />
 
           <Route
             path="price-lists"
@@ -136,19 +212,42 @@ function App() {
               </Suspense>
             }
           />
-          
-          <Route path="orders" element={<Orders />} />
-          
-          <Route path="invoices" element={<Invoices />} />
 
-          <Route path="mushak" element={<Mushak />} />
-          
+          <Route
+            path="orders"
+            element={
+              <Suspense fallback={null}>
+                <Orders />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="invoices"
+            element={
+              <Suspense fallback={null}>
+                <Invoices />
+              </Suspense>
+            }
+          />
+
+          <Route
+            path="mushak"
+            element={
+              <Suspense fallback={null}>
+                <Mushak />
+              </Suspense>
+            }
+          />
+
           {/* Admin and Manager only route */}
           <Route
             path="reports"
             element={
               <ProtectedRoute requiredRole="admin" requiredPermission="view-reports">
-                <Reports />
+                <Suspense fallback={null}>
+                  <Reports />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -156,7 +255,9 @@ function App() {
             path="reports/:reportKey"
             element={
               <ProtectedRoute requiredRole="admin" requiredPermission="view-reports">
-                <Reports />
+                <Suspense fallback={null}>
+                  <Reports />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -166,7 +267,9 @@ function App() {
             path="audit-logs"
             element={
               <ProtectedRoute requiredRole="admin">
-                <AuditLogs />
+                <Suspense fallback={null}>
+                  <AuditLogs />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -176,7 +279,9 @@ function App() {
             path="payments"
             element={
               <ProtectedRoute>
-                <Payments />
+                <Suspense fallback={null}>
+                  <Payments />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -186,7 +291,9 @@ function App() {
             path="notifications"
             element={
               <ProtectedRoute>
-                <Notifications />
+                <Suspense fallback={null}>
+                  <Notifications />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -196,7 +303,9 @@ function App() {
             path="access-setup"
             element={
               <ProtectedRoute requiredRole="admin">
-                <AccessSetup />
+                <Suspense fallback={null}>
+                  <AccessSetup />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -204,7 +313,9 @@ function App() {
             path="admin-access"
             element={
               <ProtectedRoute requiredRole="admin">
-                <AccessSetup />
+                <Suspense fallback={null}>
+                  <AccessSetup />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -214,7 +325,9 @@ function App() {
             path="database-backup"
             element={
               <ProtectedRoute requiredRole="admin">
-                <DatabaseBackup />
+                <Suspense fallback={null}>
+                  <DatabaseBackup />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -224,7 +337,9 @@ function App() {
             path="settings"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Settings />
+                <Suspense fallback={null}>
+                  <Settings />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -234,7 +349,9 @@ function App() {
             path="vouchers-expenses"
             element={
               <ProtectedRoute>
-                <VouchersExpenses />
+                <Suspense fallback={null}>
+                  <VouchersExpenses />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -244,7 +361,9 @@ function App() {
             path="company-profile"
             element={
               <ProtectedRoute requiredRole="admin">
-                <CompanyProfile />
+                <Suspense fallback={null}>
+                  <CompanyProfile />
+                </Suspense>
               </ProtectedRoute>
             }
           />
@@ -253,7 +372,9 @@ function App() {
             path="my-profile"
             element={
               <ProtectedRoute>
-                <MyProfile />
+                <Suspense fallback={null}>
+                  <MyProfile />
+                </Suspense>
               </ProtectedRoute>
             }
           />
