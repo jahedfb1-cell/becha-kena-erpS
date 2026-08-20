@@ -38,5 +38,20 @@ Route::get('/{any?}', function () {
         return response('Frontend build not found. Run the frontend build and deploy it to public/.', 500);
     }
 
-    return response()->file($indexFile);
+    // response()->file() defaults to Cache-Control: public with no max-age
+    // or revalidation directive. Hostinger's hCDN edge cache reads that as
+    // "cache indefinitely" and freezes the *entire* response — headers
+    // included — rather than reusing it as an ETag/Last-Modified check
+    // against origin. Confirmed live: two separate deploys still served the
+    // pre-deploy bundle's script tags after a full CDN purge, because the
+    // cached snapshot was older than the purge's own visibility. This is
+    // the one response that must never be cached that way, because it's
+    // the thing that names every other file the browser needs (the
+    // hashed /assets/*.js and *.css themselves are safe to cache forever —
+    // a new build gives them new filenames, so nothing here affects them).
+    return response()->file($indexFile, [
+        'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        'Pragma'         => 'no-cache',
+        'Expires'        => '0',
+    ]);
 })->where('any', '^(?!api).*$');
