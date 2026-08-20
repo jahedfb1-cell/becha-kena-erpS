@@ -48,7 +48,14 @@ class QuotationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $query = Quotation::with(['customer:id,customer_code,name,phone', 'salesman:id,name,email'])
+        // purchaseEntries: kept minimal (status + reversal/archive flags only)
+        // — the Orders list uses this to show whether the supplier side has
+        // actually been received yet, without a second request per row.
+        $query = Quotation::with([
+                'customer:id,customer_code,name,phone',
+                'salesman:id,name,email',
+                'purchaseEntries:id,quotation_id,status,is_reversed,is_archived',
+            ])
             ->withCount('items')
             ->withSum(['items' => function($q) {
                 $q->where('is_selected', true)->where('is_enabled_for_print', true);

@@ -170,10 +170,44 @@ const Orders = () => {
   }, [searchParams]);
 
 
-  const handleGenerateInvoice = async (orderId, orderNo) => {
-    if (!confirm(`Generate Sales Invoice + Delivery Challan for Order ${orderNo}?`)) return;
+  /**
+   * The supplier side of an order (Purchase Entry) is created automatically
+   * the moment it's approved — nothing to click for that part. This reads
+   * whether that already-created entry has actually been marked "received"
+   * from the supplier yet, so the UI can tell "an automatic record exists"
+   * apart from "the goods are physically in hand."
+   *
+   * Reversed/archived entries (from an edit that dropped that line, or a
+   * cancelled order) are excluded — they no longer represent something
+   * still being waited on.
+   */
+  const purchaseStatusOf = (order) => {
+    const entries = (order?.purchase_entries || []).filter(
+      (pe) => !pe.is_reversed && !pe.is_archived
+    );
+    if (entries.length === 0) return { hasPurchase: false, allReceived: false };
+    return { hasPurchase: true, allReceived: entries.every((pe) => pe.status === 'received') };
+  };
+
+  /**
+   * A customer invoice + delivery challan says "this has shipped." Nothing
+   * technically blocks generating one before the supplier side is marked
+   * received (some shops do invoice in advance), so this warns rather than
+   * refuses — but it only interrupts the flow when there's actually
+   * something to warn about, to keep the normal case a single confirm.
+   */
+  const handleGenerateInvoice = async (order) => {
+    const { hasPurchase, allReceived } = purchaseStatusOf(order);
+    const orderNo = order.quotation_number;
+
+    const prompt = hasPurchase && !allReceived
+      ? `⚠️ Supplier purchase for this order has not been marked "Received" yet.\n\nGenerate Sales Invoice + Delivery Challan for Order ${orderNo} anyway?`
+      : `Generate Sales Invoice + Delivery Challan for Order ${orderNo}?`;
+
+    if (!confirm(prompt)) return;
+
     try {
-      const res = await api.post(`/invoices/generate/${orderId}`, {});
+      const res = await api.post(`/invoices/generate/${order.id}`, {});
       alert(res.data?.message || 'Invoice and Delivery Challan generated successfully.');
       // The order moves to 'invoiced' and a new invoice exists, so both
       // cached lists are now out of date.
@@ -294,6 +328,17 @@ const Orders = () => {
   };
 
   const handleGenerateInvoiceFromDetail = async (id) => {
+    // selectedOrder (loaded via GET /quotations/:id) already carries the
+    // full, unfiltered purchaseEntries relation — same warning rule as the
+    // list-row action, just reading from the already-open detail record.
+    const { hasPurchase, allReceived } = purchaseStatusOf(selectedOrder);
+    if (hasPurchase && !allReceived) {
+      const proceed = confirm(
+        '⚠️ Supplier purchase for this order has not been marked "Received" yet.\n\nGenerate Sales Invoice + Delivery Challan anyway?'
+      );
+      if (!proceed) return;
+    }
+
     try {
       const res = await api.post(`/invoices/generate/${id}`);
       alert(res.data?.message || 'Invoice generated successfully.');
@@ -1142,26 +1187,46 @@ const Orders = () => {
                             👁️
                           </button>
 
-                          {/* Purchase Button */}
-                          {(o.status === 'approved' || o.status === 'invoiced') && (
-                            <button
-                              type="button"
-                              className="btn-action-circle"
-                              onClick={() => navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`)}
-                              title="Go to Purchase"
-                              style={{ marginRight: '4px', background: '#fef08a', border: '1px solid #fde047' }}
-                            >
-                              🛒
-                            </button>
-                          )}
+                          {/* Purchase status shortcut — NOT a step to perform here. The
+                              Purchase Entry is auto-created AND auto-marked received
+                              the moment this order is approved (this app has no
+                              separate manual "confirm delivery" step), so this button
+                              is green in the normal case; amber only flags the rare
+                              exception where a row somehow isn't. */}
+                          {(o.status === 'approved' || o.status === 'invoiced') && (() => {
+                            const { hasPurchase, allReceived } = purchaseStatusOf(o);
+                            return (
+                              <button
+                                type="button"
+                                className="btn-action-circle"
+                                onClick={() => navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`)}
+                                title={
+                                  !hasPurchase
+                                    ? 'No supplier purchase entry found — click to check Purchases'
+                                    : allReceived
+                                    ? '✅ Supplier purchase recorded (auto-created on approval) — click to view it'
+                                    : '⚠️ Purchase entry exists but is not marked received — click to check before invoicing'
+                                }
+                                style={{
+                                  marginRight: '4px',
+                                  background: allReceived ? '#bbf7d0' : '#fef08a',
+                                  border: allReceived ? '1px solid #86efac' : '1px solid #fde047',
+                                }}
+                              >
+                                🛒
+                              </button>
+                            );
+                          })()}
 
-                          {/* Sales Button */}
+                          {/* Sales Button — one click generates the Invoice AND the
+                              Delivery Challan together (backend default with_challan=true).
+                              Warns first if the 🛒 purchase above isn't received yet. */}
                           {o.status === 'approved' && (
                             <button
                               type="button"
                               className="btn-action-circle"
-                              onClick={() => handleGenerateInvoice(o.id, o.quotation_number)}
-                              title="Sales — Generate Invoice + Delivery Challan"
+                              onClick={() => handleGenerateInvoice(o)}
+                              title="Generate Sales Invoice + Delivery Challan (one click, both together)"
                               style={{ marginRight: '4px', background: '#bbf7d0', border: '1px solid #86efac' }}
                             >
                               🧾
@@ -1242,20 +1307,25 @@ const Orders = () => {
                         <button
                           type="button"
                           className="mobile-action-pill pill-green"
-                          onClick={() => handleGenerateInvoice(o.id, o.quotation_number)}
+                          onClick={() => handleGenerateInvoice(o)}
                         >
                           🧾 Invoice
                         </button>
                       )}
-                      {(o.status === 'approved' || o.status === 'invoiced') && (
-                        <button
-                          type="button"
-                          className="mobile-action-pill pill-indigo"
-                          onClick={() => navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`)}
-                        >
-                          🛒 Purchase
-                        </button>
-                      )}
+                      {/* Status shortcut, not a step to perform here — see the
+                          desktop button's comment above for why. */}
+                      {(o.status === 'approved' || o.status === 'invoiced') && (() => {
+                        const { allReceived } = purchaseStatusOf(o);
+                        return (
+                          <button
+                            type="button"
+                            className={`mobile-action-pill ${allReceived ? 'pill-green' : 'pill-amber'}`}
+                            onClick={() => navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`)}
+                          >
+                            🛒 Purchase: {allReceived ? 'Received' : 'Pending'}
+                          </button>
+                        );
+                      })()}
                       {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
                         <button
                           type="button"

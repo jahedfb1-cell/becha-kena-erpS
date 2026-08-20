@@ -3700,6 +3700,18 @@ a, button, select, input, textarea, .nav-item {
   background: #bbf7d0;
 }
 
+/* A "waiting on someone else" status, not an action — used on the mobile
+   Orders card for the Purchase shortcut when the supplier hasn't marked
+   it received yet (see .pill-green above for the received state). */
+.mobile-action-pill.pill-amber {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+.mobile-action-pill.pill-amber:hover {
+  background: #fde68a;
+}
+
 .mobile-action-pill.pill-indigo {
   background: #e0e7ff;
   color: #4338ca;

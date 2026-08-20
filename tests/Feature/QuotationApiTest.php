@@ -210,6 +210,78 @@ class QuotationApiTest extends TestCase
         $this->assertEquals(1500.00, $ledger->balance);
     }
 
+    /**
+     * The Orders list ("Confirmed" tab) shows whether the auto-created
+     * Purchase Entry has actually been received from the supplier yet —
+     * it reads this straight off the index payload rather than a second
+     * request per row, so the eager-loaded relation staying present (and
+     * under this exact key) is worth pinning down on its own.
+     *
+     * The entry is created already `status = 'received'` by design —
+     * QuotationService::createPurchaseEntries() auto-completes it rather
+     * than leaving a 'pending' state nobody in this app's workflow ever
+     * flips by hand. So the first assertion here pins down the *normal*
+     * case (always received, immediately), and the second exercises the
+     * only way a non-received row reaches the list today: something
+     * changing the status directly, not any UI flow — the edge case the
+     * Orders page's warn-before-invoicing check exists to catch.
+     *
+     * @test
+     */
+    public function order_list_reports_whether_its_purchase_entry_has_been_received()
+    {
+        $quotation = Quotation::create([
+            'quotation_number' => 'QT-2026-0003',
+            'customer_id'      => $this->customer->id,
+            'salesman_id'      => $this->salesman->id,
+            'status'           => 'pending_approval',
+            'subtotal'         => 1000,
+            'net_amount'       => 1000,
+            'created_by'       => $this->salesman->id,
+        ]);
+
+        $quotation->items()->create([
+            'product_id'       => $this->product->id,
+            'supplier_id'      => $this->supplier->id,
+            'width'            => 36,
+            'height'           => 48,
+            'pcs'              => 1,
+            'actual_sqft'      => 12,
+            'min_billing_sqft' => 12,
+            'billed_sqft'      => 12,
+            'unit_price'       => 100,
+            'cost_price'       => 50,
+            'line_total'       => 1000,
+        ]);
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/quotations/{$quotation->id}/approve")
+            ->assertStatus(200);
+
+        $listed = $this->actingAs($this->admin, 'sanctum')
+            ->getJson('/api/quotations?all=1')
+            ->assertOk()
+            ->json('data');
+
+        $row = collect($listed)->firstWhere('id', $quotation->id);
+        $this->assertNotNull($row, 'the approved quotation is in the list');
+        $this->assertCount(1, $row['purchase_entries']);
+        $this->assertSame('received', $row['purchase_entries'][0]['status']);
+
+        // Edge case: a row that is, for whatever reason, not received —
+        // the list must still surface that honestly rather than assuming
+        // "exists" means "received".
+        PurchaseEntry::where('quotation_id', $quotation->id)->update(['status' => 'pending']);
+
+        $listedAfter = $this->actingAs($this->admin, 'sanctum')
+            ->getJson('/api/quotations?all=1')
+            ->assertOk()
+            ->json('data');
+
+        $rowAfter = collect($listedAfter)->firstWhere('id', $quotation->id);
+        $this->assertSame('pending', $rowAfter['purchase_entries'][0]['status']);
+    }
+
     /** @test */
     public function editing_approved_quotation_changes_status_to_pending_reapproval()
     {
