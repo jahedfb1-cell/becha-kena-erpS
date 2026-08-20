@@ -217,12 +217,22 @@ const ChallanPrintPage = () => {
       </div>
 
       {/* ── PRINTABLE DOCUMENT CANVAS ── */}
+      {/* Matches InvoicePrintPage and QuotationPrintPage exactly, because the
+          A4 fill only works when this element is the sole owner of its box
+          model. .quotation-print-container was on here for its typography,
+          but it also carries max-width, padding and width:100%, which fight
+          the inline flex/min-height sizing this needs — and it is a second
+          selector the print rules target, re-applying display:block and
+          page-break-inside:avoid to the very element that has to be a
+          281mm flex column. The typography it provided is set inline below
+          instead, so the sheet still reads the same. */}
       <div
         style={{
-          maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
+          maxWidth: '850px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
+          color: '#000', fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif", fontSize: '12px', lineHeight: 1.4,
           display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box'
         }}
-        className="quotation-print-container printable-area a4-stretch-area"
+        className="printable-area a4-stretch-area"
       >
 
         {/* ── HEADER ──
