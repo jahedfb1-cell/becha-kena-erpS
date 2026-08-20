@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import PhoneContactField from './PhoneContactField';
 import AIAssistModal from './AIAssistModal';
@@ -40,6 +40,8 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
   const [openingBalance, setOpeningBalance] = useState('');
   const [categories, setCategories] = useState([]);
   const [categoryId, setCategoryId] = useState('');
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesError, setCategoriesError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showAdditional, setShowAdditional] = useState(false);
@@ -107,21 +109,31 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     setDuplicate(null);
   };
 
+  /**
+   * Pulled out of the effect (rather than an inline closure inside it) so
+   * the "Retry" button below can call the exact same fetch — a transient
+   * network hiccup shouldn't force the user to close and reopen the whole
+   * form just to get the category list back.
+   */
+  const fetchCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    setCategoriesError('');
+    try {
+      const response = await api.get('/master/customer-categories');
+      const cats = response.data.data || [];
+      setCategories(cats);
+      setCategoryId((prev) => prev || (cats.length > 0 ? cats[0].id : ''));
+    } catch (err) {
+      console.error('Failed to load customer categories', err);
+      setCategoriesError('Could not load customer categories. Check your connection and retry.');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
   // Fetch categories when modal opens
   useEffect(() => {
     if (isOpen) {
-      const fetchCategories = async () => {
-        try {
-          const response = await api.get('/master/customer-categories');
-          const cats = response.data.data || [];
-          setCategories(cats);
-          if (cats.length > 0 && !categoryId) {
-            setCategoryId(cats[0].id);
-          }
-        } catch (err) {
-          console.error('Failed to load customer categories', err);
-        }
-      };
       fetchCategories();
 
       if (initialData) {
@@ -148,7 +160,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
         setShowAdditional(false);
       }
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, fetchCategories]);
 
   if (!isOpen) return null;
 
@@ -173,14 +185,23 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
       return;
     }
 
+    // A real, currently-loaded category is required — this used to fall
+    // back to a hardcoded `|| 1` when nothing was selected, which silently
+    // sent a category the user never chose (and would throw a confusing
+    // "Selected category does not exist" from the backend if id 1 happened
+    // not to exist). Block submission here instead, with a message that
+    // actually says what to do about it.
+    if (!categoryId || !categories.some((cat) => String(cat.id) === String(categoryId))) {
+      setError(
+        categoriesError
+          ? 'Customer category failed to load — click Retry above, then try saving again.'
+          : 'Please select a Customer Category.'
+      );
+      return;
+    }
+
     setLoading(true);
     try {
-      // Fallback categoryId if not set
-      let finalCategoryId = categoryId;
-      if (!finalCategoryId && categories.length > 0) {
-        finalCategoryId = categories[0].id;
-      }
-
       const payload = {
         name:                   finalName,
         company_name:           companyName,
@@ -192,7 +213,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
         address_2:              address2,
         notes:                  notes,
         contact_show_status:    contactShowStatus,
-        customer_category_id:   finalCategoryId || 1,
+        customer_category_id:   categoryId,
       };
 
       if (showOpeningBalance && openingBalance !== '') {
@@ -378,22 +399,62 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                 />
               </div>
 
-              {categories.length > 0 && (
-                <div className="custom-form-group">
-                  <label className="custom-form-label">Customer Category</label>
+              {/* Always rendered now, never gated behind `categories.length > 0`.
+                  Hiding the whole field while the fetch was in flight (or had
+                  failed) used to make a *required* field silently vanish with
+                  no indication why — the user would only find out something
+                  was wrong when submit failed with a validation error about a
+                  field they could no longer see. The white-on-white inline
+                  style below it was also fighting this modal's dark design
+                  system (select.custom-form-input is styled dark in
+                  index.css), which is why the dropdown looked visually broken
+                  against every other field around it. */}
+              <div className="custom-form-group">
+                <label className="custom-form-label">
+                  Customer Category <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                {categoriesError ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
+                    borderRadius: '10px', border: '1px solid rgba(239,68,68,0.4)',
+                    background: 'rgba(239,68,68,0.1)', fontSize: '13px', color: '#fca5a5',
+                  }}>
+                    <span style={{ flex: 1 }}>⚠️ {categoriesError}</span>
+                    <button
+                      type="button"
+                      onClick={fetchCategories}
+                      style={{
+                        background: 'transparent', border: '1px solid rgba(255,255,255,0.25)',
+                        color: '#e2e8f0', borderRadius: '8px', padding: '5px 12px',
+                        fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      ↻ Retry
+                    </button>
+                  </div>
+                ) : (
                   <select
                     className="custom-form-input"
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
-                    disabled={loading}
-                    style={{ color: '#000000', backgroundColor: '#ffffff', fontWeight: '500' }}
+                    disabled={loading || categoriesLoading}
+                    required
                   >
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id} style={{ color: '#000000', backgroundColor: '#ffffff' }}>{cat.name}</option>
-                    ))}
+                    {categoriesLoading ? (
+                      <option value="">Loading categories…</option>
+                    ) : categories.length === 0 ? (
+                      <option value="">No categories available</option>
+                    ) : (
+                      <>
+                        {!categoryId && <option value="">-- Select Category --</option>}
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </>
+                    )}
                   </select>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
