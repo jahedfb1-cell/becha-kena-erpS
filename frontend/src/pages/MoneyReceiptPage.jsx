@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 import api from '../api/axios';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 
@@ -37,6 +38,50 @@ const formatDate = (d) => {
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 };
 
+// Builds the text encoded into the receipt's verification QR code. Pulled
+// out to module scope (rather than a closure inside the component) so it
+// can run in the useEffect that generates the QR image before the
+// component's loading/error early-returns — hooks can't be called after
+// those returns, so the data this needs (payment, companyProfile) is
+// passed in explicitly instead of read from component-scope variables.
+const buildQrCodeData = (payment, companyProfile) => {
+  const inv = payment.invoice || {};
+  const customer = payment.customer || inv.customer || {};
+  const customerDisplayName = customer.company_name || customer.name || 'N/A';
+  const companyName = brandFields(companyProfile).name;
+  const amount = parseFloat(payment.amount) || 0;
+
+  const defaultTemplate = "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}";
+  const template = companyProfile?.receipt_qr_template || defaultTemplate;
+
+  const dataMap = {
+    '{url}': window.location.origin + '/payments/' + payment.id + '/receipt',
+    '{payment_no}': payment.payment_number,
+    '{invoice_no}': inv.invoice_number,
+    '{order_no}': inv.quotation?.quotation_number,
+    '{customer}': customerDisplayName,
+    '{customer_phone}': customer?.phone,
+    '{amount}': amount > 0 ? formatCurrency(amount) + ' BDT' : '',
+    '{payment_method}': payment.payment_method ? payment.payment_method.toUpperCase() : '',
+    '{due_amount}': inv.due_amount !== undefined && inv.due_amount !== null ? formatCurrency(inv.due_amount) + ' BDT' : '',
+    '{total_amount}': inv.grand_total !== undefined && inv.grand_total !== null ? formatCurrency(inv.grand_total) + ' BDT' : '',
+    '{date}': formatDate(payment.payment_date || payment.created_at),
+    '{delivery_date}': (inv.delivery_challans && inv.delivery_challans.length > 0)
+      ? formatDate(inv.delivery_challans[0].delivery_date || inv.delivery_challans[0].created_at)
+      : '',
+    '{salesman}': inv.salesman?.name,
+    '{company}': companyName
+  };
+
+  let result = template;
+  Object.entries(dataMap).forEach(([token, value]) => {
+    const cleanValue = (value !== null && value !== undefined) ? String(value).trim() : '';
+    result = result.replaceAll(token, cleanValue);
+  });
+
+  return result.trim();
+};
+
 const formatCurrency = (v) => {
   const n = parseFloat(v) || 0;
   return new Intl.NumberFormat('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -50,6 +95,7 @@ const MoneyReceiptPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sharing, setSharing] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState(null);
 
   const handleBack = () => {
     if (window.opener) {
@@ -109,6 +155,18 @@ const MoneyReceiptPage = () => {
     }
   }, [payment, companyProfile]);
 
+  // Generated locally instead of fetched from an external QR API — that
+  // call was unreliable (blocked/slow on some networks, and a single point
+  // of failure for a document that must still print without internet).
+  useEffect(() => {
+    if (!payment) return;
+    let cancelled = false;
+    QRCode.toDataURL(buildQrCodeData(payment, companyProfile), { width: 200, margin: 1 })
+      .then((url) => { if (!cancelled) setQrCodeUrl(url); })
+      .catch(() => { if (!cancelled) setQrCodeUrl(null); });
+    return () => { cancelled = true; };
+  }, [payment, companyProfile]);
+
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontFamily: 'Arial, sans-serif' }}>
       Loading receipt...
@@ -163,38 +221,6 @@ const MoneyReceiptPage = () => {
   };
 
   const amount = parseFloat(payment.amount) || 0;
-
-  const getQrCodeData = () => {
-    const defaultTemplate = "Receipt: {payment_no}\nCustomer: {customer}\nAmount: {amount}\nVerify: {url}";
-    const template = companyProfile?.receipt_qr_template || defaultTemplate;
-
-    const dataMap = {
-      '{url}': window.location.origin + '/payments/' + payment.id + '/receipt',
-      '{payment_no}': payment.payment_number,
-      '{invoice_no}': inv.invoice_number,
-      '{order_no}': inv.quotation?.quotation_number,
-      '{customer}': customerDisplayName,
-      '{customer_phone}': customer?.phone,
-      '{amount}': amount > 0 ? formatCurrency(amount) + ' BDT' : '',
-      '{payment_method}': payment.payment_method ? payment.payment_method.toUpperCase() : '',
-      '{due_amount}': inv.due_amount !== undefined && inv.due_amount !== null ? formatCurrency(inv.due_amount) + ' BDT' : '',
-      '{total_amount}': inv.grand_total !== undefined && inv.grand_total !== null ? formatCurrency(inv.grand_total) + ' BDT' : '',
-      '{date}': formatDate(payment.payment_date || payment.created_at),
-      '{delivery_date}': (inv.delivery_challans && inv.delivery_challans.length > 0) 
-        ? formatDate(inv.delivery_challans[0].delivery_date || inv.delivery_challans[0].created_at) 
-        : '',
-      '{salesman}': inv.salesman?.name,
-      '{company}': companyName
-    };
-
-    let result = template;
-    Object.entries(dataMap).forEach(([token, value]) => {
-      const cleanValue = (value !== null && value !== undefined) ? String(value).trim() : '';
-      result = result.replaceAll(token, cleanValue);
-    });
-
-    return result.trim();
-  };
 
   const loadHtml2Pdf = () => {
     return new Promise((resolve, reject) => {
@@ -369,23 +395,27 @@ const MoneyReceiptPage = () => {
                 border: '1px solid #ddd',
                 borderRadius: '2px'
               }}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(getQrCodeData())}`}
-                  alt="Receipt Verification QR"
-                  style={{ width: '60px', height: '60px', display: 'block' }}
-                />
+                {qrCodeUrl && (
+                  <img
+                    src={qrCodeUrl}
+                    alt="Receipt Verification QR"
+                    style={{ width: '60px', height: '60px', display: 'block' }}
+                  />
+                )}
               </div>
             </div>
           ) : (
             <>
               {/* Centered QR Code fallback for text layout */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(getQrCodeData())}`}
-                  alt="Receipt Verification QR"
-                  style={{ width: '70px', height: '70px', display: 'block' }}
-                />
-              </div>
+              {qrCodeUrl && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+                  <img
+                    src={qrCodeUrl}
+                    alt="Receipt Verification QR"
+                    style={{ width: '70px', height: '70px', display: 'block' }}
+                  />
+                </div>
+              )}
               <div style={{ fontSize: '20px', fontWeight: 900, marginBottom: '4px' }}>{companyName}</div>
               {companyAddress && <div style={{ fontSize: '11px' }}><strong>Office:</strong> {companyAddress}</div>}
               {companyPhone && <div style={{ fontSize: '11px' }}><strong>Cell:</strong> {companyPhone}</div>}
