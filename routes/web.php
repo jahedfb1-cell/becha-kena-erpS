@@ -39,19 +39,32 @@ Route::get('/{any?}', function () {
     }
 
     // response()->file() defaults to Cache-Control: public with no max-age
-    // or revalidation directive. Hostinger's hCDN edge cache reads that as
-    // "cache indefinitely" and freezes the *entire* response — headers
-    // included — rather than reusing it as an ETag/Last-Modified check
-    // against origin. Confirmed live: two separate deploys still served the
-    // pre-deploy bundle's script tags after a full CDN purge, because the
-    // cached snapshot was older than the purge's own visibility. This is
-    // the one response that must never be cached that way, because it's
-    // the thing that names every other file the browser needs (the
-    // hashed /assets/*.js and *.css themselves are safe to cache forever —
-    // a new build gives them new filenames, so nothing here affects them).
+    // or revalidation directive, which both Hostinger's hCDN edge and (more
+    // importantly) LiteSpeed's own server-side page cache (LSCache) read as
+    // "cache indefinitely". Confirmed live, in this order: a CDN purge did
+    // not fix it (Cache-Control: no-store now confirmed present on every
+    // edge, x-hcdn-cache-status: DYNAMIC on every request — the CDN layer
+    // is not the culprit); every cache-purge option in hPanel was tried and
+    // none of them changed it; and a request straight at the origin
+    // (Host-header-spoofed to 127.0.0.1, bypassing the CDN entirely) still
+    // returned the pre-fix bundle. That last result is the tell: LiteSpeed
+    // itself is the web server answering 127.0.0.1, so a cache that survives
+    // going straight at it has to be LiteSpeed's own LSCache — which can
+    // serve a cached page without ever invoking PHP again, meaning the
+    // standard Cache-Control header above never gets a chance to be read
+    // for a cached hit. LSCache is controlled through its own header
+    // instead: X-LiteSpeed-Cache-Control: no-cache is the documented way an
+    // application opts a response out of it.
+    //
+    // This is the one response that must never be cached this way, because
+    // it's the thing that names every other file the browser goes on to
+    // request (the hashed /assets/*.js and *.css themselves are safe to
+    // cache forever — a new build gives them new filenames, so nothing here
+    // affects them).
     return response()->file($indexFile, [
-        'Cache-Control' => 'no-cache, no-store, must-revalidate',
-        'Pragma'         => 'no-cache',
-        'Expires'        => '0',
+        'Cache-Control'              => 'no-cache, no-store, must-revalidate',
+        'Pragma'                     => 'no-cache',
+        'Expires'                    => '0',
+        'X-LiteSpeed-Cache-Control'  => 'no-cache',
     ]);
 })->where('any', '^(?!api).*$');
