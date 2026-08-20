@@ -47,10 +47,21 @@ return new class extends Migration
             ->get()
             ->keyBy('name');
 
+        // Deliberately not $byName->only($names): on an
+        // Illuminate\Database\Eloquent\Collection, only() is OVERRIDDEN to
+        // filter by each model's primary key (id), not by the collection's
+        // array keys — so it silently ignores whatever keyBy('name') did
+        // and matches against permission name strings against integer ids,
+        // finding nothing. Caught in production: this exact line reached
+        // admin fine (a plain ->get() with no ->only()) but silently
+        // granted nothing to manager/salesman. array_filter+array_map over
+        // the plain $names array sidesteps the Collection method entirely.
         $grant = fn (string $role, array $names) => Role::where('name', $role)
             ->where('guard_name', 'web')
             ->first()
-            ?->givePermissionTo($byName->only($names)->values()->all());
+            ?->givePermissionTo(array_values(array_filter(
+                array_map(fn ($n) => $byName->get($n), $names)
+            )));
 
         Role::where('name', 'admin')
             ->where('guard_name', 'web')
