@@ -36,7 +36,12 @@ class InvoiceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        $query = Invoice::with(['customer', 'salesman:id,name,email', 'quotation.items.product', 'quotation.items.variant']);
+        // archivedByUser is only ever populated on archived rows, but it is
+        // loaded unconditionally rather than branched on the `archived`
+        // filter — the eager load costs nothing extra for active rows (the
+        // FK is null, so it's a no-op) and this keeps the query one shape
+        // instead of two.
+        $query = Invoice::with(['customer', 'salesman:id,name,email', 'archivedByUser:id,name', 'quotation.items.product', 'quotation.items.variant']);
 
         if ($request->boolean('archived')) {
             $query->archived();

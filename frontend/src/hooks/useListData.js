@@ -9,7 +9,10 @@ import api from '../api/axios';
  * so that hook is reused instead of fetching the same data under a second key.
  */
 export const listKeys = {
-  invoices: () => ['list', 'invoices', 'all'],
+  // `archived` is part of the key (mirroring masterDataKeys.customers(all))
+  // because it is a genuinely different result set fetched from the server
+  // via `?archived=1`, not a client-side filter over one shared list.
+  invoices: (archived = false) => ['list', 'invoices', archived ? 'archived' : 'all'],
   // Orders and Quotations both read `/quotations?all=1` and only differ in how
   // they filter it, so they share one cache entry and filter client-side.
   quotations: () => ['list', 'quotations', 'all'],
@@ -25,13 +28,13 @@ const withArrayData = (query) => ({
   data: query.data ?? [],
 });
 
-export const invoicesQueryOptions = () => ({
-  queryKey: listKeys.invoices(),
-  queryFn: async () => unwrapList(await api.get('/invoices?all=1')),
+export const invoicesQueryOptions = ({ archived = false } = {}) => ({
+  queryKey: listKeys.invoices(archived),
+  queryFn: async () => unwrapList(await api.get(`/invoices?all=1${archived ? '&archived=1' : ''}`)),
 });
 
-export function useInvoicesList({ enabled = true } = {}) {
-  return withArrayData(useQuery({ ...invoicesQueryOptions(), enabled }));
+export function useInvoicesList({ enabled = true, archived = false } = {}) {
+  return withArrayData(useQuery({ ...invoicesQueryOptions({ archived }), enabled }));
 }
 
 /**

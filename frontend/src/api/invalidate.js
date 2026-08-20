@@ -42,7 +42,7 @@ export const invalidateOrders = (queryClient) =>
 
 /** An invoice was created, archived, or its paid/due amounts moved. */
 export const invalidateInvoices = (queryClient) =>
-  invalidate(queryClient, [listKeys.invoices()]);
+  invalidate(queryClient, [listKeys.invoices(false), listKeys.invoices(true)]);
 
 /**
  * Sales step: generating an invoice creates the invoice AND moves the source

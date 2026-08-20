@@ -6,7 +6,7 @@ import { invalidateInvoices, invalidateOrders } from '../api/invalidate';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
-import { formatCurrency, formatDate } from '../utils/format';
+import { formatCurrency, formatDate, formatDateTime } from '../utils/format';
 import PaymentModal from '../components/PaymentModal';
 import ChallanPrintModal from '../components/ChallanPrintModal';
 import InvoicePrintModal from '../components/InvoicePrintModal';
@@ -18,7 +18,14 @@ const Invoices = () => {
   const queryClient = useQueryClient();
   const [view, setView] = useState('list'); // 'list' or 'detail'
 
-  const { data: invoices, isLoading: loading, error: invoicesError } = useInvoicesList();
+  // Archived invoices are a separate server-side list (`?archived=1`), not
+  // a client-side filter over the active one — an archived row's own
+  // fields (archived_at, archived_by, archive_reason) are what this view
+  // exists to show, and Pay/Challan/Archive stop making sense once a row
+  // is here, so it gets its own columns and actions further down rather
+  // than being folded into the normal table.
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: invoices, isLoading: loading, error: invoicesError } = useInvoicesList({ archived: showArchived });
 
   const [error, setError] = useState('');
   
@@ -307,10 +314,25 @@ const Invoices = () => {
             <button className="logout-btn" onClick={() => { setFilterSearch(''); setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); }} style={{ height: '34px' }}>
               Reset Filters
             </button>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '12px', display: 'block', visibility: 'hidden' }}>&nbsp;</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', height: '34px' }}>
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); }}
+                  style={{ width: 'auto', margin: 0, cursor: 'pointer' }}
+                />
+                Show Archived
+              </label>
+            </div>
           </div>
 
           <div style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)', marginBottom: '10px' }}>
-            Showing {filteredInvoices.length} of {invoices.length} invoices
+            {showArchived
+              ? `Showing ${filteredInvoices.length} archived invoice${filteredInvoices.length === 1 ? '' : 's'}`
+              : `Showing ${filteredInvoices.length} of ${invoices.length} invoices`}
           </div>
 
           {loading ? (
@@ -321,26 +343,84 @@ const Invoices = () => {
               <div className="card-table-wrapper invoices-desktop-table">
                 <table className="data-table">
                   <thead>
-                    <tr>
-                      <th style={{ width: '50px', textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>SN</th>
-                      <th style={{ padding: '6px 10px', fontSize: '12px' }}>COMPANY</th>
-                      <th style={{ padding: '6px 10px', fontSize: '12px' }}>ADDRESS</th>
-                      <th style={{ padding: '6px 10px', fontSize: '12px' }}>PRODUCT (code)</th>
-                      <th style={{ padding: '6px 10px', fontSize: '12px' }}>INVOICE NO</th>
-                      <th style={{ padding: '6px 10px', fontSize: '12px' }}>DATE</th>
-                      <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>TOTAL</th>
-                      <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>DISCOUNT</th>
-                      <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>PAID</th>
-                      <th style={{ textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>Payment Status</th>
-                      <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>DUE</th>
-                      <th style={{ textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>ACTION</th>
-                    </tr>
+                    {showArchived ? (
+                      <tr>
+                        <th style={{ width: '50px', textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>SN</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>INVOICE NO</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>COMPANY</th>
+                        <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>TOTAL</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>ARCHIVED ON</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>ARCHIVED BY</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>REASON</th>
+                        <th style={{ textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>ACTION</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th style={{ width: '50px', textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>SN</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>COMPANY</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>ADDRESS</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>PRODUCT (code)</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>INVOICE NO</th>
+                        <th style={{ padding: '6px 10px', fontSize: '12px' }}>DATE</th>
+                        <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>TOTAL</th>
+                        <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>DISCOUNT</th>
+                        <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>PAID</th>
+                        <th style={{ textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>Payment Status</th>
+                        <th style={{ textAlign: 'right', padding: '6px 10px', fontSize: '12px' }}>DUE</th>
+                        <th style={{ textAlign: 'center', padding: '6px 10px', fontSize: '12px' }}>ACTION</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody>
                     {paginatedInvoices.length === 0 ? (
                       <tr>
-                        <td colSpan="12" style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>No invoices found.</td>
+                        <td colSpan={showArchived ? 8 : 12} style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>
+                          {showArchived ? 'No archived invoices.' : 'No invoices found.'}
+                        </td>
                       </tr>
+                    ) : showArchived ? (
+                      paginatedInvoices.map((inv, idx) => (
+                        <tr key={inv.id}>
+                          <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#64748b', padding: '6px 10px' }}>
+                            {(currentPage - 1) * entriesPerPage + idx + 1}
+                          </td>
+                          <td style={{ padding: '6px 10px' }}>
+                            <button
+                              type="button"
+                              className="clickable-link"
+                              onClick={() => loadInvoiceDetails(inv.id)}
+                              style={{ fontWeight: 800, color: '#007bff' }}
+                            >
+                              {inv.invoice_number} ↗
+                            </button>
+                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>ID #{inv.id}</div>
+                          </td>
+                          <td style={{ padding: '6px 10px', lineHeight: '1.3' }}>
+                            <strong style={{ color: '#0f172a', display: 'block' }}>{inv.companyName}</strong>
+                            {inv.showPerson && (
+                              <span style={{ fontSize: '11px', color: '#64748b' }}>👤 {inv.personName}</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, padding: '6px 10px' }}>{formatCurrency(inv.grand_total || inv.subtotal || 0)}</td>
+                          <td style={{ padding: '6px 10px', fontSize: '12px' }}>{formatDateTime(inv.archived_at)}</td>
+                          {/* Eloquent's default $snakeAttributes = true snake_cases relation
+                              names when the model serializes to JSON, so the archivedByUser()
+                              relation arrives here as archived_by_user — confirmed by inspecting
+                              an actual Invoice::toArray() rather than assumed. */}
+                          <td style={{ padding: '6px 10px', fontSize: '12px' }}>{inv.archived_by_user?.name || '—'}</td>
+                          <td style={{ padding: '6px 10px', fontSize: '12px', color: '#64748b' }}>{inv.archive_reason || '—'}</td>
+                          <td style={{ textAlign: 'center', padding: '6px 10px' }}>
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                              <button className="text-btn" onClick={() => loadInvoiceDetails(inv.id)} title="View Details">
+                                👁️ Details
+                              </button>
+                              <button className="text-btn" onClick={() => handlePrintClick(inv, 'detailed')} style={{ color: '#17a2b8', fontWeight: 600 }} title="Print Invoice">
+                                🖨️ Print
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
                     ) : (
                       paginatedInvoices.map((inv, idx) => (
                         <tr key={inv.id}>
@@ -402,7 +482,7 @@ const Invoices = () => {
                                   🚚 Challan
                                 </button>
                               )}
-                              {can('invoices:delete') && (
+                              {can('invoices:archive') && (
                                 <button className="text-btn" onClick={() => handleArchiveInvoice(inv.id)} style={{ color: '#dc2626' }} title="Archive Invoice">
                                   🗑️ Archive
                                 </button>
@@ -419,7 +499,67 @@ const Invoices = () => {
               {/* Mobile card list */}
               <div className="invoices-mobile-list">
                 {paginatedInvoices.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>No invoices found.</div>
+                  <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>
+                    {showArchived ? 'No archived invoices.' : 'No invoices found.'}
+                  </div>
+                ) : showArchived ? (
+                  paginatedInvoices.map((inv, idx) => (
+                    <div className="invoice-mobile-card" key={inv.id}>
+                      <div className="mobile-card-actions-scroll">
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-purple"
+                          onClick={() => loadInvoiceDetails(inv.id)}
+                        >
+                          👁 View Details
+                        </button>
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-cyan"
+                          onClick={() => handlePrintClick(inv, 'detailed')}
+                        >
+                          🖨 Print
+                        </button>
+                      </div>
+
+                      <div className="invoice-mobile-card-header">
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>#{(currentPage - 1) * entriesPerPage + idx + 1} · ID #{inv.id}</span>
+                          <strong style={{ color: '#0f172a', display: 'block', fontSize: '15px' }}>{inv.companyName}</strong>
+                        </div>
+                      </div>
+
+                      <div className="invoice-mobile-card-body">
+                        <div className="invoice-mobile-card-row">
+                          <span>Invoice No</span>
+                          <button
+                            type="button"
+                            className="clickable-link"
+                            onClick={() => loadInvoiceDetails(inv.id)}
+                            style={{ fontWeight: 800, color: '#007bff' }}
+                          >
+                            {inv.invoice_number} ↗
+                          </button>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Total</span>
+                          <span>{formatCurrency(inv.grand_total || inv.subtotal || 0)}</span>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Archived On</span>
+                          <span>{formatDateTime(inv.archived_at)}</span>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Archived By</span>
+                          <span>{inv.archived_by_user?.name || '—'}</span>
+                        </div>
+                        <div className="invoice-mobile-card-row">
+                          <span>Reason</span>
+                          <span style={{ textAlign: 'right' }}>{inv.archive_reason || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
                 ) : (
                   paginatedInvoices.map((inv, idx) => (
                     <div className="invoice-mobile-card" key={inv.id}>
@@ -457,7 +597,7 @@ const Invoices = () => {
                             🚚 Challan
                           </button>
                         )}
-                        {can('invoices:delete') && (
+                        {can('invoices:archive') && (
                           <button
                             type="button"
                             className="mobile-action-pill pill-red"

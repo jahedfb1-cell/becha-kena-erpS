@@ -29,6 +29,27 @@ export const formatDate = (dateString) => {
 };
 
 /**
+ * Date + time together, for audit-trail style timestamps (e.g. "when was
+ * this archived") where the day alone isn't enough to tell entries apart.
+ */
+export const formatDateTime = (dateString) => {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return String(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(date);
+  } catch (e) {
+    return String(dateString);
+  }
+};
+
+/**
  * Normalize a phone number into standard Bangladeshi mobile format:
  * 11 digits starting with 0, no spaces/dashes/country code (e.g. 01811941600).
  *
