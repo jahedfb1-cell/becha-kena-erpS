@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import QRCode from 'qrcode';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
@@ -70,6 +71,7 @@ const InvoicePrintPage = () => {
   const [companyProfile, setCompanyProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState(null);
 
   const printType = searchParams.get('type') || 'detailed';
 
@@ -131,6 +133,31 @@ const InvoicePrintPage = () => {
       };
     }
   }, [invoice, printType, companyProfile]);
+
+  // Generated locally (not via an external QR API) so the print page still
+  // renders its verification QR offline and without depending on a
+  // third-party service being reachable — same approach as the Money
+  // Receipt print page. Placed before the loading/error early-returns
+  // since hooks can't be called after those.
+  useEffect(() => {
+    if (!invoice) return;
+    const customer = invoice.customer || invoice.quotation?.customer || {};
+    const customerName = customer.company_name || customer.name || 'Customer';
+    const companyName = brandFields(companyProfile).footerName;
+    const qrText = [
+      `Invoice: ${invoice.invoice_number || ''}`,
+      `Customer: ${customerName}`,
+      `Amount: ${(parseFloat(invoice.grand_total) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} BDT`,
+      `Date: ${formatDate(invoice.invoice_date || invoice.created_at || new Date())}`,
+      `Company: ${companyName}`
+    ].join('\n');
+
+    let cancelled = false;
+    QRCode.toDataURL(qrText, { width: 200, margin: 1 })
+      .then((url) => { if (!cancelled) setQrCodeUrl(url); })
+      .catch(() => { if (!cancelled) setQrCodeUrl(null); });
+    return () => { cancelled = true; };
+  }, [invoice, companyProfile]);
 
   const handlePrint = () => {
     window.print();
@@ -374,7 +401,7 @@ const InvoicePrintPage = () => {
         {/* HEADER */}
         {!isPad ? (
           <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '4px', position: 'relative' }}>
               <img
                 src={logoSrc}
                 alt="Invoice & Print Header Logo"
@@ -389,6 +416,29 @@ const InvoicePrintPage = () => {
                 }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
+              {/* Overlay QR Code in the middle whitespace of the header banner,
+                  same placement as the Money Receipt print page. */}
+              {qrCodeUrl && (
+                <div style={{
+                  position: 'absolute',
+                  top: '46%',
+                  left: '51.5%',
+                  transform: 'translate(-50%, -50%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: '#fff',
+                  padding: '2px',
+                  border: '1px solid #ddd',
+                  borderRadius: '2px'
+                }}>
+                  <img
+                    src={qrCodeUrl}
+                    alt="Invoice Verification QR"
+                    style={{ width: '60px', height: '60px', display: 'block' }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Office Address Centered Horizontal Line */}
