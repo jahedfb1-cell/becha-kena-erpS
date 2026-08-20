@@ -166,12 +166,14 @@ const PriceListPrintPage = () => {
         {/* ── HEADER ── */}
         {!isPad ? (
           <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
-            {/* brandFields() falls back to /logo-demo.svg, which is a real
-                file — so onError never fires and a brand with no uploaded
-                logo would print the demo placeholder on a client's rate
-                card. Fall back to the trade name as text instead. */}
+            {/* Tested on the raw path field, not on *_logo_url: getLogoUrl()
+                never returns null — it hands back /logo-demo.svg whenever
+                nothing is uploaded, so the _url field is always truthy and
+                could never select this branch. A brand with no logo would
+                otherwise print the demo placeholder on a client's rate card;
+                the trade name as text is the safe stand-in. */}
             <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-              {(companyProfile?.invoice_logo_url || companyProfile?.company_logo_url) ? (
+              {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
                 <img
                   src={brand.logoSrc}
                   alt="Invoice & Print Header Logo"
