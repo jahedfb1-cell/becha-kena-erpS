@@ -2171,7 +2171,6 @@ const Orders = () => {
                                               inputMode="decimal"
                                               value={sizeRow.height}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
-                                              onKeyDown={(e) => focusNextField(e, 'Pcs')}
                                               placeholder="Height"
                                               className="modern-form-control"
                                             />

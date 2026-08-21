@@ -2177,7 +2177,6 @@ const Quotations = () => {
                                               inputMode="decimal"
                                               value={sizeRow.height}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
-                                              onKeyDown={(e) => focusNextField(e, 'Pcs')}
                                               placeholder="Height"
                                               className="modern-form-control"
                                             />
@@ -2548,7 +2547,6 @@ const Quotations = () => {
                                             placeholder="Height"
                                             value={sz.height}
                                             onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'height', e.target.value)}
-                                            onKeyDown={(e) => focusNextField(e, 'Pcs')}
                                             className="modern-form-control"
                                             style={{ fontSize: '12px' }}
                                           />
