@@ -2194,29 +2194,20 @@ const Orders = () => {
                                             />
                                           </td>
 
-                                          {/* Pcs */}
+                                          {/* Pcs - no per-row delete button here; the Action
+                                              column already has one that does the exact same
+                                              removeSizeRowFromBlock() call, so this was just a
+                                              duplicate button doing the same thing twice. */}
                                           <td className="cell-size" style={{ padding: '3px' }}>
-                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                              <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                value={sizeRow.pcs}
-                                                onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
-                                                placeholder="Pcs"
-                                                className="modern-form-control"
-                                                style={{ textAlign: 'center' }}
-                                              />
-                                              {block.sizes.length > 1 && (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => removeSizeRowFromBlock(sec.id, block.id, sizeRow.id)}
-                                                  className="btn-action-circle btn-action-delete"
-                                                  style={{ padding: '4px 6px', fontSize: '12px' }}
-                                                >
-                                                  🗑️
-                                                </button>
-                                              )}
-                                            </div>
+                                            <input
+                                              type="number"
+                                              inputMode="numeric"
+                                              value={sizeRow.pcs}
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                              placeholder="Pcs"
+                                              className="modern-form-control"
+                                              style={{ textAlign: 'center' }}
+                                            />
                                           </td>
                                         </>
                                       )}
