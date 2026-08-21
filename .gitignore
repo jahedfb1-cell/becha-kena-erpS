@@ -3,6 +3,10 @@
 .env
 .env.backup
 .env.production
+
+# Local-only server/deploy reference — never commit (server IP, port,
+# username, directory structure). Kept local per explicit instruction.
+/persistent_memory.md
 .phpactor.json
 .phpunit.result.cache
 /.fleet
