@@ -2066,7 +2066,10 @@ const Quotations = () => {
 
                                       {/* Measurement Columns: Dynamic Row Pattern */}
                                       {isPcsBlock ? (
-                                        <td colSpan={3} className="cell-size cell-pcs-unified" style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                        // colSpan 4, not 3: absorbs the old separate "Total Pcs"
+                                        // readonly cell below, which always repeated this exact
+                                        // number since a Pcs-unit block only ever has one row.
+                                        <td colSpan={4} className="cell-size cell-pcs-unified" style={{ padding: '8px 12px', textAlign: 'center' }}>
                                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '6px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                                             <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>Quantity:</span>
                                             <input
@@ -2181,12 +2184,15 @@ const Quotations = () => {
                                           </>
                                           )}
 
-                                          {/* Total Billing (desktop-only) */}
-                                          {sIdx === 0 && (
+                                          {/* Total Billing (desktop-only) - skipped for Pcs blocks,
+                                              whose Quantity cell above already covers this column
+                                              (see its colSpan) since Total Pcs always equals
+                                              Quantity there and doesn't need its own cell. */}
+                                          {sIdx === 0 && !isPcsBlock && (
                                             <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '6px' }}>
                                               <input
                                                 type="text"
-                                                value={isPcsBlock ? `${totalPcs} pcs` : totalBilledSqft.toFixed(2)}
+                                                value={totalBilledSqft.toFixed(2)}
                                                 readOnly
                                                 className="modern-form-control"
                                                 style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}

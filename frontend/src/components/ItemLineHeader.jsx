@@ -101,11 +101,13 @@ const ItemLineHeader = ({ productCode, productName, kind, columns, changeProduct
             <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
               Unit Price
             </th>
-            <th scope="col" colSpan={sizeColsCount} style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#0369a1', background: '#e0f2fe', borderBottom: '1px solid #bae6fd', whiteSpace: 'nowrap' }}>
+            {/* Spans one extra column vs. its own size-input cell in the row below
+                (see the matching colSpan in the table body) so it absorbs what used
+                to be a separate "Total Pcs" column - for a Pcs-unit line there's
+                always exactly one size row, so "Total Pcs" was just repeating this
+                same Quantity value under a second heading. */}
+            <th scope="col" colSpan={sizeColsCount + 1} style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#0369a1', background: '#e0f2fe', borderBottom: '1px solid #bae6fd', whiteSpace: 'nowrap' }}>
               Quantity (Pcs / Set)
-            </th>
-            <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
-              Total Pcs
             </th>
             <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
               Total Price
