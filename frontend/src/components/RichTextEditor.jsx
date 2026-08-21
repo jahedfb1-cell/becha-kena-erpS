@@ -121,6 +121,28 @@ const S = {
   },
 };
 
+// Matches renderRichText.jsx's own HTML sniff, so a value round-trips the
+// same way on both the editing and printing sides.
+const looksLikeHtml = (str) => /<[a-z][\s\S]*>/i.test(str);
+
+// This editor's own onChange always emits real TipTap HTML, but `value` can
+// also arrive holding years of plain text saved by the plain <input>/
+// <textarea> this component replaced on several forms (Quotation/Order
+// remarks, line-item notes, etc.). Handing a plain string straight to
+// TipTap's `content` option runs it through an HTML parser, not a text
+// node — something like "Width < 60in" would have "< 60in" partly eaten as
+// a malformed tag. Escaping it and wrapping each line in its own paragraph
+// keeps a legacy plain-text value rendering exactly as it always did.
+const toEditorContent = (value) => {
+  if (!value) return '';
+  if (looksLikeHtml(value)) return value;
+  const escaped = value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return escaped.split(/\r?\n/).map((line) => `<p>${line}</p>`).join('');
+};
+
 const RichTextEditor = ({
   value = '',
   onChange,
@@ -147,7 +169,7 @@ const RichTextEditor = ({
       }),
       LineHeight,
     ],
-    content: value || '',
+    content: toEditorContent(value),
     editable: isEditable,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
@@ -161,9 +183,10 @@ const RichTextEditor = ({
   useEffect(() => {
     if (editor && value !== undefined) {
       const currentHtml = editor.getHTML();
-      if (value !== currentHtml) {
+      const nextContent = toEditorContent(value);
+      if (nextContent !== currentHtml) {
         if (!value && currentHtml === '<p></p>') return;
-        editor.commands.setContent(value || '', false);
+        editor.commands.setContent(nextContent, false);
         setIsEmpty(editor.isEmpty);
       }
     }

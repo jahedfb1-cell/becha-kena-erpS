@@ -134,12 +134,18 @@ const Orders = () => {
   // The error banner renders near the top of the form, but a size/price
   // validation failure usually happens while the user is scrolled deep into
   // the item builder table below - without this, the message sets but stays
-  // out of view, which looks exactly like "nothing happened" on Save.
-  useEffect(() => {
-    if (formError) {
+  // out of view, which looks exactly like "nothing happened" on Save. Scrolls
+  // imperatively here rather than via a `[formError]` effect, because React
+  // batches setState calls: clicking Save twice in a row with the exact same
+  // validation failure sets state to a value equal to what it already was,
+  // triggers no re-render, and an effect keyed on that value would silently
+  // never fire on the second click.
+  const raiseFormError = (msg) => {
+    setFormError(msg);
+    requestAnimationFrame(() => {
       formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [formError]);
+    });
+  };
 
   // Modals
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -941,7 +947,7 @@ const Orders = () => {
     setFormError('');
 
     if (!selectedCustomerId) {
-      setFormError('Please select a customer.');
+      raiseFormError('Please select a customer.');
       return;
     }
 
@@ -951,7 +957,7 @@ const Orders = () => {
     });
 
     if (!hasBlocks) {
-      setFormError('Please add at least one product or option block to the order.');
+      raiseFormError('Please add at least one product or option block to the order.');
       return;
     }
 
@@ -960,7 +966,7 @@ const Orders = () => {
     for (const sec of sections) {
       for (const block of sec.blocks) {
         if (!block.product_id) {
-          setFormError(`[${sec.name}] Please select a product for all blocks.`);
+          raiseFormError(`[${sec.name}] Please select a product for all blocks.`);
           return;
         }
 
@@ -997,7 +1003,7 @@ const Orders = () => {
         });
 
         if (validSizeCount === 0) {
-          setFormError(`[${sec.name}] Product "${block.product_name}": ${isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
+          raiseFormError(`[${sec.name}] Product "${block.product_name}": ${isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
           return;
         }
       }
@@ -1034,7 +1040,7 @@ const Orders = () => {
       fetchOrders();
     } catch (err) {
       console.error('Error saving direct order:', err);
-      setFormError(describeSaveError(err, 'Failed to save order. Please check all fields.'));
+      raiseFormError(describeSaveError(err, 'Failed to save order. Please check all fields.'));
     } finally {
       setIsSubmitting(false);
     }

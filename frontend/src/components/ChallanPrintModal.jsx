@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
 import { brandFields } from '../utils/brandProfile';
+import renderRichText from '../utils/renderRichText';
 
 const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
   if (!isOpen || !challan) return null;
@@ -227,7 +228,11 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
                             placeholder="Product / Item Description"
                             style={{ width: '100%', fontSize: '12px', padding: '4px 6px', fontWeight: 600 }}
                           />
-                          {item.notes && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Note: {item.notes}</div>}
+                          {item.notes && (
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              Note: {renderRichText(item.notes, { fontSize: '11px', color: '#64748b', margin: 0, display: 'inline' })}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '8px 6px', textAlign: 'center', fontSize: '13px' }}>
                           <span className="print-only">{isPcs ? '—' : (item.width || '—')}</span>

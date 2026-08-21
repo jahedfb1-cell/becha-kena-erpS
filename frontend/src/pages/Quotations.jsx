@@ -133,12 +133,18 @@ const Quotations = () => {
   // The error banner renders near the top of the form, but a size/price
   // validation failure usually happens while the user is scrolled deep into
   // the item builder table below - without this, the message sets but stays
-  // out of view, which looks exactly like "nothing happened" on Save.
-  useEffect(() => {
-    if (formError) {
+  // out of view, which looks exactly like "nothing happened" on Save. Scrolls
+  // imperatively here rather than via a `[formError]` effect, because React
+  // batches setState calls: clicking Save twice in a row with the exact same
+  // validation failure sets state to a value equal to what it already was,
+  // triggers no re-render, and an effect keyed on that value would silently
+  // never fire on the second click.
+  const raiseFormError = (msg) => {
+    setFormError(msg);
+    requestAnimationFrame(() => {
       formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [formError]);
+    });
+  };
 
   // Modal Dialog States
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -665,7 +671,7 @@ const Quotations = () => {
     setFormError('');
     
     if (!selectedCustomerId) {
-      setFormError('Please select a customer.');
+      raiseFormError('Please select a customer.');
       return;
     }
 
@@ -673,7 +679,7 @@ const Quotations = () => {
     sections.forEach(s => totalBlockCount += s.blocks.length);
 
     if (totalBlockCount === 0) {
-      setFormError('At least 1 product line item is required.');
+      raiseFormError('At least 1 product line item is required.');
       return;
     }
 
@@ -683,11 +689,11 @@ const Quotations = () => {
       for (let i = 0; i < sec.blocks.length; i++) {
         const block = sec.blocks[i];
         if (!block.product_id) {
-          setFormError(`[${sec.name}] Block #${i + 1}: Product must be selected.`);
+          raiseFormError(`[${sec.name}] Block #${i + 1}: Product must be selected.`);
           return;
         }
         if (parseFloat(block.unit_price) <= 0) {
-          setFormError(`[${sec.name}] Product "${block.product_name}": Unit price must be greater than 0.`);
+          raiseFormError(`[${sec.name}] Product "${block.product_name}": Unit price must be greater than 0.`);
           return;
         }
 
@@ -726,7 +732,7 @@ const Quotations = () => {
         });
 
         if (validSizeCount === 0) {
-          setFormError(`[${sec.name}] Product "${block.product_name}": ${isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
+          raiseFormError(`[${sec.name}] Product "${block.product_name}": ${isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
           return;
         }
       }
@@ -773,7 +779,7 @@ const Quotations = () => {
         resetForm();
       }
     } catch (err) {
-      setFormError(describeSaveError(err, 'Error occurred while saving quotation.'));
+      raiseFormError(describeSaveError(err, 'Error occurred while saving quotation.'));
     } finally {
       setIsSubmitting(false);
     }
