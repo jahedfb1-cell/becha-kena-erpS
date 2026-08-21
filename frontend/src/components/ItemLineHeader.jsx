@@ -46,12 +46,6 @@ const TITLES = {
   },
 };
 
-const UNIT_LABELS = {
-  pvc: 'PVC sq.ft',
-  sqft: 'Square Feet ( sq.ft )',
-  pcs: 'Pieces ( pcs )',
-};
-
 export const unitKindOf = ({ isPcsBlock, isPvcBlock }) =>
   (isPcsBlock ? 'pcs' : (isPvcBlock ? 'pvc' : 'sqft'));
 
@@ -80,7 +74,7 @@ const ItemLineHeader = ({ productCode, productName, kind, columns, changeProduct
     <div style={{ whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
       <span>Product Code / Name * </span>
       <strong style={{ marginLeft: '4px' }}>
-        {productCode ? productCode.toUpperCase() : 'NO CODE'}, {productName || 'Unnamed product'}, {UNIT_LABELS[kind]}
+        {productCode ? productCode.toUpperCase() : 'NO CODE'}
       </strong>
     </div>
   );
