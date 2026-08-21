@@ -453,6 +453,20 @@ const Quotations = () => {
     setAiScanTargetBlock(null);
   };
 
+  // Lets Enter in a size-row field jump to the next field (e.g. Width -> Height)
+  // instead of doing nothing/submitting the page, matching how a Tab press
+  // already behaves there. Looked up by placeholder within the same row
+  // rather than via refs, since it has to work identically for the plain
+  // item-builder table and the option-group grid, which are shaped very
+  // differently in the DOM.
+  const focusNextField = (e, nextPlaceholder) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const row = e.target.closest('tr') || e.target.closest('.option-size-grid');
+    const next = row?.querySelector(`input[placeholder="${nextPlaceholder}"]`);
+    next?.focus();
+  };
+
   const handleSizeChange = (sectionId, blockId, sizeId, field, value) => {
     setSections(prev => prev.map(sec => {
       if (sec.id !== sectionId) return sec;
@@ -2094,6 +2108,7 @@ const Quotations = () => {
                                               inputMode="decimal"
                                               value={sizeRow.width}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
+                                              onKeyDown={(e) => focusNextField(e, 'Height')}
                                               placeholder="Width"
                                               className="modern-form-control"
                                             />
@@ -2162,6 +2177,7 @@ const Quotations = () => {
                                               inputMode="decimal"
                                               value={sizeRow.height}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                              onKeyDown={(e) => focusNextField(e, 'Pcs')}
                                               placeholder="Height"
                                               className="modern-form-control"
                                             />
@@ -2522,6 +2538,7 @@ const Quotations = () => {
                                             placeholder="Width"
                                             value={sz.width}
                                             onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'width', e.target.value)}
+                                            onKeyDown={(e) => focusNextField(e, 'Height')}
                                             className="modern-form-control"
                                             style={{ fontSize: '12px' }}
                                           />
@@ -2531,6 +2548,7 @@ const Quotations = () => {
                                             placeholder="Height"
                                             value={sz.height}
                                             onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'height', e.target.value)}
+                                            onKeyDown={(e) => focusNextField(e, 'Pcs')}
                                             className="modern-form-control"
                                             style={{ fontSize: '12px' }}
                                           />

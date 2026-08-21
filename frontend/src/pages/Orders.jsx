@@ -573,6 +573,19 @@ const Orders = () => {
     setAiScanTargetBlock(null);
   };
 
+  // Lets Enter in a size-row field jump to the next field (e.g. Width -> Height)
+  // instead of doing nothing/submitting the page, matching how a Tab press
+  // already behaves there. Looked up by placeholder within the same row
+  // rather than via refs, since the row's DOM shape differs between a
+  // Sq.Ft/PVC block and a Pcs block.
+  const focusNextField = (e, nextPlaceholder) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const row = e.target.closest('tr');
+    const next = row?.querySelector(`input[placeholder="${nextPlaceholder}"]`);
+    next?.focus();
+  };
+
   const handleSizeChange = (sectionId, blockId, sizeId, field, value) => {
     setSections(prev => prev.map(sec => {
       if (sec.id !== sectionId) return sec;
@@ -2126,6 +2139,7 @@ const Orders = () => {
                                               inputMode="decimal"
                                               value={sizeRow.width}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
+                                              onKeyDown={(e) => focusNextField(e, 'Height')}
                                               placeholder="Width"
                                               className="modern-form-control"
                                             />
@@ -2157,6 +2171,7 @@ const Orders = () => {
                                               inputMode="decimal"
                                               value={sizeRow.height}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                              onKeyDown={(e) => focusNextField(e, 'Pcs')}
                                               placeholder="Height"
                                               className="modern-form-control"
                                             />
