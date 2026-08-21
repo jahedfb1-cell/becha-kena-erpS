@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
@@ -125,8 +125,19 @@ const Quotations = () => {
   const [terms, setTerms] = useState('');
   
   const [formError, setFormError] = useState('');
+  const formErrorRef = useRef(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSupplierPopoverBlockId, setActiveSupplierPopoverBlockId] = useState(null);
+
+  // The error banner renders near the top of the form, but a size/price
+  // validation failure usually happens while the user is scrolled deep into
+  // the item builder table below - without this, the message sets but stays
+  // out of view, which looks exactly like "nothing happened" on Save.
+  useEffect(() => {
+    if (formError) {
+      formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [formError]);
 
   // Modal Dialog States
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -1598,7 +1609,7 @@ const Quotations = () => {
           </div>
 
           {formError && (
-            <div className="alert alert-danger" style={{ marginBottom: '16px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px 16px', borderRadius: '8px' }}>
+            <div ref={formErrorRef} className="alert alert-danger" style={{ marginBottom: '16px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px 16px', borderRadius: '8px' }}>
               <strong>⚠️ Validation Error:</strong> {formError}
             </div>
           )}
