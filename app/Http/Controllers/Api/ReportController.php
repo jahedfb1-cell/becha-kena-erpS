@@ -857,6 +857,8 @@ class ReportController extends Controller
      */
     public function salesDue(Request $request): JsonResponse
     {
+        $user = $request->user();
+
         $query = Invoice::with(['customer:id,customer_code,name,phone,company_name', 'salesman:id,name'])
             ->where('is_archived', false)
             ->where('due_amount', '>', 0);
@@ -864,7 +866,24 @@ class ReportController extends Controller
         if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->customer_id);
         }
-        if ($request->filled('salesman_id')) {
+
+        // Same role-based visibility as CustomerController@index: a salesman
+        // is always locked to their own due list regardless of a client-sent
+        // salesman_id (this endpoint has no separate permission check, so
+        // without this a salesman could otherwise view any other salesman's
+        // customer dues just by passing a different id), a manager to their
+        // team + themselves, and only an admin's own salesman_id filter is
+        // actually honored.
+        if ($user->role === 'salesman') {
+            $query->where('salesman_id', $user->id);
+        } elseif ($user->role === 'manager') {
+            $teamUserIds = User::where('manager_id', $user->id)->pluck('id')->push($user->id);
+            if ($request->filled('salesman_id') && $teamUserIds->contains((int) $request->salesman_id)) {
+                $query->where('salesman_id', $request->salesman_id);
+            } else {
+                $query->whereIn('salesman_id', $teamUserIds);
+            }
+        } elseif ($request->filled('salesman_id')) {
             $query->where('salesman_id', $request->salesman_id);
         }
 

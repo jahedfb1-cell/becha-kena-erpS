@@ -22,6 +22,7 @@ const getPageTitle = (pathname, search, role) => {
     return 'Orders';
   }
   if (path === 'mushak') return 'VAT Challan';
+  if (path === 'my-dues') return role === 'salesman' ? 'My Customer Dues' : (role === 'manager' ? "Team's Dues" : 'Customer Dues');
   if (path === 'reports') return role === 'manager' ? 'Reports (Ltd)' : 'Reports';
   if (path.startsWith('reports/')) return role === 'manager' ? 'Reports (Ltd)' : 'Reports';
 
@@ -135,6 +136,7 @@ const DashboardLayout = () => {
       { path: '/orders?tab=pending', label: 'Placed Orders (Pending)', roles: ['admin', 'manager', 'salesman'], icon: 'clock', keywords: ['order', 'pending'] },
       { path: '/orders?tab=confirmed', label: role === 'salesman' ? 'My Confirmed Orders' : 'Confirmed Orders', roles: ['admin', 'manager', 'salesman'], icon: 'shopping-cart', keywords: ['order', 'confirmed'] },
       { path: '/invoices', label: 'Invoices & Deliveries', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'invoice', keywords: ['bill', 'delivery', 'challan'] },
+      { path: '/my-dues', label: role === 'salesman' ? 'My Customer Dues' : (role === 'manager' ? "Team's Dues" : 'Customer Dues'), roles: ['admin', 'manager', 'salesman'], icon: 'credit-card', keywords: ['due', 'outstanding', 'balance', 'collection'] },
       { path: '/mushak', label: 'VAT Challan', roles: ['admin', 'manager'], icon: 'invoice', brandOnly: 2, keywords: ['mushak', 'vat', 'challan', 'nbr', 'tax'] },
       { path: '/payments', label: 'Payments', roles: ['admin'], icon: 'credit-card', keywords: ['money', 'transaction', 'receipt'] },
       { path: '/notifications', label: 'Notifications', roles: ['admin', 'manager', 'salesman', 'staff'], icon: 'bell', keywords: ['alert', 'messages'] },

@@ -35,6 +35,7 @@ const Orders = lazy(() => import('./pages/Orders'));
 const Invoices = lazy(() => import('./pages/Invoices'));
 const Mushak = lazy(() => import('./pages/Mushak'));
 const Payments = lazy(() => import('./pages/Payments'));
+const MyDues = lazy(() => import('./pages/MyDues'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const Reports = lazy(() => import('./pages/Reports'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
@@ -281,6 +282,20 @@ function App() {
               <ProtectedRoute>
                 <Suspense fallback={null}>
                   <Payments />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* My Dues route - scoped server-side by role (own for salesman,
+              team for manager, everyone for admin), so no requiredRole
+              here; ReportController@salesDue enforces the visibility. */}
+          <Route
+            path="my-dues"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={null}>
+                  <MyDues />
                 </Suspense>
               </ProtectedRoute>
             }
