@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { formatCurrency, formatDate } from '../utils/format';
+import { myDuesTitle } from '../utils/myDuesTitle';
 
 /**
  * Every salesman's own customer due list, scoped server-side to their user
@@ -50,11 +51,7 @@ const MyDues = () => {
     );
   }, [customerDues, search]);
 
-  const pageTitle = user?.role === 'salesman'
-    ? 'My Customer Dues'
-    : user?.role === 'manager'
-      ? "My Team's Customer Dues"
-      : 'Customer Dues';
+  const pageTitle = myDuesTitle(user?.role);
 
   return (
     <div className="content-container animate-fade-in">

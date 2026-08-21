@@ -873,7 +873,11 @@ class ReportController extends Controller
         // without this a salesman could otherwise view any other salesman's
         // customer dues just by passing a different id), a manager to their
         // team + themselves, and only an admin's own salesman_id filter is
-        // actually honored.
+        // actually honored. Every other role (e.g. staff, or any future
+        // role) is explicitly denied rather than falling through to the
+        // admin branch's unrestricted access - a role this endpoint doesn't
+        // know about must never be treated as more privileged than salesman
+        // by default.
         if ($user->role === 'salesman') {
             $query->where('salesman_id', $user->id);
         } elseif ($user->role === 'manager') {
@@ -883,8 +887,12 @@ class ReportController extends Controller
             } else {
                 $query->whereIn('salesman_id', $teamUserIds);
             }
-        } elseif ($request->filled('salesman_id')) {
-            $query->where('salesman_id', $request->salesman_id);
+        } elseif ($user->role === 'admin') {
+            if ($request->filled('salesman_id')) {
+                $query->where('salesman_id', $request->salesman_id);
+            }
+        } else {
+            $query->whereRaw('1 = 0');
         }
 
         $invoices = $query->orderBy('invoice_date', 'asc')->get();
