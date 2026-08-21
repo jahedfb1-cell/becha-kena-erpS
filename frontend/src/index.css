@@ -1850,6 +1850,28 @@ body {
   background-color: #ffffff;
 }
 
+/* Hides the number-input up/down spinner arrows on the Quotation/Order item
+   builder's Width, Height and Pcs fields (desktop table cells, the mobile
+   size card, and the option-group grid) - just clutter on fields typed with
+   the keyboard, not incremented by clicking. Scoped to these containers
+   rather than every input[type=number] app-wide, since Unit Price and other
+   number fields elsewhere are left as-is. */
+.cell-size input[type="number"]::-webkit-inner-spin-button,
+.cell-size input[type="number"]::-webkit-outer-spin-button,
+.mobile-size-box[type="number"]::-webkit-inner-spin-button,
+.mobile-size-box[type="number"]::-webkit-outer-spin-button,
+.option-size-grid input[type="number"]::-webkit-inner-spin-button,
+.option-size-grid input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cell-size input[type="number"],
+.mobile-size-box[type="number"],
+.option-size-grid input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .btn-icon-square {
   width: 38px;
   height: 38px;

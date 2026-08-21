@@ -578,11 +578,17 @@ const Orders = () => {
   // already behaves there. Looked up by placeholder within the same row
   // rather than via refs, since the row's DOM shape differs between a
   // Sq.Ft/PVC block and a Pcs block.
-  const focusNextField = (e, nextPlaceholder) => {
+  // scope 'row' targets a field in the same row (Width -> Height); scope
+  // 'nextRow' targets that field in the following row instead (Height ->
+  // next row's Width), letting Enter alone cycle through entering several
+  // size rows without reaching for the mouse. A no-op on the last row,
+  // since there's no next row's Width to jump to.
+  const focusNextField = (e, nextPlaceholder, scope = 'row') => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const row = e.target.closest('tr');
-    const next = row?.querySelector(`input[placeholder="${nextPlaceholder}"]`);
+    let container = e.target.closest('tr');
+    if (scope === 'nextRow') container = container?.nextElementSibling;
+    const next = container?.querySelector(`input[placeholder="${nextPlaceholder}"]`);
     next?.focus();
   };
 
@@ -2171,6 +2177,7 @@ const Orders = () => {
                                               inputMode="decimal"
                                               value={sizeRow.height}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                              onKeyDown={(e) => focusNextField(e, 'Width', 'nextRow')}
                                               placeholder="Height"
                                               className="modern-form-control"
                                             />

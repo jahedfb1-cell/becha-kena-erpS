@@ -459,11 +459,17 @@ const Quotations = () => {
   // rather than via refs, since it has to work identically for the plain
   // item-builder table and the option-group grid, which are shaped very
   // differently in the DOM.
-  const focusNextField = (e, nextPlaceholder) => {
+  // scope 'row' targets a field in the same row (Width -> Height); scope
+  // 'nextRow' targets that field in the following row instead (Height ->
+  // next row's Width), letting Enter alone cycle through entering several
+  // size rows without reaching for the mouse. A no-op on the last row,
+  // since there's no next row's Width to jump to.
+  const focusNextField = (e, nextPlaceholder, scope = 'row') => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const row = e.target.closest('tr') || e.target.closest('.option-size-grid');
-    const next = row?.querySelector(`input[placeholder="${nextPlaceholder}"]`);
+    let container = e.target.closest('tr') || e.target.closest('.option-size-grid');
+    if (scope === 'nextRow') container = container?.nextElementSibling;
+    const next = container?.querySelector(`input[placeholder="${nextPlaceholder}"]`);
     next?.focus();
   };
 
@@ -2177,6 +2183,7 @@ const Quotations = () => {
                                               inputMode="decimal"
                                               value={sizeRow.height}
                                               onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                              onKeyDown={(e) => focusNextField(e, 'Width', 'nextRow')}
                                               placeholder="Height"
                                               className="modern-form-control"
                                             />
@@ -2547,6 +2554,7 @@ const Quotations = () => {
                                             placeholder="Height"
                                             value={sz.height}
                                             onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'height', e.target.value)}
+                                            onKeyDown={(e) => focusNextField(e, 'Width', 'nextRow')}
                                             className="modern-form-control"
                                             style={{ fontSize: '12px' }}
                                           />
