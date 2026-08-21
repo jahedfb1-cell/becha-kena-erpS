@@ -105,6 +105,8 @@ class DemoDataSeeder extends Seeder
         // Salesmen managed by the manager
         $this->rahim = $this->makeSalesman('rahim@bechakenarp.com', 'Rahim Uddin', '01822222222');
         $this->salma = $this->makeSalesman('salma@bechakenarp.com', 'Salma Khatun', '01933333333');
+        $this->makeSalesman('meheraj@dhakablinds.shop', 'Al Meheraj', '+8801876989658', '1TZYrZdeC9n4t9');
+        $this->makeSalesman('absar@dhakablinds.shop', 'Nurul Absar', '+8801641667557', 'cC40i8BzhAvJuM');
 
         // Staff managed by the manager
         $staff = User::firstOrCreate(
@@ -122,14 +124,14 @@ class DemoDataSeeder extends Seeder
         $staff->assignRole('staff');
     }
 
-    protected function makeSalesman(string $email, string $name, string $phone): User
+    protected function makeSalesman(string $email, string $name, string $phone, string $password = 'Password1234'): User
     {
         $user = User::firstOrCreate(
             ['email' => $email],
             [
                 'name' => $name,
                 'phone' => $phone,
-                'password' => Hash::make('Password1234'),
+                'password' => Hash::make($password),
                 'role' => 'salesman',
                 'manager_id' => $this->manager->id,
                 'is_active' => true,
