@@ -24,6 +24,7 @@ import {
 import { describeSaveError } from '../utils/apiError';
 import NotApplicableCell from '../components/NotApplicableCell';
 import ItemLineHeader, { unitKindOf } from '../components/ItemLineHeader';
+import RichTextEditor from '../components/RichTextEditor';
 
 // The item-builder columns, in render order. The three slat columns only exist
 // when a PVC product is somewhere in the section, so there are two variants.
@@ -2339,16 +2340,19 @@ const Quotations = () => {
                                         </tr>
                                         ))}
 
-                                      {/* Product Specification Box */}
+                                      {/* Product Specification Box - this is the "Description of
+                                          Goods" text that prints under the line's product name
+                                          (see lineSpecification.js); the print side already
+                                          renders it through renderRichText(), so editing it as
+                                          rich text here isn't a new capability, just finally a way
+                                          to produce the markup that side was already built for. */}
                                       <tr style={{ background: '#f8fafc' }}>
                                         <td colSpan={columnTitles.length - 1} style={{ padding: '8px 14px' }}>
-                                          <textarea
-                                            className="product-notes-textarea"
+                                          <RichTextEditor
                                             value={block.notes || ''}
-                                            onChange={(e) => handleBlockChange(sec.id, block.id, 'notes', e.target.value)}
-                                            rows="2"
-                                            style={{ width: '100%', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px 12px', fontSize: '12px', resize: 'vertical', background: '#fff' }}
-                                            placeholder="Enter specification details..."
+                                            onChange={(html) => handleBlockChange(sec.id, block.id, 'notes', html)}
+                                            placeholder="Enter specification details (Description of Goods)..."
+                                            minHeight="70px"
                                           />
                                         </td>
                                         <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
@@ -2625,13 +2629,14 @@ const Quotations = () => {
                                         </div>
                                       ))}
 
-                                      <textarea
-                                        placeholder="Option notes/specifications..."
-                                        value={b.notes || ''}
-                                        onChange={(e) => handleBlockChange(sec.id, b.id, 'notes', e.target.value)}
-                                        rows="2"
-                                        style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', marginTop: '6px' }}
-                                      />
+                                      <div style={{ marginTop: '6px' }}>
+                                        <RichTextEditor
+                                          value={b.notes || ''}
+                                          onChange={(html) => handleBlockChange(sec.id, b.id, 'notes', html)}
+                                          placeholder="Option notes/specifications (Description of Goods)..."
+                                          minHeight="60px"
+                                        />
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -2654,8 +2659,13 @@ const Quotations = () => {
                   only place to edit them. */}
               <div className="form-card-section grid-3col" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
                 <div className="form-group hide-mobile-text" style={{ margin: 0, flex: '1 1 100%' }}>
-                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Remarks</label>
-                  <input type="text" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="If have any note" className="modern-form-control" />
+                  <label style={{ fontWeight: '600', fontSize: '13px', marginBottom: '6px', display: 'block' }}>Remarks / Note</label>
+                  <RichTextEditor
+                    value={remark}
+                    onChange={setRemark}
+                    placeholder="If have any note"
+                    minHeight="70px"
+                  />
                 </div>
 
                 <div className="form-group" style={{ margin: 0, flex: '1 1 100%' }}>

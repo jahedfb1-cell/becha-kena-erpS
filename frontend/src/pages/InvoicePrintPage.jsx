@@ -823,10 +823,13 @@ const InvoicePrintPage = () => {
           </div>
         </div>
 
-        {/* Remarks */}
+        {/* Remarks - now edited as rich text, so it prints through
+            renderRichText() (which also still handles the plain strings
+            saved before this field became a rich text editor). */}
         {invoice.note && (
           <div style={{ fontSize: '11px', margin: '6px 0', color: '#333' }}>
-            <strong>Remarks: </strong> {invoice.note}
+            <strong>Remarks: </strong>
+            {renderRichText(invoice.note, { fontSize: '11px', color: '#333', margin: 0 })}
           </div>
         )}
 

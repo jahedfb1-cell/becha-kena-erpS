@@ -5,6 +5,7 @@ import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
+import renderRichText from '../utils/renderRichText';
 
 /**
  * PVC Quotation print page - a second quotation layout for the "PVC Strip
@@ -581,10 +582,13 @@ const PvcQuotationPrintPage = () => {
           </div>
         </div>
 
-        {/* Remarks */}
+        {/* Remarks - now edited as rich text, so it prints through
+            renderRichText() (which also still handles the plain strings
+            saved before this field became a rich text editor). */}
         {quotation.note && (
           <div style={{ fontSize: '11px', margin: '6px 0', color: '#333' }}>
-            <strong>Remarks: </strong> {quotation.note}
+            <strong>Remarks: </strong>
+            {renderRichText(quotation.note, { fontSize: '11px', color: '#333', margin: 0 })}
           </div>
         )}
 
