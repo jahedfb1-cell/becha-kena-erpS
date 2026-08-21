@@ -1955,14 +1955,27 @@ const Orders = () => {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
-                            style={{ fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
-                            title="Click to change to another product"
-                          >
-                            🔄 Change Product
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
+                              style={{ fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Click to change to another product"
+                            >
+                              🔄 Change Product
+                            </button>
+                            {/* Row 1's own Add/Delete buttons were removed (row 1 already has
+                                Excel/AI Scan for adding rows in bulk), so this is now the only
+                                way to remove a product block that still has just one row. */}
+                            <button
+                              type="button"
+                              onClick={() => removeProductBlock(sec.id, block.id)}
+                              style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title="Remove this product"
+                            >
+                              🗑️ Remove Product
+                            </button>
+                          </div>
                         );
 
                         return (
@@ -2242,7 +2255,12 @@ const Orders = () => {
 
                                       <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                           {!isPcsBlock && (
+                                           {/* Add/Delete hidden on the first row per request - row 1
+                                               already has Excel/AI Scan for adding rows in bulk, so
+                                               its own +/- buttons were just clutter alongside those.
+                                               Deleting a single-row block is now done via the "Remove
+                                               Product" button next to "Change Product" in the header. */}
+                                           {sIdx > 0 && !isPcsBlock && (
                                              <button
                                                type="button"
                                                onClick={() => addSizeRowToBlock(sec.id, block.id)}
@@ -2253,21 +2271,23 @@ const Orders = () => {
                                                ➕
                                              </button>
                                            )}
-                                           <button
-                                             type="button"
-                                             onClick={() => {
-                                               if (!isPcsBlock && block.sizes.length > 1) {
-                                                 removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
-                                               } else {
-                                                 removeProductBlock(sec.id, block.id);
-                                               }
-                                             }}
-                                             className="btn-action-circle btn-action-delete"
-                                             title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
-                                             style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                           >
-                                             🗑️
-                                           </button>
+                                           {sIdx > 0 && (
+                                             <button
+                                               type="button"
+                                               onClick={() => {
+                                                 if (!isPcsBlock && block.sizes.length > 1) {
+                                                   removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
+                                                 } else {
+                                                   removeProductBlock(sec.id, block.id);
+                                                 }
+                                               }}
+                                               className="btn-action-circle btn-action-delete"
+                                               title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
+                                               style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                             >
+                                               🗑️
+                                             </button>
+                                           )}
                                            {sIdx === 0 && !isPcsBlock && (
                                              <>
                                                <button
