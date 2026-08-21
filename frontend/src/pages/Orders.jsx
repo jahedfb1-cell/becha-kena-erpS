@@ -1972,8 +1972,8 @@ const Orders = () => {
                                   {isPvcBlock && <col style={{ width: '70px' }} />}
                                   <col style={{ width: '95px' }} />
                                   <col style={{ width: '60px' }} />
+                                  <col style={{ width: '85px' }} />
                                   <col style={{ width: '100px' }} />
-                                  <col style={{ width: '130px' }} />
                                   <col style={{ width: '90px' }} />
                                 </colgroup>
                                 <tbody>
@@ -2085,7 +2085,7 @@ const Orders = () => {
                                       {/* Product Details Header Column was removed and moved to ItemLineHeader top row */}
 
                                       {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', padding: '3px' }}>
                                           <input
                                             type="number"
                                             value={block.unit_price}
@@ -2120,7 +2120,7 @@ const Orders = () => {
                                       ) : (
                                         <>
                                           {/* Width */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                          <td className="cell-size" style={{ padding: '3px' }}>
                                             <input
                                               type="number"
                                               inputMode="decimal"
@@ -2133,7 +2133,7 @@ const Orders = () => {
 
                                           {/* T. Width (in) */}
                                           {isPvcBlock && (
-                                            <td className="cell-size" style={{ padding: '6px' }}>
+                                            <td className="cell-size" style={{ padding: '3px' }}>
                                               <input
                                                 type="text"
                                                 value={(() => {
@@ -2151,7 +2151,7 @@ const Orders = () => {
                                           )}
 
                                           {/* Height */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                          <td className="cell-size" style={{ padding: '3px' }}>
                                             <input
                                               type="number"
                                               inputMode="decimal"
@@ -2163,7 +2163,7 @@ const Orders = () => {
                                           </td>
 
                                           {/* Pcs */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                          <td className="cell-size" style={{ padding: '3px' }}>
                                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                               <input
                                                 type="number"
@@ -2194,7 +2194,7 @@ const Orders = () => {
                                           colSpan) since Total Pcs always equals Quantity
                                           there and doesn't need its own cell. */}
                                       {sIdx === 0 && !isPcsBlock && (
-                                        <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '6px' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '3px' }}>
                                           <input
                                             type="text"
                                             value={totalBilledSqft.toFixed(2)}
@@ -2206,7 +2206,7 @@ const Orders = () => {
                                       )}
 
                                       {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', paddingTop: '10px' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', padding: '3px' }}>
                                           <input
                                             type="text"
                                             value={isSelected ? `৳${totalPrice.toFixed(2)}` : '৳0.00 (Unselected)'}

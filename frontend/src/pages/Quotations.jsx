@@ -1938,8 +1938,8 @@ const Quotations = () => {
                                   {isPvcBlock && <col style={{ width: '70px' }} />}
                                   <col style={{ width: '85px' }} />
                                   <col style={{ width: '60px' }} />
-                                  <col style={{ width: '95px' }} />
-                                  <col style={{ width: '120px' }} />
+                                  <col style={{ width: '85px' }} />
+                                  <col style={{ width: '100px' }} />
                                   {/* Wide enough for the first row's full button set:
                                       add row, delete, Excel paste and AI Scan. */}
                                   <col style={{ width: '200px' }} />
@@ -2053,7 +2053,7 @@ const Quotations = () => {
 
                                       {/* Unit Price */}
                                       {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                        <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '3px' }}>
                                           <input
                                             type="number"
                                             value={block.unit_price}
@@ -2088,7 +2088,7 @@ const Quotations = () => {
                                       ) : (
                                         <>
                                           {/* Width */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                          <td className="cell-size" style={{ padding: '3px' }}>
                                             <input
                                               type="number"
                                               inputMode="decimal"
@@ -2101,7 +2101,7 @@ const Quotations = () => {
 
                                           {/* Approx Pcs */}
                                           {isPvcBlock && (
-                                            <td className="cell-size" style={{ padding: '6px' }}>
+                                            <td className="cell-size" style={{ padding: '3px' }}>
                                               <input
                                                 type="text"
                                                 value={pvcApproxSlats(sizeRow.width)}
@@ -2115,7 +2115,7 @@ const Quotations = () => {
 
                                           {/* pcs of Slats */}
                                           {isPvcBlock && (
-                                            <td className="cell-size" style={{ padding: '6px' }}>
+                                            <td className="cell-size" style={{ padding: '3px' }}>
                                               <input
                                                 type="number"
                                                 inputMode="numeric"
@@ -2137,7 +2137,7 @@ const Quotations = () => {
 
                                           {/* T. Width (in) */}
                                           {isPvcBlock && (
-                                            <td className="cell-size" style={{ padding: '6px' }}>
+                                            <td className="cell-size" style={{ padding: '3px' }}>
                                               <input
                                                 type="text"
                                                 value={(() => {
@@ -2156,7 +2156,7 @@ const Quotations = () => {
                                           )}
 
                                           {/* Height */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                          <td className="cell-size" style={{ padding: '3px' }}>
                                             <input
                                               type="number"
                                               inputMode="decimal"
@@ -2168,7 +2168,7 @@ const Quotations = () => {
                                           </td>
 
                                           {/* Pcs */}
-                                          <td className="cell-size" style={{ padding: '6px' }}>
+                                          <td className="cell-size" style={{ padding: '3px' }}>
                                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                                               <input
                                                 type="number"
@@ -2189,7 +2189,7 @@ const Quotations = () => {
                                               (see its colSpan) since Total Pcs always equals
                                               Quantity there and doesn't need its own cell. */}
                                           {sIdx === 0 && !isPcsBlock && (
-                                            <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '6px' }}>
+                                            <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '3px' }}>
                                               <input
                                                 type="text"
                                                 value={totalBilledSqft.toFixed(2)}
@@ -2202,7 +2202,7 @@ const Quotations = () => {
 
                                           {/* Total Price */}
                                           {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', paddingTop: '12px', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '12px 8px' }}>
+                                            <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '3px' }}>
                                               <input
                                                 type="text"
                                                 value={totalPrice.toFixed(2)}
