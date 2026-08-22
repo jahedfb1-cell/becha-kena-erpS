@@ -258,24 +258,109 @@ class CompanyProfileController extends Controller
         }
 
         if ($targetLogo && file_exists($targetLogo)) {
-            $destinations = [
-                public_path('pwa-192x192.png'),
-                public_path('pwa-512x512.png'),
-                public_path('apple-touch-icon.png'),
-                base_path('frontend/public/pwa-192x192.png'),
-                base_path('frontend/public/pwa-512x512.png'),
-                base_path('frontend/public/apple-touch-icon.png'),
-            ];
-            foreach ($destinations as $dest) {
-                @copy($targetLogo, $dest);
-            }
+            // manifest.webmanifest declares these as exact square sizes,
+            // and Chrome's installability check verifies the file actually
+            // matches — a straight copy() left the wide banner-shaped
+            // company logo (e.g. 1600x399) sitting behind a filename that
+            // claimed 192x192, which is exactly what was silently failing
+            // the "beforeinstallprompt" criteria and blocking the Install
+            // App button on Android with no visible error.
+            $square192 = $this->squareIconFrom($targetLogo, 192);
+            $square512 = $this->squareIconFrom($targetLogo, 512);
+            $square180 = $this->squareIconFrom($targetLogo, 180); // apple-touch-icon convention
 
-            // These are served straight from the web root, same split-folder
-            // issue as the logo uploads themselves — see mirrorToPublicHtml().
-            $this->mirrorToPublicHtml($targetLogo, 'pwa-192x192.png');
-            $this->mirrorToPublicHtml($targetLogo, 'pwa-512x512.png');
-            $this->mirrorToPublicHtml($targetLogo, 'apple-touch-icon.png');
+            if ($square192 && $square512 && $square180) {
+                $writes = [
+                    [public_path('pwa-192x192.png'), $square192],
+                    [public_path('pwa-512x512.png'), $square512],
+                    [public_path('apple-touch-icon.png'), $square180],
+                    [base_path('frontend/public/pwa-192x192.png'), $square192],
+                    [base_path('frontend/public/pwa-512x512.png'), $square512],
+                    [base_path('frontend/public/apple-touch-icon.png'), $square180],
+                ];
+                foreach ($writes as [$dest, $blob]) {
+                    @file_put_contents($dest, $blob);
+                }
+
+                // These are served straight from the web root, same split-folder
+                // issue as the logo uploads themselves — see mirrorToPublicHtml().
+                $this->mirrorBlobToPublicHtml($square192, 'pwa-192x192.png');
+                $this->mirrorBlobToPublicHtml($square512, 'pwa-512x512.png');
+                $this->mirrorBlobToPublicHtml($square180, 'apple-touch-icon.png');
+            } else {
+                // GD couldn't read the source (corrupt file, unsupported
+                // format) — fall back to the old raw copy rather than leave
+                // stale icons, even though it repeats the size mismatch.
+                foreach ([
+                    public_path('pwa-192x192.png'), public_path('pwa-512x512.png'), public_path('apple-touch-icon.png'),
+                    base_path('frontend/public/pwa-192x192.png'), base_path('frontend/public/pwa-512x512.png'), base_path('frontend/public/apple-touch-icon.png'),
+                ] as $dest) {
+                    @copy($targetLogo, $dest);
+                }
+                $this->mirrorToPublicHtml($targetLogo, 'pwa-192x192.png');
+                $this->mirrorToPublicHtml($targetLogo, 'pwa-512x512.png');
+                $this->mirrorToPublicHtml($targetLogo, 'apple-touch-icon.png');
+            }
         }
+    }
+
+    /**
+     * Center-crops the source image to a square and resizes it to exactly
+     * $size x $size, returning the encoded PNG bytes (or null if the source
+     * couldn't be read — e.g. GD lacks the relevant format support).
+     */
+    private function squareIconFrom(string $sourcePath, int $size): ?string
+    {
+        if (!function_exists('imagecreatefromstring')) {
+            return null; // GD extension not available
+        }
+
+        $bytes = @file_get_contents($sourcePath);
+        $source = $bytes ? @imagecreatefromstring($bytes) : false;
+        if (!$source) {
+            return null;
+        }
+
+        $width = imagesx($source);
+        $height = imagesy($source);
+        $cropSize = min($width, $height);
+        $srcX = (int) (($width - $cropSize) / 2);
+        $srcY = (int) (($height - $cropSize) / 2);
+
+        $square = imagecreatetruecolor($size, $size);
+        // Preserve transparency instead of compositing onto black - a
+        // transparent-background app icon is the common case.
+        imagealphablending($square, false);
+        imagesavealpha($square, true);
+        $transparent = imagecolorallocatealpha($square, 0, 0, 0, 127);
+        imagefill($square, 0, 0, $transparent);
+
+        imagecopyresampled($square, $source, 0, 0, $srcX, $srcY, $size, $size, $cropSize, $cropSize);
+        imagedestroy($source);
+
+        ob_start();
+        imagepng($square);
+        $out = ob_get_clean();
+        imagedestroy($square);
+
+        return $out ?: null;
+    }
+
+    /** Same as mirrorToPublicHtml(), but for already-in-memory image bytes. */
+    private function mirrorBlobToPublicHtml(string $blob, string $relativePath): void
+    {
+        $target = config('services.public_html_path');
+        if (!$target || !is_dir($target)) {
+            return;
+        }
+
+        $destination = rtrim($target, '/\\') . '/' . ltrim($relativePath, '/\\');
+        $destDir = dirname($destination);
+        if (!is_dir($destDir)) {
+            @mkdir($destDir, 0777, true);
+        }
+
+        @file_put_contents($destination, $blob);
     }
 
     /** GET /api/company-profile/logo/{filename} */
