@@ -557,14 +557,14 @@ const PvcInvoicePrintPage = () => {
                   const totalSqft = parseFloat(item.billed_sqft) || fallbackSqft;
                   return (
                     <tr key={item.id} style={{ background: itemIdx % 2 === 1 ? '#faf9ff' : '#fff' }}>
-                      <td style={{ textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#111', borderBottom: '1px solid #ede9fe', padding: '6px 10px' }}>
+                      <td style={{ textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 10px' }}>
                         {item.product?.name || 'PVC Strip Curtain'}
                       </td>
                       <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{width}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getSlatCount(item)}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getDisplayWidth(item)}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{height}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{pcs}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getSlatCount(item)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getDisplayWidth(item)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{height}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{pcs}</td>
                       <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{totalSqft.toFixed(2)}</td>
                     </tr>
                   );
