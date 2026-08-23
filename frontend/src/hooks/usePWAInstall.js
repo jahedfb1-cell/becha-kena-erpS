@@ -19,39 +19,54 @@ function isRunningStandalone() {
   );
 }
 
-/**
- * Captures the browser's native "beforeinstallprompt" event (fired once,
- * early, on Chrome/Edge/Android) so a button anywhere in the app — e.g.
- * the My Profile page — can trigger the install prompt on demand instead
- * of relying on the browser's own install icon.
- */
+// Global listener captures beforeinstallprompt as soon as script runs,
+// preventing the event from being lost before MyProfile or any component mounts.
+let globalDeferredPrompt = null;
+const promptListeners = new Set();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    globalDeferredPrompt = e;
+    promptListeners.forEach((cb) => cb(globalDeferredPrompt));
+  });
+
+  window.addEventListener('appinstalled', () => {
+    globalDeferredPrompt = null;
+    promptListeners.forEach((cb) => cb(null));
+  });
+}
+
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(globalDeferredPrompt);
   const [isInstalled, setIsInstalled] = useState(() => isRunningStandalone());
   const [platform] = useState(detectPlatform);
 
   useEffect(() => {
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
+    // Sync current state in case event arrived before this component mounted
+    if (globalDeferredPrompt !== deferredPrompt) {
+      setDeferredPrompt(globalDeferredPrompt);
+    }
+
+    const handler = (prompt) => {
+      setDeferredPrompt(prompt);
+      if (!prompt) {
+        setIsInstalled(isRunningStandalone());
+      }
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+    promptListeners.add(handler);
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      promptListeners.delete(handler);
     };
-  }, []);
+  }, [deferredPrompt]);
 
   const install = useCallback(async () => {
-    if (!deferredPrompt) return { outcome: 'unavailable' };
-    deferredPrompt.prompt();
-    const choice = await deferredPrompt.userChoice;
+    const activePrompt = deferredPrompt || globalDeferredPrompt;
+    if (!activePrompt) return { outcome: 'unavailable' };
+    activePrompt.prompt();
+    const choice = await activePrompt.userChoice;
+    globalDeferredPrompt = null;
     setDeferredPrompt(null);
     if (choice.outcome === 'accepted') setIsInstalled(true);
     return choice;
