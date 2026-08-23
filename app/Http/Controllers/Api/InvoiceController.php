@@ -161,7 +161,8 @@ class InvoiceController extends Controller
         $invoice = Invoice::with([
             'customer',
             'salesman',
-            'quotation.items.product',
+            'quotation.items.product.category',
+            'quotation.items.variant',
             'payments',
             'deliveryChallans'
         ])->find($id);
