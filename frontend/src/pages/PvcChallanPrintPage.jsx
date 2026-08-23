@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
-import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
+import { pvcSlatCount, pvcBillingWidth, isPvcItem } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import renderRichText from '../utils/renderRichText';
 import InvoicePrintNav from '../components/InvoicePrintNav';
@@ -21,13 +21,6 @@ import InvoicePrintNav from '../components/InvoicePrintNav';
  * PVC strip-curtain order needs (slat count and total slat length) instead
  * of the generic ones.
  */
-const isPvcItem = (item) => {
-  const unit = (item.product?.unit || '').toLowerCase();
-  const category = (item.product?.category?.name || '').toLowerCase();
-  const name = (item.product?.name || '').toLowerCase();
-  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
-};
-
 const getSlatCount = (item) => {
   if (item.slats !== undefined && item.slats !== null && item.slats !== '') {
     return parseInt(item.slats);

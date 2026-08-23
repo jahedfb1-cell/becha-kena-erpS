@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
-import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
+import { pvcSlatCount, pvcBillingWidth, isPvcItem } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import renderRichText from '../utils/renderRichText';
 import InvoicePrintNav from '../components/InvoicePrintNav';
@@ -47,13 +47,6 @@ const numberToWords = (num) => {
     result += 'and ' + inWords(paisa) + 'Paisa ';
   }
   return result.trim() + ' Only.';
-};
-
-const isPvcItem = (item) => {
-  const unit = (item.product?.unit || '').toLowerCase();
-  const category = (item.product?.category?.name || '').toLowerCase();
-  const name = (item.product?.name || '').toLowerCase();
-  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
 };
 
 const getSlatCount = (item) => {

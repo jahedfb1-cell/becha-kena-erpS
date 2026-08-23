@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
-import { pvcSlatCount } from '../utils/billing';
+import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import InvoicePrintNav from '../components/InvoicePrintNav';
@@ -43,13 +43,6 @@ const numberToWords = (num) => {
 // shows that total-width figure for these items instead of the raw width,
 // matching the "T. Width (in)" figure shown for the same products in the
 // quotation builder and on the quotation/challan print pages.
-const isPvcItem = (item) => {
-  const unit = (item.product?.unit || '').toLowerCase();
-  const category = (item.product?.category?.name || '').toLowerCase();
-  const name = (item.product?.name || '').toLowerCase();
-  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
-};
-
 const getDisplayWidth = (item) => {
   const width = parseFloat(item.width) || 0;
   if (!isPvcItem(item)) return width;

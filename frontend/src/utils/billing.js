@@ -69,3 +69,25 @@ export const billableSqft = (perPieceSqft, pcs = 1) => {
   if (area <= 0) return 0;
   return Math.ceil((area * count) / 0.25) * 0.25;
 };
+
+/**
+ * Whether a line item is billed by the PVC slat formula above rather than
+ * plain sq.ft or per-piece pricing.
+ *
+ * The product's Measurement Unit field ("PVC sq.ft", set in the product
+ * form) is the authoritative signal - it's what actually drives the slat
+ * math everywhere else in the app, so it takes priority here too. Category
+ * name and product name are only a fallback for older records that may
+ * predate the Measurement Unit field being set correctly, since a product's
+ * name or category can say "PVC" without its Measurement Unit being PVC
+ * sq.ft (e.g. a plain sq.ft product filed under a PVC category), which would
+ * wrongly pull it into slat-based billing/print layouts.
+ */
+export const isPvcItem = (item) => {
+  const unit = (item.product?.unit || item.unit || '').toLowerCase();
+  if (unit) return unit === 'pvc sq.ft';
+
+  const category = (item.product?.category?.name || item.category_name || '').toLowerCase();
+  const name = (item.product?.name || item.product_name || '').toLowerCase();
+  return category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
+};

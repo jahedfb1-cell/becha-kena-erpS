@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
-import { pvcSlatCount } from '../utils/billing';
+import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import renderRichText from '../utils/renderRichText';
 
@@ -11,13 +11,6 @@ const DEMO_LOGO = '/logo-demo.svg';
 // slat's width — rather than the customer's requested opening width. Used
 // to keep every sq.ft/total fallback in this modal consistent with the
 // T. Width figure the detailed table itself shows for these rows.
-const isPvcItem = (item) => {
-  const unit = (item.product?.unit || item.unit || '').toLowerCase();
-  const category = (item.product?.category?.name || item.category_name || '').toLowerCase();
-  const name = (item.product?.name || item.product_name || '').toLowerCase();
-  return unit.includes('pvc') || category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
-};
-
 const getDisplayWidth = (item) => {
   const width = parseFloat(item.width) || 0;
   if (!isPvcItem(item)) return width;
