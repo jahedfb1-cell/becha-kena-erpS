@@ -57,17 +57,46 @@ class NotificationService
     {
         $approvers = User::whereIn('role', ['admin', 'manager'])->get();
         $quoteNo = $quotation->quotation_number ?? "#{$quotation->id}";
+        $context = $this->customerAndProductContext($quotation);
+
+        $message = "Quotation {$quoteNo}{$context} has been converted to Order and is pending approval.";
 
         foreach ($approvers as $approver) {
             $this->createNotification(
                 $approver->id,
                 "Quotation Converted to Order",
-                "Quotation {$quoteNo} has been converted to Order and is pending approval.",
+                $message,
                 "order",
                 "Quotation",
                 $quotation->id
             );
         }
+    }
+
+    /**
+     * Builds the "(Customer Company) [PRODUCT-CODE, ...]" suffix shared by
+     * the quotation/order notification messages, so a title in the
+     * notification list is identifiable without opening it - just the
+     * quotation/order number on its own doesn't say who or what it's for.
+     */
+    private function customerAndProductContext(Quotation $quotation): string
+    {
+        $quotation->loadMissing(['customer', 'items.product']);
+        $customerName = $quotation->customer->company_name ?? $quotation->customer->name ?? null;
+        $productCodes = $quotation->items
+            ->map(fn ($item) => $item->product->product_code ?? null)
+            ->filter()
+            ->unique()
+            ->implode(', ');
+
+        $context = '';
+        if ($customerName) {
+            $context .= " ({$customerName})";
+        }
+        if ($productCodes) {
+            $context .= " [{$productCodes}]";
+        }
+        return $context;
     }
 
     /**
@@ -77,13 +106,14 @@ class NotificationService
     {
         $quoteNo = $quotation->quotation_number ?? "#{$quotation->id}";
         $action = ucfirst($status); // Approved / Rejected
+        $context = $this->customerAndProductContext($quotation);
 
         // 1. Notify Salesman assigned to quotation
         if ($quotation->salesman_id) {
             $this->createNotification(
                 $quotation->salesman_id,
                 "Order {$action}",
-                "Order {$quoteNo} has been {$status}.",
+                "Order {$quoteNo}{$context} has been {$status}.",
                 "order",
                 "Quotation",
                 $quotation->id
@@ -110,7 +140,7 @@ class NotificationService
                     $this->createNotification(
                         $supplierUser->id,
                         "Order {$action}",
-                        "Order {$quoteNo} containing your supplied items has been {$status}.",
+                        "Order {$quoteNo}{$context} containing your supplied items has been {$status}.",
                         "order",
                         "Quotation",
                         $quotation->id
