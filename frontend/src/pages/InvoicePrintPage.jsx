@@ -320,21 +320,53 @@ const InvoicePrintPage = () => {
             🚚 Delivery Challan
           </button>
           {items.some(isPvcItem) && (
-            <button
-              onClick={() => navigate(`/invoices/print/${id}/pvc-challan`)}
-              style={{
-                padding: '6px 14px',
-                fontSize: '13px',
-                fontWeight: 600,
-                borderRadius: '6px',
-                border: 'none',
-                cursor: 'pointer',
-                background: '#7c3aed',
-                color: '#fff'
-              }}
-            >
-              🧵 PVC Challan
-            </button>
+            <>
+              <button
+                onClick={() => navigate(`/invoices/print/${id}/pvc-invoice?type=detailed`)}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#7c3aed',
+                  color: '#fff'
+                }}
+              >
+                🧵 PVC Detailed Invoice
+              </button>
+              <button
+                onClick={() => navigate(`/invoices/print/${id}/pvc-invoice?type=pad-sizes`)}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#7c3aed',
+                  color: '#fff'
+                }}
+              >
+                🧵 PVC Pad Invoice (Sizes)
+              </button>
+              <button
+                onClick={() => navigate(`/invoices/print/${id}/pvc-challan`)}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: '#7c3aed',
+                  color: '#fff'
+                }}
+              >
+                🧵 PVC Challan
+              </button>
+            </>
           )}
         </div>
 
