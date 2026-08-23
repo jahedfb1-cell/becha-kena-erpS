@@ -511,55 +511,52 @@ const PvcQuotationPrintPage = () => {
         </table>
         </div>
 
-        {/* PVC Slat Calculation - the sole place per-line Width/Height/Pcs and
-            the derived T. Width now appear (the main item table above no
-            longer repeats them), explaining how each PVC row's billed
-            sq.ft was worked out from the doorway width the customer gave. */}
+        {/* PVC Slat Calculation - white paper background and black text */}
         {pvcItems.length > 0 && (
-          <div style={{ margin: '14px 0', border: '1px solid #ddd6fe', borderRadius: '8px', overflow: 'hidden' }}>
-            <div style={{ background: '#7c3aed', color: '#fff', fontSize: '12px', fontWeight: 700, padding: '7px 12px', letterSpacing: '0.3px' }}>
+          <div style={{ margin: '14px 0', border: '1px solid #000000', borderRadius: '4px', overflow: 'hidden', background: '#ffffff' }}>
+            <div style={{ background: '#ffffff', color: '#000000', fontSize: '12px', fontWeight: 700, padding: '7px 12px', letterSpacing: '0.3px', borderBottom: '1px solid #000000' }}>
               🧵 Calculate the Square Feet of Each Slats
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#ffffff' }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 10px' }}>Item</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Actual Width</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Pcs of Strip</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>T. Width (in)</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Height (in)</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Door / Nos</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Total (Sq.Ft)</th>
+                  <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 10px' }}>Item</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>Actual Width</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>Pcs of Strip</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>T. Width (in)</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>Height (in)</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>Door / Nos</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#ffffff', color: '#000000', borderBottom: '1px solid #000000', padding: '6px 8px' }}>Total (Sq.Ft)</th>
                 </tr>
               </thead>
               <tbody>
-                {pvcItems.map((item, itemIdx) => {
+                {pvcItems.map((item) => {
                   const width = parseFloat(item.width) || 0;
                   const height = parseFloat(item.height) || 0;
                   const pcs = parseInt(item.pcs) || 1;
                   const fallbackSqft = Math.round(((getDisplayWidth(item) * height) / 144) * pcs * 100) / 100;
                   const totalSqft = parseFloat(item.billed_sqft) || fallbackSqft;
                   return (
-                    <tr key={item.id} style={{ background: itemIdx % 2 === 1 ? '#faf9ff' : '#fff' }}>
-                      <td style={{ textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 10px' }}>
+                    <tr key={item.id} style={{ background: '#ffffff' }}>
+                      <td style={{ textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 10px' }}>
                         {item.product?.name || 'PVC Strip Curtain'}
                       </td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{width}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getSlatCount(item)}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getDisplayWidth(item)}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{height}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{pcs}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{totalSqft.toFixed(2)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>{width}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>{getSlatCount(item)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>{getDisplayWidth(item)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>{height}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', color: '#000000', borderBottom: '1px solid #000000', borderRight: '1px solid #000000', padding: '6px 8px' }}>{pcs}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000000', borderBottom: '1px solid #000000', padding: '6px 8px' }}>{totalSqft.toFixed(2)}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#000', background: '#f5f3ff', padding: '6px 10px', borderTop: '1px solid #ddd6fe' }}>
+                <tr style={{ background: '#ffffff' }}>
+                  <td colSpan={6} style={{ textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#000000', background: '#ffffff', padding: '6px 10px', borderTop: '1px solid #000000', borderRight: '1px solid #000000' }}>
                     Total Sq.Ft
                   </td>
-                  <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 800, color: '#000', background: '#ede9fe', padding: '6px 8px', borderTop: '1px solid #ddd6fe' }}>
+                  <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 800, color: '#000000', background: '#ffffff', padding: '6px 8px', borderTop: '1px solid #000000' }}>
                     {pvcItems.reduce((sum, item) => {
                       const height = parseFloat(item.height) || 0;
                       const pcs = parseInt(item.pcs) || 1;

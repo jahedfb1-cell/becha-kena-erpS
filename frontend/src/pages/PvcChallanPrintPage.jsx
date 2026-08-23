@@ -172,7 +172,7 @@ const PvcChallanPrintPage = () => {
   const groups = buildGroups(items);
 
   return (
-    <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
+    <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif', color: '#000000' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
       <div className="no-print" style={{ maxWidth: '900px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
         <InvoicePrintNav id={id} current="pvc-challan" hasPvc={true} />
@@ -195,28 +195,14 @@ const PvcChallanPrintPage = () => {
       {/* ── PRINTABLE DOCUMENT CANVAS ── */}
       <div
         style={{
-          maxWidth: '900px', margin: '0 auto', background: '#fff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
-          display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box'
+          maxWidth: '900px', margin: '0 auto', background: '#ffffff', padding: '30px', borderRadius: '4px', boxShadow: '0 4px 25px rgba(0,0,0,0.1)',
+          display: 'flex', flexDirection: 'column', minHeight: '281mm', boxSizing: 'border-box', color: '#000000'
         }}
         className="quotation-print-container printable-area a4-stretch-area"
       >
 
-        {/* ── HEADER ──
-            The standard letterhead every printed document in this app uses
-            (see QuotationPrintPage): brand logo image, office address, red
-            rule, then contact details / document title / document meta laid
-            out in three columns. This page previously typed the company name
-            as an <h1> and stacked the contact lines, which is why its header
-            did not match the rest. `display: block` overrides the flex on
-            .print-header while keeping that class's orange bottom rule. */}
+        {/* ── HEADER ── */}
         <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
-          {/* Tested on the raw path field, not on *_logo_url: getLogoUrl()
-              never returns null — it hands back /logo-demo.svg whenever
-              nothing is uploaded, so the _url field is always truthy and
-              could never select this branch. A brand with no logo would
-              otherwise print the demo placeholder on a customer's challan;
-              the trade name as text is what this page printed before it
-              gained the standard letterhead. */}
           <div style={{ textAlign: 'center', marginBottom: '4px' }}>
             {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
               <img
@@ -234,7 +220,7 @@ const PvcChallanPrintPage = () => {
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             ) : (
-              <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>
+              <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#000000' }}>
                 {brand.name}
               </h1>
             )}
@@ -243,7 +229,7 @@ const PvcChallanPrintPage = () => {
           {/* Office Address Centered Horizontal Line */}
           <div style={{
             fontSize: '11px',
-            color: '#222',
+            color: '#000000',
             textAlign: 'center',
             fontWeight: '700',
             paddingBottom: '4px',
@@ -262,7 +248,7 @@ const PvcChallanPrintPage = () => {
           }}></div>
 
           {/* 3-Column Info Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#000000', lineHeight: '1.5' }}>
             <div>
               Mobile : {brand.mobile}<br/>
               Email : {brand.email}<br/>
@@ -271,12 +257,12 @@ const PvcChallanPrintPage = () => {
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000000', letterSpacing: '0.5px', textAlign: 'center' }}>
                 PVC Challan
               </div>
             </div>
 
-            <div style={{ textAlign: 'right', fontSize: '12px' }}>
+            <div style={{ textAlign: 'right', fontSize: '12px', color: '#000000' }}>
               <div>Date : <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong></div>
               <div>Challan No. : <strong>{challan.challan_number}</strong></div>
             </div>
@@ -286,37 +272,37 @@ const PvcChallanPrintPage = () => {
         {/* Delivery Challan to box */}
         <div style={{ marginBottom: '20px', width: '30%', minWidth: '240px' }}>
           <div>
-            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>DELIVERY CHALLAN to :</div>
-            <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px' }}>
-              <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka'}</div>
+            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000000' }}>DELIVERY CHALLAN to :</div>
+            <div style={{ border: '1px solid #000000', padding: '8px 12px', borderRadius: '2px', background: '#ffffff' }}>
+              <strong style={{ fontSize: '14px', color: '#000000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+              <div style={{ fontSize: '12px', color: '#000000' }}>{customer?.address || 'Dhaka'}</div>
               {customer?.address_2 && (
-                <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+                <div style={{ fontSize: '12px', color: '#000000' }}>{customer.address_2}</div>
               )}
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
+              <div style={{ fontSize: '12px', color: '#000000' }}>{customer?.phone}</div>
             </div>
           </div>
         </div>
 
         {/* Items table - PVC-specific columns */}
         <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
-        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto' }}>
+        <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto', background: '#ffffff' }}>
           <thead>
             <tr>
-              <th style={{ width: '40px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
-              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Goods Description</th>
-              <th style={{ width: '80px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Code</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs of Slats</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>T. Length</th>
-              <th style={{ width: '60px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Height</th>
-              <th style={{ width: '50px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs</th>
-              <th style={{ width: '90px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>UOM - SQ.Ft</th>
+              <th style={{ width: '40px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>SL No.</th>
+              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Goods Description</th>
+              <th style={{ width: '80px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Code</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Pcs of Slats</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>T. Length</th>
+              <th style={{ width: '60px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Height</th>
+              <th style={{ width: '50px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Pcs</th>
+              <th style={{ width: '90px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>UOM - SQ.Ft</th>
             </tr>
           </thead>
           <tbody>
             {groups.length === 0 ? (
               <tr>
-                <td colSpan="8" style={{ padding: '20px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>No line items found.</td>
+                <td colSpan="8" style={{ padding: '20px', textAlign: 'center', color: '#000000', border: '1px solid #000000', background: '#ffffff' }}>No line items found.</td>
               </tr>
             ) : (
               groups.map((rows, groupIdx) => {
@@ -331,29 +317,29 @@ const PvcChallanPrintPage = () => {
                 return rows.map((item, rowInGroup) => {
                   const isFirst = rowInGroup === 0;
                   return (
-                    <tr key={item.id}>
+                    <tr key={item.id} style={{ background: '#ffffff' }}>
                       {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
                           {String(groupIdx + 1).padStart(2, '0')}
                         </td>
                       )}
                       {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
-                          <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'PVC Strip Curtain'}</strong>
-                          {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
+                        <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #000000', color: '#000000' }}>
+                          <strong style={{ fontSize: '13px', color: '#000000' }}>{firstItem.product?.name || 'PVC Strip Curtain'}</strong>
+                          {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem), { color: '#000000' }) : null}
                         </td>
                       )}
                       {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
                           {firstItem.variant?.name || firstItem.product?.product_code || '-'}
                         </td>
                       )}
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getSlatCount(item)}</td>
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getTotalLength(item)}</td>
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.height}</td>
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.pcs}</td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>{getSlatCount(item)}</td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>{getTotalLength(item)}</td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>{item.height}</td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>{item.pcs}</td>
                       {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
                           {groupTotalSqft.toFixed(2)}
                         </td>
                       )}
@@ -366,7 +352,7 @@ const PvcChallanPrintPage = () => {
             {/* Absorbs leftover space so signature/notes stay pinned at bottom of A4 */}
             <tr className="a4-filler-row">
               {Array.from({ length: 8 }).map((_, colIdx) => (
-                <td key={colIdx} style={{ borderTop: 'hidden', borderBottom: '1px solid #cbd5e1', borderLeft: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', padding: 0 }}></td>
+                <td key={colIdx} style={{ borderTop: 'hidden', borderBottom: '1px solid #000000', borderLeft: '1px solid #000000', borderRight: '1px solid #000000', padding: 0, background: '#ffffff' }}></td>
               ))}
             </tr>
           </tbody>
@@ -376,25 +362,25 @@ const PvcChallanPrintPage = () => {
         {/* Signatures */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', margin: '40px 0 16px' }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ borderBottom: '1px solid #000', height: '24px', marginBottom: '4px' }}></div>
-            <strong style={{ fontSize: '12px', color: '#111' }}>Received By</strong>
+            <div style={{ borderBottom: '1px solid #000000', height: '24px', marginBottom: '4px' }}></div>
+            <strong style={{ fontSize: '12px', color: '#000000' }}>Received By</strong>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ borderBottom: '1px solid #000', height: '24px', marginBottom: '4px' }}></div>
-            <strong style={{ fontSize: '12px', color: '#111' }}>Thanking You</strong>
-            <div style={{ fontWeight: 'bold', color: '#000', fontSize: '12px', marginTop: '4px' }}>{brand.footerName}</div>
+            <div style={{ borderBottom: '1px solid #000000', height: '24px', marginBottom: '4px' }}></div>
+            <strong style={{ fontSize: '12px', color: '#000000' }}>Thanking You</strong>
+            <div style={{ fontWeight: 'bold', color: '#000000', fontSize: '12px', marginTop: '4px' }}>{brand.footerName}</div>
           </div>
         </div>
 
         {/* Notes */}
-        <div style={{ fontSize: '12px', marginBottom: '16px' }}>
-          <strong>NOTES:</strong> {brand.footerName}
-          <div style={{ border: '1px solid #cbd5e1', borderRadius: '4px', minHeight: '30px', marginTop: '4px', padding: '6px 10px' }}>
+        <div style={{ fontSize: '12px', marginBottom: '16px', color: '#000000' }}>
+          <strong style={{ color: '#000000' }}>NOTES:</strong> {brand.footerName}
+          <div style={{ border: '1px solid #000000', borderRadius: '4px', minHeight: '30px', marginTop: '4px', padding: '6px 10px', background: '#ffffff', color: '#000000' }}>
             {challan.notes || 'Goods Received in Full Quantity and Good Conditions.'}
           </div>
         </div>
 
-        <div style={{ textAlign: 'center', fontStyle: 'italic', fontWeight: 700, fontSize: '13px', color: '#111' }}>
+        <div style={{ textAlign: 'center', fontStyle: 'italic', fontWeight: 700, fontSize: '13px', color: '#000000' }}>
           THANK YOU FOR DOING BUSINESS WITH US
         </div>
 
