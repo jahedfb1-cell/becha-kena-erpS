@@ -5,6 +5,7 @@ import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
+import renderRichText from '../utils/renderRichText';
 
 /**
  * PVC Challan print page - a second delivery-challan layout for the "PVC
@@ -345,11 +346,7 @@ const PvcChallanPrintPage = () => {
                       {isFirst && (
                         <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
                           <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'PVC Strip Curtain'}</strong>
-                          {hasSpecification(firstItem) ? (
-                            <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                              {lineSpecification(firstItem)}
-                            </div>
-                          ) : null}
+                          {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
                         </td>
                       )}
                       {isFirst && (

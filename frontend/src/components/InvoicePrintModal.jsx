@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
+import renderRichText from '../utils/renderRichText';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -456,11 +457,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                                 <strong style={{ fontSize: '13px', color: '#111' }}>
                                   {item.product?.name || 'Blind Item'}
                                 </strong>
-                                {hasSpecification(item) ? (
-                                  <div style={{ fontSize: '11px', color: '#444', whiteSpace: 'pre-line', marginTop: '3px' }}>
-                                    {lineSpecification(item)}
-                                  </div>
-                                ) : null}
+                                {hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
                               </td>
                             )}
 
