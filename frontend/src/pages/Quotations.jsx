@@ -2237,15 +2237,18 @@ const Quotations = () => {
                                           </>
                                           )}
 
-                                          {/* Total Billing (desktop-only) - skipped for Pcs blocks,
+                                          {/* Total Sq.Ft (desktop-only) - skipped for Pcs blocks,
                                               whose Quantity cell above already covers this column
                                               (see its colSpan) since Total Pcs always equals
-                                              Quantity there and doesn't need its own cell. */}
-                                          {sIdx === 0 && !isPcsBlock && (
-                                            <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '3px' }}>
+                                              Quantity there and doesn't need its own cell. Shown
+                                              per-row (this line's own billed sq.ft) rather than
+                                              merged, so every line's sq.ft is readable at a glance;
+                                              the block's grand total is in the footer row below. */}
+                                          {!isPcsBlock && (
+                                            <td className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '3px' }}>
                                               <input
                                                 type="text"
-                                                value={totalBilledSqft.toFixed(2)}
+                                                value={(parseFloat(sizeRow.billed_sqft) || 0).toFixed(2)}
                                                 readOnly
                                                 className="modern-form-control"
                                                 style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
@@ -2345,6 +2348,29 @@ const Quotations = () => {
                                           </td>
                                         </tr>
                                         ))}
+
+                                      {/* Total Sq.Ft footer - sums every line's own billed sq.ft
+                                          (shown per-row above) into one grand total for the block,
+                                          so it's easy to see how many sq.ft this product line adds
+                                          up to without adding the column by hand. */}
+                                      {!isPcsBlock && (
+                                        <tr style={{ background: '#eef2ff' }}>
+                                          <td colSpan={columnTitles.length - 3} style={{ padding: '6px 12px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: '#3730a3' }}>
+                                            Total Sq.Ft
+                                          </td>
+                                          <td className="cell-total-sqft" style={{ padding: '3px' }}>
+                                            <input
+                                              type="text"
+                                              value={totalBilledSqft.toFixed(2)}
+                                              readOnly
+                                              className="modern-form-control"
+                                              style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#e0e7ff', fontWeight: '700', color: '#3730a3', textAlign: 'center' }}
+                                            />
+                                          </td>
+                                          <td></td>
+                                          <td></td>
+                                        </tr>
+                                      )}
 
                                       {/* Product Specification Box - this is the "Description of
                                           Goods" text that prints under the line's product name
