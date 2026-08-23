@@ -6,6 +6,7 @@ import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import renderRichText from '../utils/renderRichText';
+import InvoicePrintNav from '../components/InvoicePrintNav';
 
 /**
  * PVC Challan print page - a second delivery-challan layout for the "PVC
@@ -181,7 +182,7 @@ const PvcChallanPrintPage = () => {
     <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
       <div className="no-print" style={{ maxWidth: '900px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>🧵 PVC Challan: {challan.challan_number}</div>
+        <InvoicePrintNav id={id} current="pvc-challan" hasPvc={true} />
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             onClick={handlePrint}
@@ -190,13 +191,7 @@ const PvcChallanPrintPage = () => {
             <span>🖨️</span> Print PDF
           </button>
           <button
-            onClick={() => navigate(`/invoices/print/${id}/challan`)}
-            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#059669', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            🚚 Standard Challan
-          </button>
-          <button
-            onClick={() => navigate(`/invoices/print/${id}`)}
+            onClick={() => navigate('/invoices')}
             style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>⬅️</span> Back

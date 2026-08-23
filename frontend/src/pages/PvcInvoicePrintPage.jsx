@@ -6,6 +6,7 @@ import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import renderRichText from '../utils/renderRichText';
+import InvoicePrintNav from '../components/InvoicePrintNav';
 
 /**
  * PVC Invoice print page - the Invoice-side counterpart of
@@ -211,21 +212,7 @@ const PvcInvoicePrintPage = () => {
     <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
       <div className="no-print" style={{ maxWidth: '900px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', paddingRight: '4px' }}>🧵 PVC Invoice</div>
-          <button
-            onClick={() => setType('detailed')}
-            style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '6px', border: 'none', cursor: 'pointer', background: printType === 'detailed' ? '#2563eb' : '#334155', color: '#fff' }}
-          >
-            🖨️ Detailed Print
-          </button>
-          <button
-            onClick={() => setType('pad-sizes')}
-            style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '6px', border: 'none', cursor: 'pointer', background: printType === 'pad-sizes' ? '#2563eb' : '#334155', color: '#fff' }}
-          >
-            📝 Pad Print (Sizes)
-          </button>
-        </div>
+        <InvoicePrintNav id={id} current={printType === 'pad-sizes' ? 'pvc-invoice-pad-sizes' : 'pvc-invoice-detailed'} hasPvc={true} />
 
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
@@ -233,12 +220,6 @@ const PvcInvoicePrintPage = () => {
             style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#0066ff', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>🖨️</span> Print PDF
-          </button>
-          <button
-            onClick={() => navigate(`/invoices/print/${id}`)}
-            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#059669', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            📄 Standard Invoice
           </button>
           <button
             onClick={() => navigate('/invoices')}
@@ -558,13 +539,13 @@ const PvcInvoicePrintPage = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#4c1d95', borderBottom: '1px solid #ddd6fe', padding: '6px 10px' }}>Item</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#4c1d95', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Actual Width</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#4c1d95', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Pcs of Strip</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#4c1d95', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>T. Width (in)</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#4c1d95', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Height (in)</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#4c1d95', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Door / Nos</th>
-                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#4c1d95', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Total (Sq.Ft)</th>
+                  <th style={{ textAlign: 'left', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 10px' }}>Item</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Actual Width</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Pcs of Strip</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>T. Width (in)</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Height (in)</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Door / Nos</th>
+                  <th style={{ textAlign: 'center', fontSize: '11px', fontWeight: 700, background: '#f5f3ff', color: '#000', borderBottom: '1px solid #ddd6fe', padding: '6px 8px' }}>Total (Sq.Ft)</th>
                 </tr>
               </thead>
               <tbody>
@@ -579,22 +560,22 @@ const PvcInvoicePrintPage = () => {
                       <td style={{ textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#111', borderBottom: '1px solid #ede9fe', padding: '6px 10px' }}>
                         {item.product?.name || 'PVC Strip Curtain'}
                       </td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#dc2626', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{width}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{width}</td>
                       <td style={{ textAlign: 'center', fontSize: '12px', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getSlatCount(item)}</td>
                       <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{getDisplayWidth(item)}</td>
                       <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 600, borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{height}</td>
                       <td style={{ textAlign: 'center', fontSize: '12px', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{pcs}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#4c1d95', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{totalSqft.toFixed(2)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#000', borderBottom: '1px solid #ede9fe', padding: '6px 8px' }}>{totalSqft.toFixed(2)}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#4c1d95', background: '#f5f3ff', padding: '6px 10px', borderTop: '1px solid #ddd6fe' }}>
+                  <td colSpan={6} style={{ textAlign: 'right', fontSize: '12px', fontWeight: 700, color: '#000', background: '#f5f3ff', padding: '6px 10px', borderTop: '1px solid #ddd6fe' }}>
                     Total Sq.Ft
                   </td>
-                  <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 800, color: '#4c1d95', background: '#ede9fe', padding: '6px 8px', borderTop: '1px solid #ddd6fe' }}>
+                  <td style={{ textAlign: 'center', fontSize: '12px', fontWeight: 800, color: '#000', background: '#ede9fe', padding: '6px 8px', borderTop: '1px solid #ddd6fe' }}>
                     {pvcItems.reduce((sum, item) => {
                       const height = parseFloat(item.height) || 0;
                       const pcs = parseInt(item.pcs) || 1;

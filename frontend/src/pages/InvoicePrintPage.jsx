@@ -7,6 +7,7 @@ import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
+import InvoicePrintNav from '../components/InvoicePrintNav';
 
 const numberToWords = (num) => {
   const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
@@ -243,132 +244,7 @@ const InvoicePrintPage = () => {
     <div className="print-page-wrapper" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px 0', fontFamily: 'sans-serif' }}>
       {/* ── TOP PRINT CONTROL BAR (HIDDEN ON PRINT) ── */}
       <div className="no-print" style={{ maxWidth: '900px', margin: '0 auto 20px auto', background: '#0f172a', padding: '12px 20px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => setType('detailed')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'detailed' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
-          >
-            🖨️ Detailed Invoice
-          </button>
-          <button
-            onClick={() => setType('simplified')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'simplified' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
-          >
-            🖨️ View Invoice
-          </button>
-          <button
-            onClick={() => setType('pad-sizes')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'pad-sizes' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
-          >
-            📝 Pad Invoice (Sizes)
-          </button>
-          <button
-            onClick={() => setType('pad')}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: printType === 'pad' ? '#2563eb' : '#334155',
-              color: '#fff'
-            }}
-          >
-            📝 Pad Invoice
-          </button>
-          <button
-            onClick={() => navigate(`/invoices/print/${id}/challan`)}
-            style={{
-              padding: '6px 14px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              background: '#059669',
-              color: '#fff'
-            }}
-          >
-            🚚 Delivery Challan
-          </button>
-          {items.some(isPvcItem) && (
-            <>
-              <button
-                onClick={() => navigate(`/invoices/print/${id}/pvc-invoice?type=detailed`)}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: '#7c3aed',
-                  color: '#fff'
-                }}
-              >
-                🧵 PVC Detailed Invoice
-              </button>
-              <button
-                onClick={() => navigate(`/invoices/print/${id}/pvc-invoice?type=pad-sizes`)}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: '#7c3aed',
-                  color: '#fff'
-                }}
-              >
-                🧵 PVC Pad Invoice (Sizes)
-              </button>
-              <button
-                onClick={() => navigate(`/invoices/print/${id}/pvc-challan`)}
-                style={{
-                  padding: '6px 14px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: '#7c3aed',
-                  color: '#fff'
-                }}
-              >
-                🧵 PVC Challan
-              </button>
-            </>
-          )}
-        </div>
+        <InvoicePrintNav id={id} current={`invoice-${printType}`} hasPvc={items.some(isPvcItem)} />
 
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
