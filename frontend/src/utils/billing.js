@@ -75,17 +75,21 @@ export const billableSqft = (perPieceSqft, pcs = 1) => {
  * plain sq.ft or per-piece pricing.
  *
  * The product's Measurement Unit field ("PVC sq.ft", set in the product
- * form) is the authoritative signal - it's what actually drives the slat
- * math everywhere else in the app, so it takes priority here too. Category
- * name and product name are only a fallback for older records that may
- * predate the Measurement Unit field being set correctly, since a product's
- * name or category can say "PVC" without its Measurement Unit being PVC
- * sq.ft (e.g. a plain sq.ft product filed under a PVC category), which would
- * wrongly pull it into slat-based billing/print layouts.
+ * form's Measurement Unit dropdown) is the highest-priority signal - it's
+ * what actually drives the slat math everywhere else in the app - so it's
+ * checked first and decides the answer outright whenever it says PVC.
+ *
+ * It cannot be the *only* signal, though: every pre-existing product in
+ * this system was created before that three-way Measurement Unit field
+ * existed, so their `unit` column holds an older, generic value (`sqft`,
+ * `Square feet`, `Pcs`) that says nothing about whether the item is PVC.
+ * For those, category name and product name - both of which correctly
+ * carry "PVC Strip Curtain" for this product line - are what determines it,
+ * exactly as this function did before the Measurement Unit field existed.
  */
 export const isPvcItem = (item) => {
   const unit = (item.product?.unit || item.unit || '').toLowerCase();
-  if (unit) return unit === 'pvc sq.ft';
+  if (unit.includes('pvc')) return true;
 
   const category = (item.product?.category?.name || item.category_name || '').toLowerCase();
   const name = (item.product?.name || item.product_name || '').toLowerCase();
