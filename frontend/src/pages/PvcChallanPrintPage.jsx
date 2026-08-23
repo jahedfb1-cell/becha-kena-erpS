@@ -75,13 +75,18 @@ const PvcChallanPrintPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const getCustomTitle = () => {
+    if (!invoice) return 'PVC Challan _ Dhaka Blinds';
+    const cust = invoice.customer || invoice.quotation?.customer || {};
+    const rawCustomerName = cust.company_name || cust.name || 'Customer';
+    const brandName = brandFields(companyProfile).footerName;
+    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    return `${clean(rawCustomerName)} _ PVC Challan _ by ${clean(brandName)}`;
+  };
+
   useEffect(() => {
     if (invoice) {
-      const rawCustomerName = invoice.customer?.company_name || invoice.customer?.name || 'Customer';
-      const brandName = brandFields(companyProfile).footerName;
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-      document.title = `${clean(rawCustomerName)} _ PVC Challan _ by ${clean(brandName)}`;
-
+      document.title = getCustomTitle();
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
@@ -101,6 +106,7 @@ const PvcChallanPrintPage = () => {
   };
 
   const handlePrint = () => {
+    document.title = getCustomTitle();
     window.print();
   };
 

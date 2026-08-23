@@ -106,14 +106,19 @@ const PvcQuotationPrintPage = () => {
     fetchData();
   }, [id]);
 
+  const getCustomTitle = () => {
+    if (!quotation) return 'PVC Quotation _ Dhaka Blinds';
+    const cust = quotation.customer || {};
+    const rawCustomerName = cust.company_name || cust.name || 'Customer';
+    const brandName = brandFields(companyProfile).footerName;
+    const buttonName = printType === 'pad-sizes' ? 'Pad Print (Sizes)' : 'Detailed Print';
+    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    return `${clean(rawCustomerName)} _ PVC Quotation _ ${clean(buttonName)} _ by ${clean(brandName)}`;
+  };
+
   useEffect(() => {
     if (quotation) {
-      const rawCustomerName = quotation.customer?.company_name || quotation.customer?.name || 'Customer';
-      const brandName = brandFields(companyProfile).footerName;
-      const buttonName = printType === 'pad-sizes' ? 'Pad Print (Sizes)' : 'Detailed Print';
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-      document.title = `${clean(rawCustomerName)} _ PVC Quotation _ ${clean(buttonName)} _ by ${clean(brandName)}`;
-
+      document.title = getCustomTitle();
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
@@ -121,6 +126,7 @@ const PvcQuotationPrintPage = () => {
   }, [quotation, printType, companyProfile]);
 
   const handlePrint = () => {
+    document.title = getCustomTitle();
     window.print();
   };
 

@@ -62,21 +62,29 @@ const PriceListPrintPage = () => {
     };
   }, [id]);
 
+  const getCustomTitle = () => {
+    if (!record) return 'Price List _ Dhaka Blinds';
+    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const brandName = brandFields(companyProfile).footerName;
+    const customer = record.customer_company || record.customer_name || 'Price List';
+    return `${clean(customer)} _ Price List _ ${clean(record.reference_no)} _ by ${clean(brandName)}`;
+  };
+
   // The saved PDF takes its filename from document.title, so it has to name
   // the customer and the brand the sheet was raised under.
   useEffect(() => {
     if (!record) return undefined;
-
-    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
-    const brandName = brandFields(companyProfile).footerName;
-    const customer = record.customer_company || record.customer_name || 'Price List';
-
-    document.title = `${clean(customer)} _ Price List _ ${clean(record.reference_no)} _ by ${clean(brandName)}`;
+    document.title = getCustomTitle();
 
     return () => {
       document.title = 'Dhakablinds-Ims';
     };
   }, [record, companyProfile]);
+
+  const handlePrint = () => {
+    document.title = getCustomTitle();
+    window.print();
+  };
 
   if (loading) {
     return (
@@ -137,7 +145,7 @@ const PriceListPrintPage = () => {
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             style={{ padding: '6px 18px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#059669', color: '#fff' }}
           >
             🖨️ Print / Save PDF

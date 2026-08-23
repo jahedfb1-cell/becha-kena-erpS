@@ -98,35 +98,36 @@ const QuotationPrintPage = () => {
     fetchData();
   }, [id]);
 
+  const getCustomTitle = () => {
+    if (!quotation) return 'Quotation _ Dhaka Blinds';
+    const cust = quotation.customer || {};
+    const rawCustomerName = cust.company_name || cust.name || 'Customer';
+    
+    const categories = Array.from(new Set(
+      (quotation.items || [])
+        .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
+        .filter(Boolean)
+    ));
+    const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
+
+    const printButtonNames = {
+      'detailed': 'Detailed Print',
+      'simplified': 'View Print',
+      'pad-sizes': 'Pad Print (Sizes)',
+      'pad': 'Pad Print',
+      'pad-detailed': 'Pad Print (Sizes)',
+      'pad-simplified': 'Pad Print',
+    };
+    const buttonName = printButtonNames[printType] || 'View Print';
+    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const brandName = brandFields(companyProfile).footerName;
+
+    return `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by ${clean(brandName)}`;
+  };
+
   useEffect(() => {
     if (quotation) {
-      const rawCustomerName = quotation.customer?.company_name || quotation.customer?.name || 'Customer';
-      
-      const categories = Array.from(new Set(
-        (quotation.items || [])
-          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
-          .filter(Boolean)
-      ));
-      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
-
-      const printButtonNames = {
-        'detailed': 'Detailed Print',
-        'simplified': 'View Print',
-        'pad-sizes': 'Pad Print (Sizes)',
-        'pad': 'Pad Print',
-        'pad-detailed': 'Pad Print (Sizes)',
-        'pad-simplified': 'Pad Print',
-      };
-      const buttonName = printButtonNames[printType] || 'View Print';
-
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-
-      // The PDF's filename comes from document.title, so it has to name the
-      // brand the quotation was raised under, not the app's default.
-      const brandName = brandFields(companyProfile).footerName;
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by ${clean(brandName)}`;
-      document.title = customTitle;
-
+      document.title = getCustomTitle();
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
@@ -134,6 +135,7 @@ const QuotationPrintPage = () => {
   }, [quotation, printType, companyProfile]);
 
   const handlePrint = () => {
+    document.title = getCustomTitle();
     window.print();
   };
 

@@ -77,25 +77,28 @@ const ChallanPrintPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const getCustomTitle = () => {
+    if (!invoice) return 'Delivery Challan _ Dhaka Blinds';
+    const cust = invoice.customer || invoice.quotation?.customer || {};
+    const rawCustomerName = cust.company_name || cust.name || 'Customer';
+    const allItems = (invoice.items && invoice.items.length > 0) ? invoice.items : (invoice.quotation?.items || []);
+    
+    const categories = Array.from(new Set(
+      allItems
+        .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
+        .filter(Boolean)
+    ));
+    const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
+
+    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const brandName = brandFields(companyProfile).footerName;
+
+    return `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Delivery Challan _ by ${clean(brandName)}`;
+  };
+
   useEffect(() => {
     if (invoice) {
-      const rawCustomerName = invoice.customer?.company_name || invoice.customer?.name || 'Customer';
-      
-      const categories = Array.from(new Set(
-        (invoice.items || [])
-          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
-          .filter(Boolean)
-      ));
-      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
-
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-
-      // The PDF's filename comes from document.title, so it has to name
-      // the brand the challan was raised under, not the app's default.
-      const brandName = brandFields(companyProfile).footerName;
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Delivery Challan _ by ${clean(brandName)}`;
-      document.title = customTitle;
-
+      document.title = getCustomTitle();
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
@@ -115,6 +118,7 @@ const ChallanPrintPage = () => {
   };
 
   const handlePrint = () => {
+    document.title = getCustomTitle();
     window.print();
   };
 

@@ -126,34 +126,41 @@ const MoneyReceiptPage = () => {
     fetchData();
   }, [id]);
 
+  const getCustomTitle = () => {
+    if (!payment) return 'Money Receipt _ Dhaka Blinds';
+    const rawCustomerName = payment.customer?.company_name || payment.customer?.name
+      || payment.invoice?.customer?.company_name || payment.invoice?.customer?.name || 'Customer';
+
+    const categories = Array.from(new Set(
+      (payment.invoice?.quotation?.items || [])
+        .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
+        .filter(Boolean)
+    ));
+    const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
+
+    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const brandName = brandFields(companyProfile).footerName;
+    return `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Money Receipt _ by ${clean(brandName)}`;
+  };
+
   // Matches the "{Customer} _ {Category} _ {Document Type} _ by Dhaka
   // Blinds" filename format used on the Quotation, Invoice, and Delivery
   // Challan print pages, so a browser's "Save as PDF" suggests the same
   // naming convention here too.
   useEffect(() => {
     if (payment) {
-      const rawCustomerName = payment.customer?.company_name || payment.customer?.name
-        || payment.invoice?.customer?.company_name || payment.invoice?.customer?.name || 'Customer';
-
-      const categories = Array.from(new Set(
-        (payment.invoice?.quotation?.items || [])
-          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
-          .filter(Boolean)
-      ));
-      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
-
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-
-      // The PDF's filename comes from document.title, so it has to name
-      // the brand the receipt was issued under, not the app's default.
-      const brandName = brandFields(companyProfile).footerName;
-      document.title = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ Money Receipt _ by ${clean(brandName)}`;
+      document.title = getCustomTitle();
 
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
     }
   }, [payment, companyProfile]);
+
+  const handlePrint = () => {
+    document.title = getCustomTitle();
+    window.print();
+  };
 
   // Generated locally instead of fetched from an external QR API — that
   // call was unreliable (blocked/slow on some networks, and a single point
@@ -329,7 +336,7 @@ const MoneyReceiptPage = () => {
       {/* Action Buttons (no print) */}
       <div className="no-print" style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '20px' }}>
         <button
-          onClick={() => window.print()}
+          onClick={handlePrint}
           style={{ padding: '10px 24px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           🖨️ Print

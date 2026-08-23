@@ -99,46 +99,43 @@ const InvoicePrintPage = () => {
     fetchData();
   }, [id]);
 
+  const getCustomTitle = () => {
+    if (!invoice) return 'Invoice _ Dhaka Blinds';
+    const cust = invoice.customer || invoice.quotation?.customer || {};
+    const rawCustomerName = cust.company_name || cust.name || 'Customer';
+    const allItems = (invoice.items && invoice.items.length > 0) ? invoice.items : (invoice.quotation?.items || []);
+    
+    const categories = Array.from(new Set(
+      allItems
+        .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
+        .filter(Boolean)
+    ));
+    const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
+
+    const printButtonNames = {
+      'detailed': 'Detailed Invoice',
+      'simplified': 'View Print',
+      'pad-sizes': 'Pad Invoice (Sizes)',
+      'pad': 'Pad Invoice',
+      'pad-detailed': 'Pad Invoice (Sizes)',
+      'pad-simplified': 'Pad Invoice',
+    };
+    const buttonName = printButtonNames[printType] || 'View Print';
+    const clean = (str) => String(str || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const brandName = brandFields(companyProfile).footerName;
+
+    return `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by ${clean(brandName)}`;
+  };
+
   useEffect(() => {
     if (invoice) {
-      const rawCustomerName = invoice.customer?.company_name || invoice.customer?.name || 'Customer';
-      
-      const categories = Array.from(new Set(
-        (invoice.items || [])
-          .map(item => item.product?.category?.name || item.product?.category_name || item.product?.name || '')
-          .filter(Boolean)
-      ));
-      const rawCategoryName = categories.length > 0 ? categories.join(', ') : 'Zebra Blinds';
-
-      const printButtonNames = {
-        'detailed': 'Detailed Invoice',
-        'simplified': 'View Print',
-        'pad-sizes': 'Pad Invoice (Sizes)',
-        'pad': 'Pad Invoice',
-        'pad-detailed': 'Pad Invoice (Sizes)',
-        'pad-simplified': 'Pad Invoice',
-      };
-      const buttonName = printButtonNames[printType] || 'View Print';
-
-      const clean = (str) => String(str).replace(/[\\/:*?"<>|]/g, '').trim();
-
-      // The PDF's filename comes from document.title, so it has to name
-      // the brand the invoice was raised under, not the app's default.
-      const brandName = brandFields(companyProfile).footerName;
-      const customTitle = `${clean(rawCustomerName)} _ ${clean(rawCategoryName)} _ ${clean(buttonName)} _ by ${clean(brandName)}`;
-      document.title = customTitle;
-
+      document.title = getCustomTitle();
       return () => {
         document.title = 'Dhakablinds-Ims';
       };
     }
   }, [invoice, printType, companyProfile]);
 
-  // Generated locally (not via an external QR API) so the print page still
-  // renders its verification QR offline and without depending on a
-  // third-party service being reachable — same approach as the Money
-  // Receipt print page. Placed before the loading/error early-returns
-  // since hooks can't be called after those.
   useEffect(() => {
     if (!invoice) return;
     const customer = invoice.customer || invoice.quotation?.customer || {};
@@ -160,6 +157,7 @@ const InvoicePrintPage = () => {
   }, [invoice, companyProfile]);
 
   const handlePrint = () => {
+    document.title = getCustomTitle();
     window.print();
   };
 
