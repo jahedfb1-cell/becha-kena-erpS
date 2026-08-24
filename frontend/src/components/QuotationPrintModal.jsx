@@ -591,11 +591,6 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                                   </strong>
                                 </div>
                                 {!isOrder && hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
-                                {!isOrder && (
-                                  <div style={{ fontSize: '11px', color: '#555', marginTop: '3px' }}>
-                                    Per Blinds Minimum Quantity (MOQ): {(parseFloat(item.min_billing_sqft) || 10).toFixed(2)} Sft
-                                  </div>
-                                )}
                               </td>
                             )}
 

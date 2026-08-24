@@ -392,9 +392,6 @@ const PvcInvoicePrintPage = () => {
                               </strong>
                             </div>
                             {hasSpecification(item) ? renderRichText(lineSpecification(item), { color: '#000000' }) : null}
-                            <div style={{ fontSize: '11px', color: '#000000', marginTop: '3px' }}>
-                              Per Blinds Minimum Quantity (MOQ): {(parseFloat(item.min_billing_sqft) || 10).toFixed(2)} Sft
-                            </div>
                           </td>
                         )}
 

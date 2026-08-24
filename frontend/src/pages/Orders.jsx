@@ -852,11 +852,17 @@ const Orders = () => {
         const key = `${optGrpId}_${item.product_id}_${item.unit_price}_${item.notes || ''}`;
 
         const prod = loadedProducts.find(p => p.id === item.product_id) || item.product;
+        const links = prod?.supplier_links || prod?.supplierLinks || [];
+        const matchedLink = (item.supplier_id ? links.find(link => link.supplier_id === item.supplier_id) : null)
+          || links.find(link => link.priority_rank === 1)
+          || links[0];
         const width = parseFloat(item.width) || 0;
         const height = parseFloat(item.height) || 0;
         const pcs = parseInt(item.pcs) || 1;
         const unitPrice = parseFloat(item.unit_price) || 0;
-        const minSqft = parseFloat(item.min_billing_sqft) || 0;
+        const minSqft = (matchedLink && matchedLink.min_billing_sqft !== undefined && matchedLink.min_billing_sqft !== null && matchedLink.min_billing_sqft !== '')
+          ? (parseFloat(matchedLink.min_billing_sqft) || 0)
+          : (parseFloat(item.min_billing_sqft) || 0);
 
         const catName = prod?.category?.name || item.product?.category?.name || item.category_name || '';
         const prodUnit = prod?.unit || item.product?.unit || item.unit || '';
