@@ -22,6 +22,29 @@ class CustomerController extends Controller
     ) {}
 
     /**
+     * GET /api/customers/check-phone?phone=01XXXXXXXXX
+     * Returns 409 + existing customer info if phone already registered, 200 otherwise.
+     */
+    public function checkPhone(Request $request): JsonResponse
+    {
+        $phone = $request->query('phone', '');
+        if (!$phone) {
+            return $this->successResponse(null, 'No phone provided.');
+        }
+
+        $existing = Customer::where('phone', trim($phone))->first();
+        if ($existing) {
+            return $this->errorResponse(
+                'এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন।',
+                409,
+                ['duplicate_customer' => $existing->only(['id', 'customer_code', 'name', 'company_name', 'phone'])]
+            );
+        }
+
+        return $this->successResponse(null, 'Phone is available.');
+    }
+
+    /**
      * Display a listing of customers based on role-based visibility.
      */
     public function index(Request $request): JsonResponse
@@ -71,6 +94,18 @@ class CustomerController extends Controller
 
         $user         = $request->user();
         $isAdmin      = $user->role === 'admin';
+
+        // Block duplicate phone — return the existing customer so the UI can show it.
+        if ($request->filled('phone')) {
+            $existing = Customer::where('phone', $request->phone)->first();
+            if ($existing) {
+                return $this->errorResponse(
+                    'এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন।',
+                    409,
+                    ['duplicate_customer' => $existing->only(['id', 'customer_code', 'name', 'company_name', 'phone'])]
+                );
+            }
+        }
 
         return DB::transaction(function () use ($request, $user, $isAdmin) {
             // Generate customer_code (Format: CUS-0001)

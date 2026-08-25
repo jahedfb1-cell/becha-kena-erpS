@@ -226,6 +226,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // 2. Customers
+    Route::get('customers/check-phone', [CustomerController::class, 'checkPhone']);
     Route::prefix('customers')->group(function () {
         Route::get('/', [CustomerController::class, 'index']);
         Route::post('/', [CustomerController::class, 'store']);

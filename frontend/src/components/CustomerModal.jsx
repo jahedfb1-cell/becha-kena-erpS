@@ -44,6 +44,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
   const [categoriesError, setCategoriesError] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [phoneChecking, setPhoneChecking] = useState(false);
   const [showAdditional, setShowAdditional] = useState(false);
 
   // --- AI Assist (AI_Assist_PRD.md) ---
@@ -98,6 +99,27 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     if (patch.phone) {
       const existing = await findCustomerByPhone(patch.phone);
       if (existing) setDuplicate(existing);
+    }
+  };
+
+  /** Check phone duplicate when user leaves the phone field. */
+  const checkPhoneDuplicate = async (phoneValue) => {
+    const trimmed = phoneValue.trim();
+    if (!trimmed) { setDuplicate(null); return; }
+    setPhoneChecking(true);
+    try {
+      await api.get(`/customers/check-phone?phone=${encodeURIComponent(trimmed)}`);
+      // 200 = phone available
+      setDuplicate(null);
+    } catch (err) {
+      if (err.response?.status === 409) {
+        const dup = err.response.data?.errors?.duplicate_customer;
+        setDuplicate(dup || true);
+      } else {
+        setDuplicate(null);
+      }
+    } finally {
+      setPhoneChecking(false);
     }
   };
 
@@ -167,6 +189,12 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Hard block — same phone already registered
+    if (duplicate && !initialData) {
+      setError('এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন। নিচের কার্ডটি দেখুন।');
+      return;
+    }
 
     // Ensure company_name or name is provided
     const finalName = name.trim() || companyName.trim();
@@ -331,14 +359,27 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
             </div>
           )}
 
-          {duplicate && (
+          {duplicate && !initialData && (
             <div style={{
-              background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.5)',
-              color: '#fcd34d', padding: '10px 14px', borderRadius: '10px',
-              fontSize: '12.5px', marginBottom: '14px',
+              background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.5)',
+              color: '#fca5a5', padding: '12px 16px', borderRadius: '10px',
+              fontSize: '13px', marginBottom: '14px',
             }}>
-              ⚠️ এই নম্বরটি আগে থেকেই আছে — <strong>{duplicate.company_name || duplicate.name}</strong>
-              {duplicate.customer_code ? ` (${duplicate.customer_code})` : ''}। ডুপ্লিকেট না হলে সেভ করতে পারেন।
+              <div style={{ fontWeight: 700, marginBottom: '8px' }}>🚫 ডুপ্লিকেট ফোন নম্বর — এই নম্বরে আগেই কাস্টমার আছেন</div>
+              {typeof duplicate === 'object' && (
+                <div style={{
+                  background: 'rgba(0,0,0,0.25)', borderRadius: '8px', padding: '10px 14px',
+                  display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12.5px'
+                }}>
+                  <div>📋 <strong>Code:</strong> {duplicate.customer_code}</div>
+                  <div>👤 <strong>Name:</strong> {duplicate.name}</div>
+                  {duplicate.company_name && <div>🏢 <strong>Company:</strong> {duplicate.company_name}</div>}
+                  <div>📞 <strong>Phone:</strong> {duplicate.phone}</div>
+                </div>
+              )}
+              <div style={{ marginTop: '8px', fontSize: '12px', color: '#f87171' }}>
+                ⛔ নতুন কাস্টমার সেভ হবে না। একই নম্বরে দুটো অ্যাকাউন্ট তৈরি করা যাবে না।
+              </div>
             </div>
           )}
 
@@ -388,15 +429,20 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                 <PhoneContactField
                   placeholder="e.g. 01700000000"
                   value={phone}
-                  onChange={(e) => { setPhone(e.target.value); touch('phone'); }}
+                  onChange={(e) => { setPhone(e.target.value); touch('phone'); setDuplicate(null); }}
+                  onBlur={() => !initialData && checkPhoneDuplicate(phone)}
                   onPick={(contact) => {
                     setPhone(contact.phone);
                     touch('phone');
                     if (contact.name && !name) setName(contact.name);
+                    if (!initialData) checkPhoneDuplicate(contact.phone);
                   }}
                   disabled={loading}
                   required
                 />
+                {phoneChecking && (
+                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>🔍 Checking...</span>
+                )}
               </div>
 
               {/* Always rendered now, never gated behind `categories.length > 0`.
