@@ -108,7 +108,8 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     if (!trimmed) { setDuplicate(null); return; }
     setPhoneChecking(true);
     try {
-      await api.get(`/customers/check-phone?phone=${encodeURIComponent(trimmed)}`);
+      const excludeParam = initialData?.id ? `&exclude_id=${initialData.id}` : '';
+      await api.get(`/customers/check-phone?phone=${encodeURIComponent(trimmed)}${excludeParam}`);
       // 200 = phone available
       setDuplicate(null);
     } catch (err) {
@@ -191,8 +192,8 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
     setError('');
 
     // Hard block — same phone already registered
-    if (duplicate && !initialData) {
-      setError('এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন। নিচের কার্ডটি দেখুন।');
+    if (duplicate) {
+      setError(initialData ? 'এই ফোন নম্বরে অন্য একজন কাস্টমার আছেন।' : 'এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন। নিচের কার্ডটি দেখুন।');
       return;
     }
 
@@ -359,7 +360,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
             </div>
           )}
 
-          {duplicate && !initialData && (
+          {duplicate && (
             <div style={{
               background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.5)',
               color: '#fca5a5', padding: '12px 16px', borderRadius: '10px',
@@ -378,7 +379,7 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                 </div>
               )}
               <div style={{ marginTop: '8px', fontSize: '12px', color: '#f87171' }}>
-                ⛔ নতুন কাস্টমার সেভ হবে না। একই নম্বরে দুটো অ্যাকাউন্ট তৈরি করা যাবে না।
+                ⛔ {initialData ? 'অন্য কাস্টমারের ফোন নম্বর ব্যবহার করা যাবে না।' : 'নতুন কাস্টমার সেভ হবে না। একই নম্বরে দুটো অ্যাকাউন্ট তৈরি করা যাবে না।'}
               </div>
             </div>
           )}
@@ -430,12 +431,12 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
                   placeholder="e.g. 01700000000"
                   value={phone}
                   onChange={(e) => { setPhone(e.target.value); touch('phone'); setDuplicate(null); }}
-                  onBlur={() => !initialData && checkPhoneDuplicate(phone)}
+                  onBlur={() => checkPhoneDuplicate(phone)}
                   onPick={(contact) => {
                     setPhone(contact.phone);
                     touch('phone');
                     if (contact.name && !name) setName(contact.name);
-                    if (!initialData) checkPhoneDuplicate(contact.phone);
+                    checkPhoneDuplicate(contact.phone);
                   }}
                   disabled={loading}
                   required

@@ -28,11 +28,13 @@ class CustomerController extends Controller
     public function checkPhone(Request $request): JsonResponse
     {
         $phone = $request->query('phone', '');
+        $excludeId = $request->query('exclude_id') ? (int) $request->query('exclude_id') : null;
+
         if (!$phone) {
             return $this->successResponse(null, 'No phone provided.');
         }
 
-        $existing = Customer::where('phone', trim($phone))->first();
+        $existing = Customer::findByPhoneNormalized(trim($phone), $excludeId);
         if ($existing) {
             return $this->errorResponse(
                 'এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন।',
@@ -97,7 +99,7 @@ class CustomerController extends Controller
 
         // Block duplicate phone — return the existing customer so the UI can show it.
         if ($request->filled('phone')) {
-            $existing = Customer::where('phone', $request->phone)->first();
+            $existing = Customer::findByPhoneNormalized($request->phone);
             if ($existing) {
                 return $this->errorResponse(
                     'এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন।',
@@ -198,6 +200,18 @@ class CustomerController extends Controller
 
         if ($user->role === 'salesman' && $customer->created_by !== $user->id) {
             return $this->errorResponse('Forbidden. You can only update your own customers.', 403);
+        }
+
+        // Block duplicate phone if used by another customer
+        if ($request->filled('phone')) {
+            $existing = Customer::findByPhoneNormalized($request->phone, $customer->id);
+            if ($existing) {
+                return $this->errorResponse(
+                    'এই ফোন নম্বরে অন্য একজন কাস্টমার আছেন।',
+                    409,
+                    ['duplicate_customer' => $existing->only(['id', 'customer_code', 'name', 'company_name', 'phone'])]
+                );
+            }
         }
 
         return DB::transaction(function () use ($request, $customer, $user, $isAdmin) {

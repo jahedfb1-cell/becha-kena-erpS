@@ -115,4 +115,29 @@ class Customer extends Model
                     ->where('transaction_type', 'opening_balance')
                     ->first();
     }
+
+    /**
+     * Helper: Find existing customer by phone number (matches normalized digits against all contact numbers).
+     */
+    public static function findByPhoneNormalized(string $phone, ?int $excludeId = null): ?self
+    {
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strlen($digits) < 6) {
+            return null;
+        }
+        $tail = substr($digits, -10);
+
+        $query = static::query();
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        return $query->where(function ($q) use ($tail, $phone) {
+            $q->where('phone', $phone)
+              ->orWhere('phone', 'LIKE', "%{$tail}")
+              ->orWhere('second_contact_number', 'LIKE', "%{$tail}")
+              ->orWhere('third_contact_number', 'LIKE', "%{$tail}");
+        })->first();
+    }
 }
+
