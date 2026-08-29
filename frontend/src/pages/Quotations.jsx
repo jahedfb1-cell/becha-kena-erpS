@@ -233,9 +233,10 @@ const Quotations = () => {
       }
 
       const searchQ = (filterSearch || '').toLowerCase().trim();
-      const matchesSearch = searchQ 
-        ? (q.quotation_number && String(q.quotation_number).toLowerCase().includes(searchQ)) || 
+      const matchesSearch = searchQ
+        ? (q.quotation_number && String(q.quotation_number).toLowerCase().includes(searchQ)) ||
           (q.customer?.name && String(q.customer.name).toLowerCase().includes(searchQ)) ||
+          (q.customer?.company_name && String(q.customer.company_name).toLowerCase().includes(searchQ)) ||
           (q.customer?.phone && String(q.customer.phone).toLowerCase().includes(searchQ)) ||
           (q.salesman?.name && String(q.salesman.name).toLowerCase().includes(searchQ)) ||
           (q.status && String(q.status).toLowerCase().includes(searchQ))
@@ -519,7 +520,11 @@ const Quotations = () => {
             if (isPcs) {
               billedSqft = pcs;
             } else if (w > 0 && h > 0) {
-              const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
+              const _blockUnit = (block.unit || '').toLowerCase().trim();
+              const isPvc = _blockUnit !== 'square feet' && _blockUnit !== 'pcs' && (
+                _blockUnit.includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') ||
+                (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water')
+              );
               if (isPvc) {
                 const slatSize = parseFloat(block.product_size) || 8;
                 approxSlats = pvcApproxSlats(w);
@@ -609,7 +614,11 @@ const Quotations = () => {
               if (isPcs) {
                 billedSqft = pcs;
               } else if (w > 0 && h > 0) {
-                const isPvc = (updatedBlock.unit || '').toLowerCase().includes('pvc') || (updatedBlock.category_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('clear water');
+                const _updUnit = (updatedBlock.unit || '').toLowerCase().trim();
+                const isPvc = _updUnit !== 'square feet' && _updUnit !== 'pcs' && (
+                  _updUnit.includes('pvc') || (updatedBlock.category_name || '').toLowerCase().includes('pvc') ||
+                  (updatedBlock.product_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('clear water')
+                );
                 if (isPvc) {
                   const slatSize = parseFloat(updatedBlock.product_size) || 8;
                   const slats = pvcSlatCount(w);
@@ -849,7 +858,11 @@ const Quotations = () => {
         const catName = prod?.category?.name || item.product?.category?.name || item.category_name || '';
         const prodUnit = prod?.unit || item.product?.unit || item.unit || '';
         const prodName = prod?.name || item.product?.name || `Product #${item.product_id}`;
-        const isPvc = prodUnit.toLowerCase().includes('pvc') || catName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('clear water');
+        const _prodUnitLc = prodUnit.toLowerCase().trim();
+        const isPvc = _prodUnitLc !== 'square feet' && _prodUnitLc !== 'pcs' && (
+          _prodUnitLc.includes('pvc') || catName.toLowerCase().includes('pvc') ||
+          prodName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('clear water')
+        );
         const isPcs = prodUnit.trim().toLowerCase() === 'pcs';
         const actualSqft = Math.round(((width * height) / 144) * 100) / 100;
 
@@ -1337,7 +1350,7 @@ const Quotations = () => {
                 <thead>
                   <tr>
                     <th>Quotation Number</th>
-                    <th>Customer</th>
+                    <th>Company Name</th>
                     <th>Salesman</th>
                     <th>Net Amount</th>
                     <th>Status</th>
@@ -1888,10 +1901,13 @@ const Quotations = () => {
                                              (block.unit || '').trim().toLowerCase() === 'box' ||
                                              (block.unit || '').trim().toLowerCase() === 'set';
                           
-                          const isPvcBlock = (block.unit || '').toLowerCase().includes('pvc') ||
-                                             (block.category_name || '').toLowerCase().includes('pvc') ||
-                                             (block.product_name || '').toLowerCase().includes('pvc') ||
-                                             (block.product_name || '').toLowerCase().includes('clear water');
+                          const _blkUnit = (block.unit || '').toLowerCase().trim();
+                          const isPvcBlock = _blkUnit !== 'square feet' && _blkUnit !== 'pcs' && (
+                            _blkUnit.includes('pvc') ||
+                            (block.category_name || '').toLowerCase().includes('pvc') ||
+                            (block.product_name || '').toLowerCase().includes('pvc') ||
+                            (block.product_name || '').toLowerCase().includes('clear water')
+                          );
                           
                           const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
                           const totalPcs = block.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0);

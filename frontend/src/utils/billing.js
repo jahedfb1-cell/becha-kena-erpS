@@ -88,9 +88,15 @@ export const billableSqft = (perPieceSqft, pcs = 1) => {
  * exactly as this function did before the Measurement Unit field existed.
  */
 export const isPvcItem = (item) => {
-  const unit = (item.product?.unit || item.unit || '').toLowerCase();
+  const unit = (item.product?.unit || item.unit || '').toLowerCase().trim();
+
+  // Explicit non-PVC: trust 'Square feet' / 'Pcs' unit outright.
+  if (unit === 'square feet' || unit === 'pcs') return false;
+
+  // Explicit PVC: unit field says so.
   if (unit.includes('pvc')) return true;
 
+  // Legacy fallback for products without an explicit unit field.
   const category = (item.product?.category?.name || item.category_name || '').toLowerCase();
   const name = (item.product?.name || item.product_name || '').toLowerCase();
   return category.includes('pvc') || name.includes('pvc') || name.includes('clear water');

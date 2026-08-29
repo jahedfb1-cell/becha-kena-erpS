@@ -635,7 +635,11 @@ const Orders = () => {
             if (isPcs) {
               billedSqft = pcs;
             } else if (w > 0 && h > 0) {
-              const isPvc = (block.unit || '').toLowerCase().includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water');
+              const _blockUnitO = (block.unit || '').toLowerCase().trim();
+              const isPvc = _blockUnitO !== 'square feet' && _blockUnitO !== 'pcs' && (
+                _blockUnitO.includes('pvc') || (block.category_name || '').toLowerCase().includes('pvc') ||
+                (block.product_name || '').toLowerCase().includes('pvc') || (block.product_name || '').toLowerCase().includes('clear water')
+              );
               if (isPvc) {
                 const slatSize = parseFloat(block.product_size) || 8;
                 const slats = pvcSlatCount(w);
@@ -721,7 +725,11 @@ const Orders = () => {
               if (isPcs) {
                 billedSqft = pcs;
               } else if (w > 0 && h > 0) {
-                const isPvc = (updatedBlock.unit || '').toLowerCase().includes('pvc') || (updatedBlock.category_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('clear water');
+                const _updUnitO = (updatedBlock.unit || '').toLowerCase().trim();
+                const isPvc = _updUnitO !== 'square feet' && _updUnitO !== 'pcs' && (
+                  _updUnitO.includes('pvc') || (updatedBlock.category_name || '').toLowerCase().includes('pvc') ||
+                  (updatedBlock.product_name || '').toLowerCase().includes('pvc') || (updatedBlock.product_name || '').toLowerCase().includes('clear water')
+                );
                 if (isPvc) {
                   const slatSize = parseFloat(updatedBlock.product_size) || 8;
                   const slats = pvcSlatCount(w);
@@ -867,7 +875,11 @@ const Orders = () => {
         const catName = prod?.category?.name || item.product?.category?.name || item.category_name || '';
         const prodUnit = prod?.unit || item.product?.unit || item.unit || '';
         const prodName = prod?.name || item.product?.name || `Product #${item.product_id}`;
-        const isPvc = prodUnit.toLowerCase().includes('pvc') || catName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('clear water');
+        const _prodUnitLcO = prodUnit.toLowerCase().trim();
+        const isPvc = _prodUnitLcO !== 'square feet' && _prodUnitLcO !== 'pcs' && (
+          _prodUnitLcO.includes('pvc') || catName.toLowerCase().includes('pvc') ||
+          prodName.toLowerCase().includes('pvc') || prodName.toLowerCase().includes('clear water')
+        );
         const actualSqft = Math.round(((width * height) / 144) * 100) / 100;
         let billedSqft = 0;
         if (width > 0 && height > 0) {
@@ -1896,10 +1908,13 @@ const Orders = () => {
                                            (block.unit || '').trim().toLowerCase() === 'piece' ||
                                            (block.unit || '').trim().toLowerCase() === 'box' ||
                                            (block.unit || '').trim().toLowerCase() === 'set';
-                        const isPvcBlock = (block.unit || '').toLowerCase().includes('pvc')
+                        const _blkUnitO = (block.unit || '').toLowerCase().trim();
+                        const isPvcBlock = _blkUnitO !== 'square feet' && _blkUnitO !== 'pcs' && (
+                          _blkUnitO.includes('pvc')
                           || (block.category_name || '').toLowerCase().includes('pvc')
                           || (block.product_name || '').toLowerCase().includes('pvc')
-                          || (block.product_name || '').toLowerCase().includes('clear water');
+                          || (block.product_name || '').toLowerCase().includes('clear water')
+                        );
                           
                         const columnTitles = isPvcBlock ? ORDER_COLUMNS_WITH_PVC : ORDER_COLUMNS;
 

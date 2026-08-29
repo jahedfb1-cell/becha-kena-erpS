@@ -604,7 +604,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                               const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
                               const cat = (item.product?.category?.name || item.category_name || '').toLowerCase();
                               const pName = (item.product?.name || item.product_name || '').toLowerCase();
-                              const isPvc = u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
+                              const isPvc = u !== 'square feet' && u !== 'pcs' && (u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water'));
                               const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
 
                               let tWidthVal = '-';

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 130" width="500" height="130">
+  <!-- Background -->
+  <rect width="500" height="130" fill="white"/>
+  
+  <!-- Blind icon: window frame -->
+  <rect x="18" y="12" width="72" height="92" rx="4" fill="none" stroke="#1a2f5a" stroke-width="3"/>
+  <!-- Blind slats -->
+  <rect x="22" y="22" width="64" height="6" rx="2" fill="#ff7b00"/>
+  <rect x="22" y="32" width="64" height="6" rx="2" fill="#1a2f5a"/>
+  <rect x="22" y="42" width="64" height="6" rx="2" fill="#ff7b00"/>
+  <rect x="22" y="52" width="64" height="6" rx="2" fill="#1a2f5a"/>
+  <rect x="22" y="62" width="64" height="6" rx="2" fill="#ff7b00"/>
+  <rect x="22" y="72" width="64" height="6" rx="2" fill="#1a2f5a"/>
+  <rect x="22" y="82" width="64" height="6" rx="2" fill="#ff7b00"/>
+  <!-- Cord -->
+  <line x1="54" y1="88" x2="54" y2="108" stroke="#1a2f5a" stroke-width="2"/>
+  <circle cx="54" cy="110" r="4" fill="#ff7b00"/>
+
+  <!-- Company Name -->
+  <text x="108" y="62" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="900" fill="#1a2f5a" letter-spacing="1">DHAKA BLINDS</text>
+  <!-- Tagline -->
+  <text x="110" y="88" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#ff7b00" font-weight="600">Designer Window Curtains &amp; Blinds</text>
+</svg>

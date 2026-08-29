@@ -52,7 +52,7 @@ class QuotationController extends Controller
         // — the Orders list uses this to show whether the supplier side has
         // actually been received yet, without a second request per row.
         $query = Quotation::with([
-                'customer:id,customer_code,name,phone',
+                'customer:id,customer_code,name,company_name,phone',
                 'salesman:id,name,email',
                 'purchaseEntries:id,quotation_id,status,is_reversed,is_archived',
             ])
@@ -112,6 +112,7 @@ class QuotationController extends Controller
                 $q->where('quotation_number', 'LIKE', "%{$search}%")
                   ->orWhereHas('customer', function ($cq) use ($search) {
                       $cq->where('name', 'LIKE', "%{$search}%")
+                         ->orWhere('company_name', 'LIKE', "%{$search}%")
                          ->orWhere('customer_code', 'LIKE', "%{$search}%");
                   });
             });
