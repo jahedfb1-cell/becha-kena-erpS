@@ -34,6 +34,7 @@ import CustomerModal from '../components/CustomerModal';
 import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
 import AISizeScanModal from '../components/AISizeScanModal';
+import SearchableSelect from '../components/SearchableSelect';
 
 const Quotations = () => {
   const navigate = useNavigate();
@@ -80,9 +81,10 @@ const Quotations = () => {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [lastAddedProductName, setLastAddedProductName] = useState('');
 
-  // Change-product picker (per row, in the item-builder table)
+  // Change-product picker (per row, in the item-builder table) — which
+  // block's picker is open. SearchableSelect owns its own search text, so
+  // there's no separate query state to track here.
   const [productChangeBlockId, setProductChangeBlockId] = useState(null);
-  const [productChangeQuery, setProductChangeQuery] = useState('');
 
   // Confirmation Modals
   const [convertConfirmTarget, setConvertConfirmTarget] = useState(null);
@@ -282,15 +284,23 @@ const Quotations = () => {
     });
   }, [products, productSearchQuery]);
 
-  const filteredProductsForChange = useMemo(() => {
-    if (!productChangeQuery) return products;
-    const q = productChangeQuery.toLowerCase().trim();
-    return products.filter(p => {
-      const code = p.product_code ? p.product_code.toLowerCase() : '';
-      const name = p.name ? p.name.toLowerCase() : '';
-      return code.includes(q) || name.includes(q);
-    });
-  }, [products, productChangeQuery]);
+  // Shape for SearchableSelect's "Change Product" combobox — same
+  // {value, label, sublabel, search} contract PriceListModal already uses
+  // for its product picker, so switching a line item's product behaves the
+  // same familiar way everywhere in the app instead of a one-off widget.
+  const productOptions = useMemo(
+    () =>
+      products.map((p) => ({
+        value: String(p.id),
+        label: p.name,
+        // Always show both, with a fallback for a missing code — matching what
+        // the old inline "Change Product" list showed — instead of quietly
+        // dropping the whole sublabel line when a product has no code/unit set.
+        sublabel: `Code: ${p.product_code || 'N/A'}${p.unit ? ` | ${p.unit}` : ''}`,
+        search: `${p.name || ''} ${p.product_code || ''}`.toLowerCase(),
+      })),
+    [products]
+  );
 
   const handleCustomerCreated = (newCustomer) => {
     // Push straight into the shared cache so the new customer appears
@@ -376,7 +386,6 @@ const Quotations = () => {
     const newBlockId = addProductBlockToSection(sectionId);
     if (newBlockId) {
       setProductChangeBlockId(newBlockId);
-      setProductChangeQuery('');
     }
   };
 
@@ -1915,75 +1924,57 @@ const Quotations = () => {
 
                           const columnTitles = isPvcBlock ? QUOTE_COLUMNS_WITH_PVC : QUOTE_COLUMNS;
 
+                          // Selecting a new product here must fully refresh the block's
+                          // product-derived fields (name/code/size/category/unit/price/
+                          // MOQ/cost/supplier), not just its id — handleBlockChange('product_id', ...)
+                          // does that, and also recomputes every existing size row's
+                          // billed_sqft/line_total against the new product's unit and
+                          // min_billing_sqft. Keep using it here rather than patching
+                          // fields individually, so "change product" never leaves stale
+                          // pricing/PVC-slat data from the old product behind.
+                          const applyProductChange = (productId) => {
+                            if (!productId) return; // SearchableSelect also fires onChange('') on Clear — ignore, keep current product
+                            handleBlockChange(sec.id, block.id, 'product_id', productId);
+                            setProductChangeBlockId(null);
+                          };
+
+                          // Reuses the same SearchableSelect combobox as the Customer/Product
+                          // pickers elsewhere in this form (PriceListModal's product row, the
+                          // Select Customer field above) instead of a one-off dropdown, so
+                          // "Change Product" looks and behaves the same familiar way. It also
+                          // portals its menu to <body> and positions itself off the input's
+                          // real screen position — necessary here because this header row and
+                          // its table wrapper both scroll horizontally (overflowX: auto), which
+                          // silently clips a plain absolutely-positioned dropdown.
                           const changeProductUI = productChangeBlockId === block.id ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <select
-                                value={block.product_id || ''}
-                                onChange={(e) => {
-                                  if (e.target.value) {
-                                    handleBlockChange(sec.id, block.id, 'product_id', e.target.value);
-                                    setProductChangeBlockId(null);
-                                    setProductChangeQuery('');
-                                  }
-                                }}
-                                className="modern-form-control"
-                                style={{ fontWeight: '600', fontSize: '12px', padding: '6px', minWidth: '150px' }}
-                              >
-                                <option value="">-- Choose Product --</option>
-                                {products.map(p => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.name} {p.product_code ? `(${p.product_code.toUpperCase()})` : ''}
-                                  </option>
-                                ))}
-                              </select>
-                              <div style={{ position: 'relative' }}>
-                                <input
-                                  type="text"
-                                  placeholder="Search name/code..."
-                                  value={productChangeQuery}
-                                  onChange={(e) => setProductChangeQuery(e.target.value)}
-                                  className="modern-form-control"
-                                  style={{ fontSize: '11px', padding: '5px 8px', width: '130px' }}
-                                />
-                                {productChangeQuery.trim() !== '' && (
-                                  <div className="search-dropdown-list" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', maxHeight: '200px', overflowY: 'auto' }}>
-                                    {filteredProductsForChange.length === 0 ? (
-                                      <div className="dropdown-item empty" style={{ padding: '8px', fontSize: '12px', color: '#94a3b8' }}>No matching products</div>
-                                    ) : (
-                                      filteredProductsForChange.map(p => (
-                                        <div
-                                          key={p.id}
-                                          className="dropdown-item"
-                                          onMouseDown={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            handleBlockChange(sec.id, block.id, 'product_id', p.id);
-                                            setProductChangeBlockId(null);
-                                            setProductChangeQuery('');
-                                          }}
-                                          style={{ padding: '8px 10px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
-                                        >
-                                          <div style={{ fontWeight: '700', fontSize: '12px', color: '#0f172a' }}>{p.name}</div>
-                                          <div style={{ fontSize: '10px', color: '#64748b' }}>Code: {p.product_code || 'N/A'} {p.unit ? `| ${p.unit}` : ''}</div>
-                                        </div>
-                                      ))
-                                    )}
-                                  </div>
-                                )}
+                            <div className="form-group" style={{ margin: 0, minWidth: '260px' }}>
+                              <label style={{ fontWeight: '600', fontSize: '12px', marginBottom: '4px', display: 'block' }}>Choose Product</label>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                <div style={{ flex: 1 }}>
+                                  <SearchableSelect
+                                    options={productOptions}
+                                    value={block.product_id ? String(block.product_id) : ''}
+                                    onChange={applyProductChange}
+                                    placeholder="Search product by name or code..."
+                                    emptyLabel="No matching products"
+                                    ariaLabel="Change product"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setProductChangeBlockId(null)}
+                                  className="secondary-btn"
+                                  style={{ padding: '8px 12px', fontSize: '12px' }}
+                                >
+                                  Cancel
+                                </button>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setProductChangeBlockId(null)}
-                                style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}
-                              >
-                                Cancel
-                              </button>
                             </div>
                           ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <button
                                 type="button"
-                                onClick={() => { setProductChangeBlockId(block.id); setProductChangeQuery(''); }}
+                                onClick={() => setProductChangeBlockId(block.id)}
                                 style={{ fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
                                 title="Click to change to another product"
                               >

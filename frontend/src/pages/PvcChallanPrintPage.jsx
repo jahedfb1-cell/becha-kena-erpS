@@ -78,13 +78,22 @@ const PvcChallanPrintPage = () => {
     return `${clean(rawCustomerName)} _ PVC Challan _ by ${clean(brandName)}`;
   };
 
+  // The saved PDF's filename comes from document.title at the moment the
+  // browser's print/save dialog opens. Setting it only here (once the data
+  // has loaded) covers the common case, but a native Ctrl+P or a browser
+  // print-menu click bypasses handlePrint() entirely — so also re-apply the
+  // title on the browser's own 'beforeprint' event, which fires right before
+  // *any* print dialog opens regardless of how it was triggered. That's what
+  // makes the custom filename reliable everywhere, not just on our button.
   useEffect(() => {
-    if (invoice) {
-      document.title = getCustomTitle();
-      return () => {
-        document.title = 'Dhakablinds-Ims';
-      };
-    }
+    if (!invoice) return undefined;
+    const applyTitle = () => { document.title = getCustomTitle(); };
+    applyTitle();
+    window.addEventListener('beforeprint', applyTitle);
+    return () => {
+      window.removeEventListener('beforeprint', applyTitle);
+      document.title = 'Dhakablinds-Ims';
+    };
   }, [invoice, companyProfile]);
 
   const handleGenerateChallan = async () => {

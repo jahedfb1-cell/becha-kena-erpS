@@ -71,12 +71,19 @@ const PriceListPrintPage = () => {
   };
 
   // The saved PDF takes its filename from document.title, so it has to name
-  // the customer and the brand the sheet was raised under.
+  // the customer and the brand the sheet was raised under — and that has to
+  // be reapplied on the browser's own 'beforeprint' event too, not just set
+  // once here, because a native Ctrl+P or browser print-menu click bypasses
+  // handlePrint() entirely. 'beforeprint' fires right before *any* print
+  // dialog opens regardless of how it was triggered.
   useEffect(() => {
     if (!record) return undefined;
-    document.title = getCustomTitle();
+    const applyTitle = () => { document.title = getCustomTitle(); };
+    applyTitle();
+    window.addEventListener('beforeprint', applyTitle);
 
     return () => {
+      window.removeEventListener('beforeprint', applyTitle);
       document.title = 'Dhakablinds-Ims';
     };
   }, [record, companyProfile]);
