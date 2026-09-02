@@ -340,10 +340,21 @@ const Orders = () => {
     }
   };
 
+  // Reject is a demotion, not a dead end — the backend sends a pending
+  // order back to draft quotation status (Convert to Order becomes
+  // available again there) or a confirmed order back to pending approval
+  // (reversing its purchase entries), rather than a terminal 'rejected'.
+  // rejection_reason is required by the backend, hence the prompt().
   const handleReject = async (id) => {
+    const reason = prompt('Enter rejection reason:');
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) {
+      alert('A rejection reason is required.');
+      return;
+    }
     try {
-      await api.post(`/quotations/${id}/reject`);
-      alert('Order rejected.');
+      const res = await api.post(`/quotations/${id}/reject`, { rejection_reason: reason });
+      alert(res.data?.message || 'Order sent back for revision.');
       loadOrderDetails(id);
       fetchOrders();
     } catch (err) {
@@ -1616,16 +1627,21 @@ const Orders = () => {
                       <button type="button" className="primary-btn" onClick={() => handleApprove(selectedOrder.id)} style={{ padding: '12px' }}>
                         Approve Order &amp; Route Purchase Entry
                       </button>
-                      <button type="button" className="logout-btn" onClick={() => handleReject(selectedOrder.id)} style={{ padding: '10px', color: 'var(--danger)', borderColor: 'var(--danger-bg)' }}>
-                        Reject Order
+                      <button type="button" className="logout-btn" onClick={() => handleReject(selectedOrder.id)} style={{ padding: '10px', color: 'var(--danger)', borderColor: 'var(--danger-bg)' }} title="Sends the order back to draft quotation status, where it can be converted to order again">
+                        Reject Order (back to Quotation)
                       </button>
                     </>
                   )}
 
                   {selectedOrder?.status === 'approved' && (user?.role === 'admin') && (
-                    <button type="button" className="primary-btn" onClick={() => handleGenerateInvoiceFromDetail(selectedOrder.id)} style={{ padding: '12px' }}>
-                      Generate Invoice
-                    </button>
+                    <>
+                      <button type="button" className="primary-btn" onClick={() => handleGenerateInvoiceFromDetail(selectedOrder.id)} style={{ padding: '12px' }}>
+                        Generate Invoice
+                      </button>
+                      <button type="button" className="logout-btn" onClick={() => handleReject(selectedOrder.id)} style={{ padding: '10px', color: 'var(--danger)', borderColor: 'var(--danger-bg)' }} title="Sends the order back to pending approval and reverses its purchase entry">
+                        Reject Order (back to Pending)
+                      </button>
+                    </>
                   )}
 
                   <button

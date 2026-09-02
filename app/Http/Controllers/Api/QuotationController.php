@@ -525,16 +525,40 @@ class QuotationController extends Controller
             return $this->notFoundResponse('Quotation not found.');
         }
 
+        // Reject is a demotion, not a dead end: it sends the order back one
+        // step for revision rather than killing it outright, and the
+        // salesman/manager gets it back at the stage where they can act on
+        // it again — a confirmed order returns to pending approval, a
+        // pending one returns to draft quotation status (where "Convert to
+        // Order" is available again in Quotations.jsx). Only those two
+        // statuses make sense to reject from, mirroring the guard approve()
+        // already has.
+        if (!in_array($quotation->status, ['pending_approval', 'pending_reapproval', 'approved'])) {
+            return $this->errorResponse("Quotation in status '{$quotation->status}' cannot be rejected.", 422);
+        }
+
         $request->validate([
             'rejection_reason' => 'required|string|max:1000',
         ]);
 
         $user = $request->user();
         $oldSnapshot = $quotation->toArray();
+        $wasApproved = $quotation->status === 'approved';
 
-        return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot) {
+        return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot, $wasApproved) {
+            // An approved order being rejected is no longer confirmed, so
+            // the purchase entries and supplier-ledger credit raised at
+            // approval no longer describe anything real — reversed the same
+            // way an edit-while-approved reverses them (see
+            // QuotationService::reversePurchaseEntries).
+            if ($wasApproved) {
+                $this->quotationService->reversePurchaseEntries($quotation, $user->id);
+            }
+
+            $newStatus = $wasApproved ? 'pending_approval' : 'quotation';
+
             $quotation->update([
-                'status'           => 'rejected',
+                'status'           => $newStatus,
                 'rejection_reason' => $request->rejection_reason,
             ]);
 
@@ -546,7 +570,7 @@ class QuotationController extends Controller
                 $quotation->id,
                 $oldSnapshot,
                 $quotation->toArray(),
-                "Rejected quotation {$quotation->quotation_number}"
+                "Rejected quotation {$quotation->quotation_number} ({$oldSnapshot['status']} -> {$newStatus})"
             );
 
             // Trigger Notification Event: Order Rejected -> Notify Salesman + Suppliers
@@ -554,7 +578,9 @@ class QuotationController extends Controller
 
             return $this->successResponse(
                 $quotation,
-                "Quotation {$quotation->quotation_number} has been rejected."
+                $wasApproved
+                    ? "Quotation {$quotation->quotation_number} sent back to pending approval."
+                    : "Quotation {$quotation->quotation_number} sent back to draft — it can be converted to order again."
             );
         });
     }

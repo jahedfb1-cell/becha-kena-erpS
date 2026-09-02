@@ -1005,6 +1005,27 @@ const Quotations = () => {
     }
   };
 
+  // Reject is a demotion, not the same thing as Archive: the backend sends
+  // a pending order back to draft quotation status (where Convert to Order
+  // becomes available again), rather than hiding it. rejection_reason is
+  // required by the backend, hence the prompt().
+  const handleReject = async (id) => {
+    const reason = prompt('Enter rejection reason:');
+    if (reason === null) return; // cancelled
+    if (!reason.trim()) {
+      alert('A rejection reason is required.');
+      return;
+    }
+    try {
+      const res = await api.post(`/quotations/${id}/reject`, { rejection_reason: reason });
+      alert(res.data?.message || 'Order sent back to draft — it can be converted to order again.');
+      loadData();
+      invalidateOrders(queryClient);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to reject order.');
+    }
+  };
+
   const handleRestore = async (id) => {
     try {
       await api.post(`/quotations/${id}/restore`);
@@ -1446,7 +1467,7 @@ const Quotations = () => {
                               <button className="text-btn" onClick={() => setApproveConfirmTarget(q)} style={{ marginLeft: '8px', color: 'var(--success)', fontWeight: 700 }}>
                                 ✅ Approve
                               </button>
-                              <button className="text-btn" onClick={() => handleArchive(q.id)} style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 700 }}>
+                              <button className="text-btn" onClick={() => handleReject(q.id)} style={{ marginLeft: '8px', color: 'var(--danger)', fontWeight: 700 }} title="Sends the order back to draft quotation status">
                                 ❌ Reject
                               </button>
                             </>
@@ -1506,13 +1527,22 @@ const Quotations = () => {
                           </button>
                         )}
                         {(q.status === 'pending_approval' || q.status === 'pending_reapproval') && (can('quotations:approve') || user?.role === 'admin') && (
-                          <button
-                            type="button"
-                            className="mobile-action-pill pill-green"
-                            onClick={() => setApproveConfirmTarget(q)}
-                          >
-                            ✅ Approve
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className="mobile-action-pill pill-green"
+                              onClick={() => setApproveConfirmTarget(q)}
+                            >
+                              ✅ Approve
+                            </button>
+                            <button
+                              type="button"
+                              className="mobile-action-pill pill-red"
+                              onClick={() => handleReject(q.id)}
+                            >
+                              ❌ Reject
+                            </button>
+                          </>
                         )}
                         {q.status !== 'invoiced' && (
                           <button
