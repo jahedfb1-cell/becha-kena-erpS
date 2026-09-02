@@ -44,6 +44,22 @@ class PurchaseController extends Controller
             $query->active();
         }
 
+        // A purchase entry is superseded, not archived, when the order it
+        // belongs to is edited while approved: reversePurchaseEntries()
+        // marks the old batch is_reversed/status=cancelled but deliberately
+        // leaves is_archived=false so it stays in the audit trail — the
+        // ->active()/->archived() toggle above only ever looks at
+        // is_archived, so without this a reversed batch kept showing up
+        // here forever, and every re-edit of the same order added another
+        // one. Orders.jsx already excludes these the same way
+        // (!pe.is_reversed && !pe.is_archived) when it works out an order's
+        // purchase status — this makes the Purchases list agree with it,
+        // instead of the same order's rows quietly accumulating here with
+        // every edit and dragging its totals/status wrong (a cancelled
+        // batch's cost got summed into the total, and its non-'received'
+        // status made an otherwise-completed order show "Pending").
+        $query->where('is_reversed', false);
+
         // Filter by supplier_id
         if ($request->filled('supplier_id')) {
             $query->where('supplier_id', $request->supplier_id);
