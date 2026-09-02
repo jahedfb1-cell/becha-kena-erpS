@@ -814,6 +814,16 @@ const Orders = () => {
   };
 
   const handleEditClick = async (o) => {
+    // Backend rejects this outright once an order has an invoice (see
+    // QuotationController::update — "Invoiced quotations cannot be
+    // edited"), which is why the Edit button itself is hidden once
+    // o.status === 'invoiced' (see below). Guarding here too means any
+    // future call site can't slip through and open a form doomed to fail
+    // on Save.
+    if (o.status === 'invoiced') {
+      alert('This order has an invoice and cannot be edited directly. Archive the invoice first (Invoices & Deliveries) to unlock editing.');
+      return;
+    }
     try {
       setActionLoading(true);
       let fullQ = o;
@@ -1288,7 +1298,7 @@ const Orders = () => {
                             </button>
                           )}
 
-                          {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
+                          {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && o.status !== 'invoiced' && (
                             <button
                               type="button"
                               className="btn-action-circle"
@@ -1381,7 +1391,7 @@ const Orders = () => {
                           </button>
                         );
                       })()}
-                      {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
+                      {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && o.status !== 'invoiced' && (
                         <button
                           type="button"
                           className="mobile-action-pill pill-purple"
