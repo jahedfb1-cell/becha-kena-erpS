@@ -298,7 +298,13 @@ const Orders = () => {
         const billedSqft = parseFloat(item.billed_sqft) || 0;
 
         if (w > 0 && h > 0) {
-          textLines.push(`${item.width} x ${item.height} - ${pcs} = ${billedSqft}`);
+          // A lone piece (qty 1) doesn't need "- 1" spelled out, and the
+          // billed sqft is internal billing detail this copy is not meant
+          // to carry — this is meant to read as a plain cutting-list line,
+          // e.g. for pasting to a supplier: "68 x 64 - 2" when more than
+          // one piece of that exact size is needed, or just "41 x 64" for
+          // a single one.
+          textLines.push(pcs > 1 ? `${item.width} x ${item.height} - ${pcs}` : `${item.width} x ${item.height}`);
         } else {
           textLines.push(`${pcs} Pcs = ${billedSqft}`);
         }
