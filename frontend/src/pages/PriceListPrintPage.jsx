@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import renderRichText from '../utils/renderRichText';
+import { downloadPrintPdf } from '../utils/pdfDownload';
 
 /**
  * Standalone print view for a saved price list.
@@ -27,6 +28,7 @@ const PriceListPrintPage = () => {
   const [companyProfile, setCompanyProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // 'standard' draws our own letterhead; 'pad' leaves the top of the sheet
   // blank for pre-printed company pad paper.
@@ -93,6 +95,23 @@ const PriceListPrintPage = () => {
     window.print();
   };
 
+  // Guaranteed-filename alternative to "Print > Save as PDF": that flow
+  // depends on the browser reading document.title at the right moment,
+  // which some Chrome setups/timings get wrong. This renders the document
+  // straight to a PDF file and downloads it under the exact same name via
+  // the <a download> attribute, which every browser honors unconditionally.
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      await downloadPrintPdf(getCustomTitle());
+    } catch (err) {
+      console.error('PDF download failed:', err);
+      alert('Could not generate the PDF. Please try the Print button instead.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif' }}>
@@ -156,6 +175,14 @@ const PriceListPrintPage = () => {
             style={{ padding: '6px 18px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#059669', color: '#fff' }}
           >
             🖨️ Print / Save PDF
+          </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            title="Downloads the PDF directly with the correct filename, instead of going through the browser's Save as PDF dialog"
+            style={{ padding: '6px 18px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: downloadingPdf ? 'wait' : 'pointer', opacity: downloadingPdf ? 0.7 : 1, background: '#0891b2', color: '#fff' }}
+          >
+            ⬇️ {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
           <button
             onClick={() => navigate('/price-lists')}

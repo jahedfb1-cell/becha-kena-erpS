@@ -6,6 +6,7 @@ import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth, isPvcItem } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import renderRichText from '../utils/renderRichText';
+import { downloadPrintPdf } from '../utils/pdfDownload';
 
 /**
  * PVC Quotation print page - a second quotation layout for the "PVC Strip
@@ -71,6 +72,7 @@ const PvcQuotationPrintPage = () => {
   const [companyProfile, setCompanyProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Only two print types make sense here - both show the per-size Width/
   // Height/Pcs columns that the slat breakdown table below explains.
@@ -130,6 +132,23 @@ const PvcQuotationPrintPage = () => {
   const handlePrint = () => {
     document.title = getCustomTitle();
     window.print();
+  };
+
+  // Guaranteed-filename alternative to "Print > Save as PDF": that flow
+  // depends on the browser reading document.title at the right moment,
+  // which some Chrome setups/timings get wrong. This renders the document
+  // straight to a PDF file and downloads it under the exact same name via
+  // the <a download> attribute, which every browser honors unconditionally.
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      await downloadPrintPdf(getCustomTitle());
+    } catch (err) {
+      console.error('PDF download failed:', err);
+      alert('Could not generate the PDF. Please try the Print button instead.');
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const setType = (newType) => {
@@ -241,6 +260,14 @@ const PvcQuotationPrintPage = () => {
             style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#0066ff', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>🖨️</span> Print PDF
+          </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            title="Downloads the PDF directly with the correct filename, instead of going through the browser's Save as PDF dialog"
+            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: downloadingPdf ? 'wait' : 'pointer', opacity: downloadingPdf ? 0.7 : 1, background: '#0891b2', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>⬇️</span> {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
           <button
             onClick={() => navigate(`/quotations/print/${id}`)}
@@ -626,6 +653,15 @@ Please make your payment by cash or cheque in favour of "${brand.chequeFavourNam
             style={{ background: '#0066ff', color: '#ffffff', border: 'none', padding: '10px 28px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0, 102, 255, 0.3)' }}
           >
             <span>🖨️</span> Print
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            title="Downloads the PDF directly with the correct filename, instead of going through the browser's Save as PDF dialog"
+            style={{ background: '#0891b2', color: '#ffffff', border: 'none', padding: '10px 28px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', cursor: downloadingPdf ? 'wait' : 'pointer', opacity: downloadingPdf ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(8, 145, 178, 0.3)' }}
+          >
+            <span>⬇️</span> {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
           <button
             type="button"

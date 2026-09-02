@@ -6,6 +6,7 @@ import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
+import { downloadPrintPdf } from '../utils/pdfDownload';
 
 /**
  * Delivery Challan print page - design matches the reference "Dhaka Blinds"
@@ -42,6 +43,7 @@ const ChallanPrintPage = () => {
   const [companyProfile, setCompanyProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   const fetchData = async () => {
@@ -124,6 +126,23 @@ const ChallanPrintPage = () => {
     window.print();
   };
 
+  // Guaranteed-filename alternative to "Print > Save as PDF": that flow
+  // depends on the browser reading document.title at the right moment,
+  // which some Chrome setups/timings get wrong. This renders the document
+  // straight to a PDF file and downloads it under the exact same name via
+  // the <a download> attribute, which every browser honors unconditionally.
+  const handleDownloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      await downloadPrintPdf(getCustomTitle());
+    } catch (err) {
+      console.error('PDF download failed:', err);
+      alert('Could not generate the PDF. Please try the Print button instead.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif' }}>
@@ -204,6 +223,14 @@ const ChallanPrintPage = () => {
             style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#0066ff', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>🖨️</span> Print PDF
+          </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            title="Downloads the PDF directly with the correct filename, instead of going through the browser's Save as PDF dialog"
+            style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: downloadingPdf ? 'wait' : 'pointer', opacity: downloadingPdf ? 0.7 : 1, background: '#059669', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>⬇️</span> {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
           {items.some(isPvcItem) && (
             <button
@@ -448,6 +475,15 @@ const ChallanPrintPage = () => {
             style={{ background: '#0066ff', color: '#ffffff', border: 'none', padding: '10px 28px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0, 102, 255, 0.3)' }}
           >
             <span>🖨️</span> Print
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            title="Downloads the PDF directly with the correct filename, instead of going through the browser's Save as PDF dialog"
+            style={{ background: '#059669', color: '#ffffff', border: 'none', padding: '10px 28px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', cursor: downloadingPdf ? 'wait' : 'pointer', opacity: downloadingPdf ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.3)' }}
+          >
+            <span>⬇️</span> {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
           <button
             type="button"
