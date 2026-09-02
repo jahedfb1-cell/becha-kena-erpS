@@ -863,6 +863,19 @@ class ReportController extends Controller
             ->where('is_archived', false)
             ->where('due_amount', '>', 0);
 
+        // Was silently ignored before: every other report on this page
+        // (sales, purchase, collection history, ...) filters by
+        // invoice_date/purchase_date the same way, but this one accepted
+        // from_date/to_date from the client and never applied them, so
+        // "this month's dues" / "this year's dues" had no effect at all —
+        // it always showed every outstanding invoice regardless of date.
+        if ($request->filled('from_date')) {
+            $query->whereDate('invoice_date', '>=', $request->from_date);
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('invoice_date', '<=', $request->to_date);
+        }
+
         if ($request->filled('customer_id')) {
             $query->where('customer_id', $request->customer_id);
         }
@@ -913,10 +926,19 @@ class ReportController extends Controller
             ];
         })->values();
 
+        // 'invoices' is the flat, one-row-per-invoice list the on-screen
+        // table and the print/PDF report actually render (Ref/Invoice
+        // Number, Customer, Date, Grand Total, Paid, Due columns) — it was
+        // missing before, leaving the table reading fields (inv.customer,
+        // inv.grand_total, inv.due_amount, ...) off the grouped
+        // customer_dues rows instead, where none of them exist, so every
+        // row silently showed "N/A" / ৳0.00. customer_dues is kept as the
+        // per-customer rollup for anything that wants that shape instead.
         return response()->json([
             'status' => 'success',
             'data'   => [
                 'total_due_amount' => (float) $invoices->sum('due_amount'),
+                'invoices'         => $invoices->values(),
                 'customer_dues'    => $customerDues,
             ],
         ]);

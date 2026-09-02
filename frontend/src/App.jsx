@@ -58,6 +58,7 @@ const ChallanPrintPage = lazy(() => import('./pages/ChallanPrintPage'));
 const PvcChallanPrintPage = lazy(() => import('./pages/PvcChallanPrintPage'));
 const MoneyReceiptPage = lazy(() => import('./pages/MoneyReceiptPage'));
 const PriceListPrintPage = lazy(() => import('./pages/PriceListPrintPage'));
+const SalesDuePrintPage = lazy(() => import('./pages/SalesDuePrintPage'));
 
 function App() {
   return (
@@ -70,6 +71,16 @@ function App() {
             <ProtectedRoute>
               <Suspense fallback={null}>
                 <PriceListPrintPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports/sales-due/print"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={null}>
+                <SalesDuePrintPage />
               </Suspense>
             </ProtectedRoute>
           }

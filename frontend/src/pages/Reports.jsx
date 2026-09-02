@@ -47,6 +47,12 @@ const Reports = () => {
   // Filter States
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  // Sales Due Report's quick Month/Year picker — a friendlier front end
+  // over the same fromDate/toDate range every other report already filters
+  // by, rather than a separate filter mechanism. duesMonth === '' means
+  // "whole year"; duesYear === '' clears the range back to all-time.
+  const [duesMonth, setDuesMonth] = useState('');
+  const [duesYear, setDuesYear] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [selectedSupplier, setSelectedSupplier] = useState('');
   const [selectedSalesperson, setSelectedSalesperson] = useState('');
@@ -211,6 +217,29 @@ const Reports = () => {
     setSelectedCustomer('');
     setSelectedSupplier('');
     setSelectedSalesperson('');
+    setDuesMonth('');
+    setDuesYear('');
+  };
+
+  // Turns a Month/Year pick into the fromDate/toDate range the report is
+  // actually filtered by — a whole calendar year when only the year is
+  // set, a single month when both are, and back to no filter (every
+  // outstanding due, any date) when the year is cleared.
+  const applyDuesPeriod = (month, year) => {
+    if (!year) {
+      setFromDate('');
+      setToDate('');
+      return;
+    }
+    if (month) {
+      const m = String(month).padStart(2, '0');
+      const lastDay = new Date(Number(year), Number(month), 0).getDate();
+      setFromDate(`${year}-${m}-01`);
+      setToDate(`${year}-${m}-${String(lastDay).padStart(2, '0')}`);
+    } else {
+      setFromDate(`${year}-01-01`);
+      setToDate(`${year}-12-31`);
+    }
   };
 
   // Smart Export CSV Handler
@@ -746,7 +775,26 @@ const Reports = () => {
             <button onClick={handleExportCSV} disabled={!reportData} style={{ background: '#28a745', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
               📥 Export CSV
             </button>
-            <button onClick={() => window.print()} style={{ background: '#17a2b8', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+            <button
+              onClick={() => {
+                // Sales Due Report gets a real letterheaded, filename-correct
+                // print/PDF document (see printing-uses-standalone-routes) —
+                // window.print() on this page would print the whole
+                // dashboard shell (filters, sidebar and all), not a clean
+                // report. Every other report still falls back to that.
+                if (activeReport === 'sales-due-report') {
+                  const params = new URLSearchParams();
+                  if (fromDate) params.set('from_date', fromDate);
+                  if (toDate) params.set('to_date', toDate);
+                  if (selectedCustomer) params.set('customer_id', selectedCustomer);
+                  if (selectedSalesperson) params.set('salesman_id', selectedSalesperson);
+                  window.open(`/reports/sales-due/print?${params.toString()}`, '_blank', 'noopener');
+                } else {
+                  window.print();
+                }
+              }}
+              style={{ background: '#17a2b8', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+            >
               🖨️ Print / PDF
             </button>
           </div>
@@ -754,13 +802,43 @@ const Reports = () => {
 
         {/* Table Specific Filter Bar (Date Filters + Customer / Supplier / Salesperson) */}
         <div className="no-print" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', alignItems: 'flex-end' }}>
+          {activeReport === 'sales-due-report' && (
+            <>
+              <div style={{ flex: '0 0 auto', minWidth: '140px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Month</label>
+                <select
+                  value={duesMonth}
+                  onChange={(e) => { setDuesMonth(e.target.value); applyDuesPeriod(e.target.value, duesYear); }}
+                  style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                >
+                  <option value="">Whole Year</option>
+                  {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((name, i) => (
+                    <option key={i + 1} value={i + 1}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex: '0 0 auto', minWidth: '120px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>Year</label>
+                <select
+                  value={duesYear}
+                  onChange={(e) => { setDuesYear(e.target.value); applyDuesPeriod(duesMonth, e.target.value); }}
+                  style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                >
+                  <option value="">All Time</option>
+                  {['2024', '2025', '2026', '2027', '2028'].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
           <div style={{ flex: 1, minWidth: '140px' }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>From Date</label>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+            <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setDuesMonth(''); setDuesYear(''); }} style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
           </div>
           <div style={{ flex: 1, minWidth: '140px' }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>To Date</label>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setDuesMonth(''); setDuesYear(''); }} style={{ width: '100%', padding: '6px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
           </div>
 
           {showCustomerFilter && (
@@ -1556,7 +1634,7 @@ const Reports = () => {
             {/* 13. Sales Due Report */}
             {activeReport === 'sales-due-report' && reportData && (
               (() => {
-                const duesList = Array.isArray(reportData) ? reportData : (reportData?.customer_dues || []);
+                const duesList = Array.isArray(reportData) ? reportData : (reportData?.invoices || []);
                 const totalDue = reportData?.total_due_amount ?? duesList.reduce((sum, inv) => sum + (parseFloat(inv.due_amount || inv.total_due) || 0), 0);
                 return (
                   <div>
