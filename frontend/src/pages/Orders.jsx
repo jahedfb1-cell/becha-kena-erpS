@@ -1554,6 +1554,16 @@ const Orders = () => {
                         ))
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={2} style={{ textAlign: 'right', fontWeight: 800, background: 'var(--bg-base, #f8fafc)' }}>
+                          Total Sq.Ft
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 800, background: 'var(--bg-base, #f8fafc)' }}>
+                          {(selectedOrder?.items || []).reduce((sum, item) => sum + (parseFloat(item.billed_sqft) || 0), 0).toFixed(2)} sqft
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
 
@@ -2120,6 +2130,14 @@ const Orders = () => {
                                                 value={sz.pcs}
                                                 onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'pcs', e.target.value)}
                                               />
+                                              {/* This row's own billed sqft — the totals bar below
+                                                  the block only ever showed the combined total,
+                                                  never what any one line contributed to it. */}
+                                              {!isPcsBlock && (
+                                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#0369a1', whiteSpace: 'nowrap', padding: '0 4px' }}>
+                                                  {(parseFloat(sz.billed_sqft) || 0).toFixed(2)} sqft
+                                                </span>
+                                              )}
                                               {szIdx === block.sizes.length - 1 && (
                                                 <button
                                                   type="button"
@@ -2263,19 +2281,29 @@ const Orders = () => {
                                         </>
                                       )}
 
-                                      {/* Total Sq.Ft - skipped for Pcs blocks, whose Quantity
-                                          cell above already covers this column (see its
-                                          colSpan) since Total Pcs always equals Quantity
-                                          there and doesn't need its own cell. */}
-                                      {sIdx === 0 && !isPcsBlock && (
-                                        <td rowSpan={block.sizes.length} className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '3px' }}>
+                                      {/* Sq.Ft - one cell per size row (not merged across the
+                                          block) so each width x height line shows its own
+                                          billed sqft instead of only the block's combined
+                                          total. The block total still shows too, as a small
+                                          label under the last row's cell, so nothing that was
+                                          visible here before is lost. Skipped for Pcs blocks,
+                                          whose Quantity cell above already covers this column
+                                          (see its colSpan) since Total Pcs always equals
+                                          Quantity there and doesn't need its own cell. */}
+                                      {!isPcsBlock && (
+                                        <td className="cell-total-sqft" style={{ padding: '3px' }}>
                                           <input
                                             type="text"
-                                            value={totalBilledSqft.toFixed(2)}
+                                            value={(parseFloat(sizeRow.billed_sqft) || 0).toFixed(2)}
                                             readOnly
                                             className="modern-form-control"
                                             style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
                                           />
+                                          {sIdx === block.sizes.length - 1 && block.sizes.length > 1 && (
+                                            <div style={{ marginTop: '4px', fontSize: '11px', fontWeight: '700', color: '#0369a1', textAlign: 'center' }}>
+                                              Σ {totalBilledSqft.toFixed(2)} sqft
+                                            </div>
+                                          )}
                                         </td>
                                       )}
 
