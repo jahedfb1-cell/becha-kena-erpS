@@ -74,12 +74,13 @@ const one = block({ sizes: [{ id: 1, width: 10, height: 10 }] });
 const emptied = removeSizeRow(sections([one]), 's1', 'b1', 1)[0].blocks[0].sizes;
 check('removing the last refills a blank', [emptied.length, emptied[0].width, emptied[0].billed_sqft], [1, '', 0]);
 
-// --- PVC detection ----------------------------------------------------
+// --- PVC detection ------------------------------------------------------
+// Only the unit field decides. Category and product name are never
+// consulted, even when they contain "PVC" or "Clear Water" in the text.
 check('pvc by unit', isPvcBlock(block({ unit: 'PVC' })), true);
-check('pvc by category', isPvcBlock(block({ category_name: 'PVC Strip Curtain' })), true);
-check('pvc by clear water name', isPvcBlock(block({ product_name: 'Clear Water Strip' })), true);
+check('category text alone is not pvc', isPvcBlock(block({ category_name: 'PVC Strip Curtain' })), false);
+check('product name text alone is not pvc', isPvcBlock(block({ product_name: 'Clear Water Strip' })), false);
 check('plain blind is not pvc', isPvcBlock(block()), false);
-check('clear water only counts in the name', isPvcBlock(block({ category_name: 'clear water', product_name: 'Roller' })), false);
 
 // --- imported measurements -------------------------------------------
 // 36 x 48 = 12 sq.ft, billed up to the quarter foot, at 100/sqft
@@ -97,7 +98,8 @@ const minimal = appendMeasuredRows(sections([block({ min_billing_sqft: 10 })]), 
 check('minimum billing applies', minimal[0].blocks[0].sizes[0].billed_sqft, 10);
 
 // PVC: 60in -> 10 whole slats x 8in = 80in billed width, x 84in / 144
-const pvc = appendMeasuredRows(sections([block({ category_name: 'PVC Strip Curtain' })]), 's1', 'b1', [{ width: 60, height: 84, pcs: 1 }]);
+// (unit must say PVC - category/name text alone no longer triggers it)
+const pvc = appendMeasuredRows(sections([block({ unit: 'PVC sq.ft' })]), 's1', 'b1', [{ width: 60, height: 84, pcs: 1 }]);
 check('pvc bills whole slats', pvc[0].blocks[0].sizes[0].billed_sqft, 46.67);
 check('pvc keeps the real area', pvc[0].blocks[0].sizes[0].actual_sqft, 35);
 

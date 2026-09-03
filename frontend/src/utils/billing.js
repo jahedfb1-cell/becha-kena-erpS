@@ -75,29 +75,12 @@ export const billableSqft = (perPieceSqft, pcs = 1) => {
  * plain sq.ft or per-piece pricing.
  *
  * The product's Measurement Unit field ("PVC sq.ft", set in the product
- * form's Measurement Unit dropdown) is the highest-priority signal - it's
- * what actually drives the slat math everywhere else in the app - so it's
- * checked first and decides the answer outright whenever it says PVC.
- *
- * It cannot be the *only* signal, though: every pre-existing product in
- * this system was created before that three-way Measurement Unit field
- * existed, so their `unit` column holds an older, generic value (`sqft`,
- * `Square feet`, `Pcs`) that says nothing about whether the item is PVC.
- * For those, category name and product name - both of which correctly
- * carry "PVC Strip Curtain" for this product line - are what determines it,
- * exactly as this function did before the Measurement Unit field existed.
+ * form's Measurement Unit dropdown) is the ONLY signal this checks. Product
+ * name and category are deliberately not consulted here (even when they
+ * happen to contain the word "PVC") - a product only bills as PVC when its
+ * Measurement Unit is explicitly set to PVC sq.ft, full stop.
  */
 export const isPvcItem = (item) => {
   const unit = (item.product?.unit || item.unit || '').toLowerCase().trim();
-
-  // Explicit non-PVC: trust 'Square feet' / 'Pcs' unit outright.
-  if (unit === 'square feet' || unit === 'pcs') return false;
-
-  // Explicit PVC: unit field says so.
-  if (unit.includes('pvc')) return true;
-
-  // Legacy fallback for products without an explicit unit field.
-  const category = (item.product?.category?.name || item.category_name || '').toLowerCase();
-  const name = (item.product?.name || item.product_name || '').toLowerCase();
-  return category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
+  return unit.includes('pvc');
 };

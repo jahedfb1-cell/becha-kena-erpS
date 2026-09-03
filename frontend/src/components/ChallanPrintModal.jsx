@@ -1,7 +1,7 @@
 import React from 'react';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
-import { pvcSlatCount } from '../utils/billing';
+import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import { brandFields } from '../utils/brandProfile';
 import renderRichText from '../utils/renderRichText';
 
@@ -78,12 +78,7 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
     }));
   };
 
-  const hasPvc = challanItems.some(item => {
-    const u = (item.product?.unit || item.unit || '').toLowerCase();
-    const c = (item.product?.category?.name || item.category_name || '').toLowerCase();
-    const p = (item.product?.name || item.product_name || '').toLowerCase();
-    return u.includes('pvc') || c.includes('pvc') || p.includes('pvc') || p.includes('clear water');
-  });
+  const hasPvc = challanItems.some(isPvcItem);
 
   return (
     <>
@@ -200,9 +195,7 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
                 ) : (
                   challanItems.map((item, idx) => {
                     const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
-                    const cat = (item.product?.category?.name || item.category_name || '').toLowerCase();
-                    const pName = (item.product?.name || item.product_name || '').toLowerCase();
-                    const isPvc = u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
+                    const isPvc = isPvcItem(item);
                     const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
                     const width = parseFloat(item.width) || 0;
 

@@ -106,12 +106,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
     return groups;
   };
 
-  const hasPvc = items.some(i => {
-    const u = (i.product?.unit || i.unit || '').trim().toLowerCase();
-    const cat = (i.product?.category?.name || i.category_name || '').toLowerCase();
-    const pName = (i.product?.name || i.product_name || '').toLowerCase();
-    return u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
-  });
+  const hasPvc = items.some(isPvcItem);
 
   const isDetailed = activePrintType === 'detailed' || activePrintType === 'pad-detailed';
   const isPad = activePrintType === 'pad-detailed' || activePrintType === 'pad-simplified';
@@ -462,9 +457,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
 
                             {isDetailed && (() => {
                               const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
-                              const cat = (item.product?.category?.name || item.category_name || '').toLowerCase();
-                              const pName = (item.product?.name || item.product_name || '').toLowerCase();
-                              const isPvc = u.includes('pvc') || cat.includes('pvc') || pName.includes('pvc') || pName.includes('clear water');
+                              const isPvc = isPvcItem(item);
                               const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
 
                               let tWidthVal = '-';

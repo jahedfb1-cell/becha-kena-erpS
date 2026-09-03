@@ -215,28 +215,14 @@ export const appendBlock = (sections, sectionId, block) =>
  * Whether a block is PVC strip curtain, which is billed across whole slats
  * rather than the measured opening.
  *
- * Nothing on the product marks this, so it is read out of whatever text is
- * to hand — unit, category or name. "Clear water" is in the list because
- * that range is PVC without saying so anywhere.
+ * The product's Measurement Unit field is the ONLY signal this checks.
+ * Category and product name are deliberately not consulted, even when they
+ * happen to contain the word "PVC" - a block only bills as PVC when its
+ * Measurement Unit is explicitly set to PVC sq.ft, full stop.
  */
 export const isPvcBlock = (block) => {
   const unit = (block.unit || '').toLowerCase().trim();
-
-  // Explicit non-PVC signals: trust the unit field outright.
-  // A product saved with 'Square feet' (the plain sq.ft option) or 'Pcs'
-  // is never slat-billed, even if its name happens to contain "PVC"
-  // (e.g. "Magnetic PVC Strip Door Curtain" billed by simple area).
-  if (unit === 'square feet' || unit === 'pcs') return false;
-
-  // Explicit PVC signal: unit field says PVC.
-  if (unit.includes('pvc')) return true;
-
-  // Legacy fallback: products created before the three-way Measurement Unit
-  // dropdown existed carry a generic unit ('sqft', 'Square feet', 'Pcs').
-  // For those we read the category and product name instead.
-  const category = (block.category_name || '').toLowerCase();
-  const name = (block.product_name || '').toLowerCase();
-  return category.includes('pvc') || name.includes('pvc') || name.includes('clear water');
+  return unit.includes('pvc');
 };
 
 /**
