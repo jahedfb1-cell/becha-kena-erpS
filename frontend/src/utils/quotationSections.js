@@ -137,7 +137,7 @@ export const removeSizeRow = (sections, sectionId, blockId, sizeId) =>
  * It is a starting point, not a rule: the salesman edits it per order, and
  * from then on the line's own text is what prints. See lineSpecification().
  */
-const fallbackSpecification = (minBillingSqft) =>
+export const fallbackSpecification = (minBillingSqft) =>
   `5% Sunscreen Fabrics\nHeavy Duty side clump & Controller\nFittings, Fixing, and installations\nWith all Accessories\nPer Blinds Minimum Quantity ${minBillingSqft || 20} Sft`;
 
 /**
