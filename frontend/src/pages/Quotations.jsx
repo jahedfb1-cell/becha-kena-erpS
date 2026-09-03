@@ -390,10 +390,19 @@ const Quotations = () => {
     }
   };
 
+  // Both start the new option on whatever products[0] happens to be, the
+  // same placeholder "+ Add Item" uses — but unlike a normal line, an option
+  // sitting there pre-filled with an arbitrary product is easy to miss
+  // entirely (nothing marks it as unset), so instead of leaving it as-is
+  // this immediately opens that block's own product search, exactly like
+  // "+ Add Item" already does, so the salesman is prompted to pick their
+  // actual product right away rather than silently keeping whatever
+  // products[0] happened to be.
   const addOptionGroupToSection = (sectionId) => {
     const optGrpId = 'opt_' + Date.now() + Math.random();
     if (products.length > 0) {
-      addProductBlockToSection(sectionId, products[0].id, true, optGrpId, true);
+      const newBlockId = addProductBlockToSection(sectionId, products[0].id, true, optGrpId, true);
+      if (newBlockId) setProductChangeBlockId(newBlockId);
     } else {
       alert('Please add products to system first.');
     }
@@ -401,7 +410,8 @@ const Quotations = () => {
 
   const addOptionVariantToGroup = (sectionId, optionGroupId) => {
     if (products.length > 0) {
-      addProductBlockToSection(sectionId, products[0].id, true, optionGroupId, false);
+      const newBlockId = addProductBlockToSection(sectionId, products[0].id, true, optionGroupId, false);
+      if (newBlockId) setProductChangeBlockId(newBlockId);
     }
   };
 
