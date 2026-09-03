@@ -604,23 +604,19 @@ const Quotations = () => {
               updatedBlock.cost_price = priorityLink ? (parseFloat(priorityLink.cost_price) || 0) : 0;
               updatedBlock.supplier_id = priorityLink ? priorityLink.supplier_id : '';
 
-              // Refresh the specification text too, but only when it's still
-              // exactly the OLD product's own default text — i.e. nobody has
-              // typed anything of their own into it yet. The moment a
-              // salesman edits the notes, this stops touching them (matching
-              // fallbackSpecification()'s "starting point, not a rule"
-              // contract) - but a block whose product was just swapped
-              // (an Option Group variant fresh off "+ Add Option Variation",
-              // or "Change Product" on a block nobody has annotated) should
-              // never keep showing a completely different product's spec
-              // text under its own name and price.
-              const oldProd = products.find(p => p.id === parseInt(block.product_id));
-              const oldDefaultNotes = oldProd
-                ? (oldProd.details || fallbackSpecification(parseFloat(block.min_billing_sqft) || 0))
-                : null;
-              if (!block.notes || block.notes === oldDefaultNotes) {
-                updatedBlock.notes = prod.details || fallbackSpecification(updatedBlock.min_billing_sqft);
-              }
+              // Refresh the specification text unconditionally on every
+              // product change - matching the order builder's
+              // handleBlockChange, and simpler/more reliable than trying to
+              // detect "has anyone typed their own text here yet" by
+              // comparing against what the old product's default would have
+              // been (that byte-for-byte comparison was too easy to miss:
+              // HTML re-serialised slightly differently by the rich text
+              // editor, or the product's own details text edited since,
+              // would both silently defeat it and leave the wrong product's
+              // spec showing). A changed product's own text is what should
+              // print now; if a salesman needs custom wording they retype it
+              // after picking the product, same as starting a fresh line.
+              updatedBlock.notes = prod.details || fallbackSpecification(updatedBlock.min_billing_sqft);
 
               // Switching to a Pcs-unit product: width/height are meaningless
               // for it, so fill in the 1x1 placeholder on any rows still
