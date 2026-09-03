@@ -1891,6 +1891,532 @@ const Quotations = () => {
                   optionGroups[b.option_group_id].push(b);
                 });
 
+                // The full item-builder table for one product block: unit
+                // price, the PVC-aware size columns (Approx Pcs/Slats/T.Width
+                // only appear when this block's own product is PVC), the
+                // Excel/AI-scan row tools, and the specification editor.
+                //
+                // One implementation shared by every block in this section,
+                // whether it's a normal line or one variant inside an Option
+                // Group — those used to be two separately hand-maintained
+                // copies, and the Option Group one had drifted to a plainer
+                // Width/Height/Pcs grid with none of the PVC columns, so an
+                // Option Group product's Measurement Unit never visibly
+                // changed anything about its own row layout the way a normal
+                // line's does. Calling this from both places instead means
+                // there is exactly one column layout to keep correct.
+                const renderItemTable = (block) => {
+                  const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs' ||
+                                     (block.unit || '').trim().toLowerCase() === 'pieces' ||
+                                     (block.unit || '').trim().toLowerCase() === 'piece' ||
+                                     (block.unit || '').trim().toLowerCase() === 'box' ||
+                                     (block.unit || '').trim().toLowerCase() === 'set';
+
+                  const _blkUnit = (block.unit || '').toLowerCase().trim();
+                  const isPvcBlock = _blkUnit.includes('pvc');
+
+                  const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
+                  const totalPcs = block.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0);
+                  const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
+
+                  const columnTitles = isPvcBlock ? QUOTE_COLUMNS_WITH_PVC : QUOTE_COLUMNS;
+
+                  // Selecting a new product here must fully refresh the block's
+                  // product-derived fields (name/code/size/category/unit/price/
+                  // MOQ/cost/supplier), not just its id — handleBlockChange('product_id', ...)
+                  // does that, and also recomputes every existing size row's
+                  // billed_sqft/line_total against the new product's unit and
+                  // min_billing_sqft. Keep using it here rather than patching
+                  // fields individually, so "change product" never leaves stale
+                  // pricing/PVC-slat data from the old product behind.
+                  const applyProductChange = (productId) => {
+                    if (!productId) return; // SearchableSelect also fires onChange('') on Clear — ignore, keep current product
+                    handleBlockChange(sec.id, block.id, 'product_id', productId);
+                    setProductChangeBlockId(null);
+                  };
+
+                  // Reuses the same SearchableSelect combobox as the Customer/Product
+                  // pickers elsewhere in this form (PriceListModal's product row, the
+                  // Select Customer field above) instead of a one-off dropdown, so
+                  // "Change Product" looks and behaves the same familiar way. It also
+                  // portals its menu to <body> and positions itself off the input's
+                  // real screen position — necessary here because this header row and
+                  // its table wrapper both scroll horizontally (overflowX: auto), which
+                  // silently clips a plain absolutely-positioned dropdown.
+                  const changeProductUI = productChangeBlockId === block.id ? (
+                    <div className="form-group" style={{ margin: 0, minWidth: '260px' }}>
+                      <label style={{ fontWeight: '600', fontSize: '12px', marginBottom: '4px', display: 'block' }}>Choose Product</label>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                        <div style={{ flex: 1 }}>
+                          <SearchableSelect
+                            options={productOptions}
+                            value={block.product_id ? String(block.product_id) : ''}
+                            onChange={applyProductChange}
+                            placeholder="Search product by name or code..."
+                            emptyLabel="No matching products"
+                            ariaLabel="Change product"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setProductChangeBlockId(null)}
+                          className="secondary-btn"
+                          style={{ padding: '8px 12px', fontSize: '12px' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setProductChangeBlockId(block.id)}
+                        style={{ fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        title="Click to change to another product"
+                      >
+                        🔄 Change Product
+                      </button>
+                      {/* Row 1's own Add/Delete buttons were removed (row 1 already has
+                          Excel/AI Scan for adding rows in bulk), so this is now the only
+                          way to remove a product block that still has just one row. */}
+                      <button
+                        type="button"
+                        onClick={() => removeProductBlock(sec.id, block.id)}
+                        style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        title="Remove this product"
+                      >
+                        🗑️ Remove Product
+                      </button>
+                    </div>
+                  );
+
+                  return (
+                    <div key={block.id} style={{ overflowX: 'auto', marginBottom: '20px', background: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                      <table className="data-table item-builder-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, margin: 0 }}>
+                        <colgroup>
+                          <col style={{ width: '100px' }} />
+                          <col style={{ width: '85px' }} />
+                          {isPvcBlock && <col style={{ width: '70px' }} />}
+                          {isPvcBlock && <col style={{ width: '70px' }} />}
+                          {isPvcBlock && <col style={{ width: '70px' }} />}
+                          <col style={{ width: '85px' }} />
+                          <col style={{ width: '60px' }} />
+                          <col style={{ width: '85px' }} />
+                          <col style={{ width: '100px' }} />
+                          {/* Wide enough for the first row's full button set:
+                              add row, delete, Excel paste and AI Scan. */}
+                          <col style={{ width: '200px' }} />
+                        </colgroup>
+                        <tbody>
+                          <ItemLineHeader
+                            productCode={block.product_code}
+                            productName={block.product_name}
+                            kind={unitKindOf({ isPcsBlock, isPvcBlock })}
+                            columns={columnTitles}
+                            changeProductUI={changeProductUI}
+                          />
+
+                          {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
+                          <tr className="mobile-size-card-row">
+                            <td colSpan={columnTitles.length} className="mobile-size-card-cell">
+                              <div className="mobile-size-card">
+                                <div className="mobile-size-header-bar">
+                                  {!isPcsBlock && (
+                                    <>
+                                      <div className="mobile-size-header-item">
+                                        <span className="mobile-size-header-icon icon-width">↔</span>
+                                        <span>WIDTH (INCH)</span>
+                                      </div>
+                                      <div className="mobile-size-header-item">
+                                        <span className="mobile-size-header-icon icon-height">↕</span>
+                                        <span>HEIGHT (INCH)</span>
+                                      </div>
+                                    </>
+                                  )}
+                                  <div className="mobile-size-header-item">
+                                    <span className="mobile-size-header-icon icon-pcs">📦</span>
+                                    <span>{isPcsBlock ? 'PCS / SET' : 'PCS/NOS'}</span>
+                                  </div>
+                                </div>
+                                <div className="mobile-size-rows">
+                                  {block.sizes.map((sz, szIdx) => (
+                                    <div className="mobile-size-row" key={sz.id}>
+                                      {!isPcsBlock && (
+                                        <>
+                                          <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            className="mobile-size-box"
+                                            value={sz.width}
+                                            placeholder="Width"
+                                            onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'width', e.target.value)}
+                                          />
+                                          <input
+                                            type="number"
+                                            inputMode="decimal"
+                                            className="mobile-size-box"
+                                            value={sz.height}
+                                            placeholder="Height"
+                                            onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'height', e.target.value)}
+                                          />
+                                        </>
+                                      )}
+                                      <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        className="mobile-size-box"
+                                        value={sz.pcs}
+                                        onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'pcs', e.target.value)}
+                                      />
+                                      {szIdx === block.sizes.length - 1 && (
+                                        <button
+                                          type="button"
+                                          className="mobile-size-add-btn"
+                                          onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                          title="Add Row"
+                                        >
+                                          +
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        className="mobile-size-del-btn"
+                                        onClick={() => removeSizeRowFromBlock(sec.id, block.id, sz.id)}
+                                        disabled={block.sizes.length <= 1}
+                                        title="Remove Row"
+                                      >
+                                        −
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="mobile-size-totals-bar">
+                                  <div className="mobile-size-total-pill">
+                                    <span className="mobile-size-total-icon">▦</span>
+                                    <span className="mobile-size-total-text">
+                                      <span className="mobile-size-total-label">Total Pcs</span>
+                                      <span className="mobile-size-total-value">{totalPcs}</span>
+                                    </span>
+                                  </div>
+                                  <div className="mobile-size-total-pill">
+                                    <span className="mobile-size-total-icon">▦</span>
+                                    <span className="mobile-size-total-text">
+                                      <span className="mobile-size-total-label">Total Billing</span>
+                                      <span className="mobile-size-total-value">{isPcsBlock ? `${totalPcs} pcs` : `${totalBilledSqft.toFixed(1)} sqft`}</span>
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          {block.sizes.map((sizeRow, sIdx) => (
+                            <tr key={sizeRow.id} className={sIdx > 0 ? 'mobile-subsequent-row' : ''} style={{ background: '#fff' }}>
+
+                              {/* Product Details Header Column was removed and moved to ItemLineHeader top row */}
+
+                              {/* Unit Price */}
+                              {sIdx === 0 && (
+                                <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '3px' }}>
+                                  <input
+                                    type="number"
+                                    value={block.unit_price}
+                                    onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)}
+                                    className="modern-form-control"
+                                    style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px' }}
+                                  />
+                                </td>
+                              )}
+
+                              {/* Measurement Columns: Dynamic Row Pattern */}
+                              {isPcsBlock ? (
+                                // colSpan 4, not 3: absorbs the old separate "Total Pcs"
+                                // readonly cell below, which always repeated this exact
+                                // number since a Pcs-unit block only ever has one row.
+                                <td colSpan={4} className="cell-size cell-pcs-unified" style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '6px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>Quantity:</span>
+                                    <input
+                                      type="number"
+                                      inputMode="numeric"
+                                      min="1"
+                                      value={sizeRow.pcs}
+                                      onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                      placeholder="Pcs"
+                                      className="modern-form-control"
+                                      style={{ width: '80px', textAlign: 'center', fontWeight: '700', fontSize: '13px', padding: '5px' }}
+                                    />
+                                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>PCS</span>
+                                  </div>
+                                </td>
+                              ) : (
+                                <>
+                                  {/* Width */}
+                                  <td className="cell-size" style={{ padding: '3px' }}>
+                                    <input
+                                      type="number"
+                                      inputMode="decimal"
+                                      value={sizeRow.width}
+                                      onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
+                                      onKeyDown={(e) => focusNextField(e, 'Height')}
+                                      placeholder="Width"
+                                      className="modern-form-control"
+                                    />
+                                  </td>
+
+                                  {/* Approx Pcs */}
+                                  {isPvcBlock && (
+                                    <td className="cell-size" style={{ padding: '3px' }}>
+                                      <input
+                                        type="text"
+                                        value={pvcApproxSlats(sizeRow.width)}
+                                        readOnly
+                                        placeholder="Approx"
+                                        className="modern-form-control"
+                                        style={{ backgroundColor: '#f0f9ff', color: '#0284c7', textAlign: 'center', fontWeight: '700', fontSize: '12px', border: '1px solid #bae6fd' }}
+                                      />
+                                    </td>
+                                  )}
+
+                                  {/* pcs of Slats */}
+                                  {isPvcBlock && (
+                                    <td className="cell-size" style={{ padding: '3px' }}>
+                                      <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        value={(() => {
+                                          const w = parseFloat(sizeRow.width) || 0;
+                                          if (w <= 0) return '';
+                                          if (sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '') {
+                                            return sizeRow.slats;
+                                          }
+                                          return pvcSlatCount(w);
+                                        })()}
+                                        onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'slats', e.target.value)}
+                                        placeholder="Slats"
+                                        className="modern-form-control"
+                                        style={{ textAlign: 'center', fontWeight: '700', border: '1.5px solid #0ea5e9', color: '#0369a1' }}
+                                      />
+                                    </td>
+                                  )}
+
+                                  {/* T. Width (in) */}
+                                  {isPvcBlock && (
+                                    <td className="cell-size" style={{ padding: '3px' }}>
+                                      <input
+                                        type="text"
+                                        value={(() => {
+                                          const w = parseFloat(sizeRow.width) || 0;
+                                          if (w <= 0) return '';
+                                          const slatSize = parseFloat(block.product_size) || 8;
+                                          const slatsCount = sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '' ? parseInt(sizeRow.slats) : pvcSlatCount(w);
+                                          return (slatsCount || 0) * slatSize;
+                                        })()}
+                                        readOnly
+                                        placeholder="T. Width"
+                                        className="modern-form-control"
+                                        style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '700', color: '#0f172a' }}
+                                      />
+                                    </td>
+                                  )}
+
+                                  {/* Height */}
+                                  <td className="cell-size" style={{ padding: '3px' }}>
+                                    <input
+                                      type="number"
+                                      inputMode="decimal"
+                                      value={sizeRow.height}
+                                      onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
+                                      onKeyDown={(e) => focusNextField(e, 'Width', 'nextRow')}
+                                      placeholder="Height"
+                                      className="modern-form-control"
+                                    />
+                                  </td>
+
+                                  {/* Pcs */}
+                                  <td className="cell-size" style={{ padding: '3px' }}>
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                      <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        value={sizeRow.pcs}
+                                        onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
+                                        placeholder="Pcs"
+                                        className="modern-form-control"
+                                        style={{ textAlign: 'center' }}
+                                      />
+                                      </div>
+                                    </td>
+                                  </>
+                                  )}
+
+                                  {/* Total Sq.Ft (desktop-only) - skipped for Pcs blocks,
+                                      whose Quantity cell above already covers this column
+                                      (see its colSpan) since Total Pcs always equals
+                                      Quantity there and doesn't need its own cell. Shown
+                                      per-row (this line's own billed sq.ft) rather than
+                                      merged, so every line's sq.ft is readable at a glance;
+                                      the block's grand total is in the footer row below. */}
+                                  {!isPcsBlock && (
+                                    <td className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '3px' }}>
+                                      <input
+                                        type="text"
+                                        value={(parseFloat(sizeRow.billed_sqft) || 0).toFixed(2)}
+                                        readOnly
+                                        className="modern-form-control"
+                                        style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
+                                      />
+                                    </td>
+                                  )}
+
+                                  {/* Total Price */}
+                                  {sIdx === 0 && (
+                                    <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '3px' }}>
+                                      <input
+                                        type="text"
+                                        value={totalPrice.toFixed(2)}
+                                        readOnly
+                                        className="modern-form-control"
+                                        style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '13px' }}
+                                      />
+                                    </td>
+                                  )}
+
+                                  {/* Block Actions */}
+                                  <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                      {/* Add/Delete hidden on the first row per request - row 1
+                                          already has Excel/AI Scan for adding rows in bulk, so
+                                          its own +/- buttons were just clutter alongside those. */}
+                                      {sIdx > 0 && !isPcsBlock && (
+                                        <button
+                                          type="button"
+                                          onClick={() => addSizeRowToBlock(sec.id, block.id)}
+                                          className="btn-action-circle btn-action-add"
+                                          title="Add Size Row"
+                                          style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                        >
+                                          ➕
+                                        </button>
+                                      )}
+                                      {sIdx > 0 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (!isPcsBlock && block.sizes.length > 1) {
+                                              removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
+                                            } else {
+                                              removeProductBlock(sec.id, block.id);
+                                            }
+                                          }}
+                                          className="btn-action-circle btn-action-delete"
+                                          title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
+                                          style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                        >
+                                          🗑️
+                                        </button>
+                                      )}
+                                      {sIdx === 0 && !isPcsBlock && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
+                                              setExcelPasteText('');
+                                            }}
+                                            style={{
+                                              background: '#059669',
+                                              color: '#ffffff',
+                                              border: 'none',
+                                              borderRadius: '6px',
+                                              padding: '4px 7px',
+                                              fontSize: '11px',
+                                              fontWeight: 'bold',
+                                              cursor: 'pointer'
+                                            }}
+                                            title="Paste Width, Height, Pcs from Excel"
+                                          >
+                                            📋 Excel
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setAiScanTargetBlock({ sectionId: sec.id, blockId: block.id })}
+                                            style={{
+                                              background: '#0891b2',
+                                              color: '#ffffff',
+                                              border: 'none',
+                                              borderRadius: '6px',
+                                              padding: '4px 7px',
+                                              fontSize: '11px',
+                                              fontWeight: 'bold',
+                                              cursor: 'pointer'
+                                            }}
+                                            title="AI Measure (OCR Bill/Slip Scan)"
+                                          >
+                                            📷 AI Scan
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                                ))}
+
+                              {/* Total Sq.Ft footer - sums every line's own billed sq.ft
+                                  (shown per-row above) into one grand total for the block,
+                                  so it's easy to see how many sq.ft this product line adds
+                                  up to without adding the column by hand. */}
+                              {!isPcsBlock && (
+                                <tr style={{ background: '#eef2ff' }}>
+                                  <td colSpan={columnTitles.length - 3} style={{ padding: '6px 12px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: '#3730a3' }}>
+                                    Total Sq.Ft
+                                  </td>
+                                  <td className="cell-total-sqft" style={{ padding: '3px' }}>
+                                    <input
+                                      type="text"
+                                      value={totalBilledSqft.toFixed(2)}
+                                      readOnly
+                                      className="modern-form-control"
+                                      style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#e0e7ff', fontWeight: '700', color: '#3730a3', textAlign: 'center' }}
+                                    />
+                                  </td>
+                                  <td></td>
+                                  <td></td>
+                                </tr>
+                              )}
+
+                              {/* Product Specification Box - this is the "Description of
+                                  Goods" text that prints under the line's product name
+                                  (see lineSpecification.js); the print side already
+                                  renders it through renderRichText(), so editing it as
+                                  rich text here isn't a new capability, just finally a way
+                                  to produce the markup that side was already built for. */}
+                              <tr style={{ background: '#f8fafc' }}>
+                                <td colSpan={columnTitles.length - 1} style={{ padding: '8px 14px' }}>
+                                  <RichTextEditor
+                                    value={block.notes || ''}
+                                    onChange={(html) => handleBlockChange(sec.id, block.id, 'notes', html)}
+                                    placeholder="Enter specification details (Description of Goods)..."
+                                    minHeight="70px"
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBlockChange(sec.id, block.id, 'notes', '')}
+                                    className="btn-action-circle btn-action-delete"
+                                    title="Clear Specification"
+                                  >
+                                    🗑️
+                                  </button>
+                                </td>
+                              </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                };
+
                 return (
                   <div key={sec.id} className="form-card-section mobile-simple-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '8px', padding: '6px', marginBottom: '24px', position: 'relative' }}>
                     {/* Section Card Header */}
@@ -1943,517 +2469,7 @@ const Quotations = () => {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         
                         {/* 1. Normal Standard Items (Per-Block Table) */}
-                        {normalBlocks.length > 0 && normalBlocks.map((block, bIdx) => {
-                          const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs' ||
-                                             (block.unit || '').trim().toLowerCase() === 'pieces' ||
-                                             (block.unit || '').trim().toLowerCase() === 'piece' ||
-                                             (block.unit || '').trim().toLowerCase() === 'box' ||
-                                             (block.unit || '').trim().toLowerCase() === 'set';
-                          
-                          const _blkUnit = (block.unit || '').toLowerCase().trim();
-                          const isPvcBlock = _blkUnit.includes('pvc');
-                          
-                          const totalBilledSqft = block.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
-                          const totalPcs = block.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0);
-                          const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
-
-                          const columnTitles = isPvcBlock ? QUOTE_COLUMNS_WITH_PVC : QUOTE_COLUMNS;
-
-                          // Selecting a new product here must fully refresh the block's
-                          // product-derived fields (name/code/size/category/unit/price/
-                          // MOQ/cost/supplier), not just its id — handleBlockChange('product_id', ...)
-                          // does that, and also recomputes every existing size row's
-                          // billed_sqft/line_total against the new product's unit and
-                          // min_billing_sqft. Keep using it here rather than patching
-                          // fields individually, so "change product" never leaves stale
-                          // pricing/PVC-slat data from the old product behind.
-                          const applyProductChange = (productId) => {
-                            if (!productId) return; // SearchableSelect also fires onChange('') on Clear — ignore, keep current product
-                            handleBlockChange(sec.id, block.id, 'product_id', productId);
-                            setProductChangeBlockId(null);
-                          };
-
-                          // Reuses the same SearchableSelect combobox as the Customer/Product
-                          // pickers elsewhere in this form (PriceListModal's product row, the
-                          // Select Customer field above) instead of a one-off dropdown, so
-                          // "Change Product" looks and behaves the same familiar way. It also
-                          // portals its menu to <body> and positions itself off the input's
-                          // real screen position — necessary here because this header row and
-                          // its table wrapper both scroll horizontally (overflowX: auto), which
-                          // silently clips a plain absolutely-positioned dropdown.
-                          const changeProductUI = productChangeBlockId === block.id ? (
-                            <div className="form-group" style={{ margin: 0, minWidth: '260px' }}>
-                              <label style={{ fontWeight: '600', fontSize: '12px', marginBottom: '4px', display: 'block' }}>Choose Product</label>
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                <div style={{ flex: 1 }}>
-                                  <SearchableSelect
-                                    options={productOptions}
-                                    value={block.product_id ? String(block.product_id) : ''}
-                                    onChange={applyProductChange}
-                                    placeholder="Search product by name or code..."
-                                    emptyLabel="No matching products"
-                                    ariaLabel="Change product"
-                                  />
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setProductChangeBlockId(null)}
-                                  className="secondary-btn"
-                                  style={{ padding: '8px 12px', fontSize: '12px' }}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <button
-                                type="button"
-                                onClick={() => setProductChangeBlockId(block.id)}
-                                style={{ fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="Click to change to another product"
-                              >
-                                🔄 Change Product
-                              </button>
-                              {/* Row 1's own Add/Delete buttons were removed (row 1 already has
-                                  Excel/AI Scan for adding rows in bulk), so this is now the only
-                                  way to remove a product block that still has just one row. */}
-                              <button
-                                type="button"
-                                onClick={() => removeProductBlock(sec.id, block.id)}
-                                style={{ fontSize: '11px', color: '#ef4444', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '4px 12px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                title="Remove this product"
-                              >
-                                🗑️ Remove Product
-                              </button>
-                            </div>
-                          );
-
-                          return (
-                            <div key={block.id} style={{ overflowX: 'auto', marginBottom: '20px', background: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                              <table className="data-table item-builder-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, margin: 0 }}>
-                                <colgroup>
-                                  <col style={{ width: '100px' }} />
-                                  <col style={{ width: '85px' }} />
-                                  {isPvcBlock && <col style={{ width: '70px' }} />}
-                                  {isPvcBlock && <col style={{ width: '70px' }} />}
-                                  {isPvcBlock && <col style={{ width: '70px' }} />}
-                                  <col style={{ width: '85px' }} />
-                                  <col style={{ width: '60px' }} />
-                                  <col style={{ width: '85px' }} />
-                                  <col style={{ width: '100px' }} />
-                                  {/* Wide enough for the first row's full button set:
-                                      add row, delete, Excel paste and AI Scan. */}
-                                  <col style={{ width: '200px' }} />
-                                </colgroup>
-                                <tbody>
-                                  <ItemLineHeader
-                                    productCode={block.product_code}
-                                    productName={block.product_name}
-                                    kind={unitKindOf({ isPcsBlock, isPvcBlock })}
-                                    columns={columnTitles}
-                                    changeProductUI={changeProductUI}
-                                  />
-
-                                  {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
-                                  <tr className="mobile-size-card-row">
-                                    <td colSpan={columnTitles.length} className="mobile-size-card-cell">
-                                      <div className="mobile-size-card">
-                                        <div className="mobile-size-header-bar">
-                                          {!isPcsBlock && (
-                                            <>
-                                              <div className="mobile-size-header-item">
-                                                <span className="mobile-size-header-icon icon-width">↔</span>
-                                                <span>WIDTH (INCH)</span>
-                                              </div>
-                                              <div className="mobile-size-header-item">
-                                                <span className="mobile-size-header-icon icon-height">↕</span>
-                                                <span>HEIGHT (INCH)</span>
-                                              </div>
-                                            </>
-                                          )}
-                                          <div className="mobile-size-header-item">
-                                            <span className="mobile-size-header-icon icon-pcs">📦</span>
-                                            <span>{isPcsBlock ? 'PCS / SET' : 'PCS/NOS'}</span>
-                                          </div>
-                                        </div>
-                                        <div className="mobile-size-rows">
-                                          {block.sizes.map((sz, szIdx) => (
-                                            <div className="mobile-size-row" key={sz.id}>
-                                              {!isPcsBlock && (
-                                                <>
-                                                  <input
-                                                    type="number"
-                                                    inputMode="decimal"
-                                                    className="mobile-size-box"
-                                                    value={sz.width}
-                                                    placeholder="Width"
-                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'width', e.target.value)}
-                                                  />
-                                                  <input
-                                                    type="number"
-                                                    inputMode="decimal"
-                                                    className="mobile-size-box"
-                                                    value={sz.height}
-                                                    placeholder="Height"
-                                                    onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'height', e.target.value)}
-                                                  />
-                                                </>
-                                              )}
-                                              <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                className="mobile-size-box"
-                                                value={sz.pcs}
-                                                onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'pcs', e.target.value)}
-                                              />
-                                              {szIdx === block.sizes.length - 1 && (
-                                                <button
-                                                  type="button"
-                                                  className="mobile-size-add-btn"
-                                                  onClick={() => addSizeRowToBlock(sec.id, block.id)}
-                                                  title="Add Row"
-                                                >
-                                                  +
-                                                </button>
-                                              )}
-                                              <button
-                                                type="button"
-                                                className="mobile-size-del-btn"
-                                                onClick={() => removeSizeRowFromBlock(sec.id, block.id, sz.id)}
-                                                disabled={block.sizes.length <= 1}
-                                                title="Remove Row"
-                                              >
-                                                −
-                                              </button>
-                                            </div>
-                                          ))}
-                                        </div>
-                                        <div className="mobile-size-totals-bar">
-                                          <div className="mobile-size-total-pill">
-                                            <span className="mobile-size-total-icon">▦</span>
-                                            <span className="mobile-size-total-text">
-                                              <span className="mobile-size-total-label">Total Pcs</span>
-                                              <span className="mobile-size-total-value">{totalPcs}</span>
-                                            </span>
-                                          </div>
-                                          <div className="mobile-size-total-pill">
-                                            <span className="mobile-size-total-icon">▦</span>
-                                            <span className="mobile-size-total-text">
-                                              <span className="mobile-size-total-label">Total Billing</span>
-                                              <span className="mobile-size-total-value">{isPcsBlock ? `${totalPcs} pcs` : `${totalBilledSqft.toFixed(1)} sqft`}</span>
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                  {block.sizes.map((sizeRow, sIdx) => (
-                                    <tr key={sizeRow.id} className={sIdx > 0 ? 'mobile-subsequent-row' : ''} style={{ background: '#fff' }}>
-
-                                      {/* Product Details Header Column was removed and moved to ItemLineHeader top row */}
-
-                                      {/* Unit Price */}
-                                      {sIdx === 0 && (
-                                        <td rowSpan={block.sizes.length} className="cell-unitprice" style={{ verticalAlign: 'top', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '3px' }}>
-                                          <input
-                                            type="number"
-                                            value={block.unit_price}
-                                            onChange={(e) => handleBlockChange(sec.id, block.id, 'unit_price', e.target.value)}
-                                            className="modern-form-control"
-                                            style={{ textAlign: 'center', fontWeight: '600', padding: '8px 10px', fontSize: '13px' }}
-                                          />
-                                        </td>
-                                      )}
-
-                                      {/* Measurement Columns: Dynamic Row Pattern */}
-                                      {isPcsBlock ? (
-                                        // colSpan 4, not 3: absorbs the old separate "Total Pcs"
-                                        // readonly cell below, which always repeated this exact
-                                        // number since a Pcs-unit block only ever has one row.
-                                        <td colSpan={4} className="cell-size cell-pcs-unified" style={{ padding: '8px 12px', textAlign: 'center' }}>
-                                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '6px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                            <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>Quantity:</span>
-                                            <input
-                                              type="number"
-                                              inputMode="numeric"
-                                              min="1"
-                                              value={sizeRow.pcs}
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
-                                              placeholder="Pcs"
-                                              className="modern-form-control"
-                                              style={{ width: '80px', textAlign: 'center', fontWeight: '700', fontSize: '13px', padding: '5px' }}
-                                            />
-                                            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>PCS</span>
-                                          </div>
-                                        </td>
-                                      ) : (
-                                        <>
-                                          {/* Width */}
-                                          <td className="cell-size" style={{ padding: '3px' }}>
-                                            <input
-                                              type="number"
-                                              inputMode="decimal"
-                                              value={sizeRow.width}
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'width', e.target.value)}
-                                              onKeyDown={(e) => focusNextField(e, 'Height')}
-                                              placeholder="Width"
-                                              className="modern-form-control"
-                                            />
-                                          </td>
-
-                                          {/* Approx Pcs */}
-                                          {isPvcBlock && (
-                                            <td className="cell-size" style={{ padding: '3px' }}>
-                                              <input
-                                                type="text"
-                                                value={pvcApproxSlats(sizeRow.width)}
-                                                readOnly
-                                                placeholder="Approx"
-                                                className="modern-form-control"
-                                                style={{ backgroundColor: '#f0f9ff', color: '#0284c7', textAlign: 'center', fontWeight: '700', fontSize: '12px', border: '1px solid #bae6fd' }}
-                                              />
-                                            </td>
-                                          )}
-
-                                          {/* pcs of Slats */}
-                                          {isPvcBlock && (
-                                            <td className="cell-size" style={{ padding: '3px' }}>
-                                              <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                value={(() => {
-                                                  const w = parseFloat(sizeRow.width) || 0;
-                                                  if (w <= 0) return '';
-                                                  if (sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '') {
-                                                    return sizeRow.slats;
-                                                  }
-                                                  return pvcSlatCount(w);
-                                                })()}
-                                                onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'slats', e.target.value)}
-                                                placeholder="Slats"
-                                                className="modern-form-control"
-                                                style={{ textAlign: 'center', fontWeight: '700', border: '1.5px solid #0ea5e9', color: '#0369a1' }}
-                                              />
-                                            </td>
-                                          )}
-
-                                          {/* T. Width (in) */}
-                                          {isPvcBlock && (
-                                            <td className="cell-size" style={{ padding: '3px' }}>
-                                              <input
-                                                type="text"
-                                                value={(() => {
-                                                  const w = parseFloat(sizeRow.width) || 0;
-                                                  if (w <= 0) return '';
-                                                  const slatSize = parseFloat(block.product_size) || 8;
-                                                  const slatsCount = sizeRow.slats !== undefined && sizeRow.slats !== null && sizeRow.slats !== '' ? parseInt(sizeRow.slats) : pvcSlatCount(w);
-                                                  return (slatsCount || 0) * slatSize;
-                                                })()}
-                                                readOnly
-                                                placeholder="T. Width"
-                                                className="modern-form-control"
-                                                style={{ backgroundColor: '#f1f5f9', textAlign: 'center', fontWeight: '700', color: '#0f172a' }}
-                                              />
-                                            </td>
-                                          )}
-
-                                          {/* Height */}
-                                          <td className="cell-size" style={{ padding: '3px' }}>
-                                            <input
-                                              type="number"
-                                              inputMode="decimal"
-                                              value={sizeRow.height}
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'height', e.target.value)}
-                                              onKeyDown={(e) => focusNextField(e, 'Width', 'nextRow')}
-                                              placeholder="Height"
-                                              className="modern-form-control"
-                                            />
-                                          </td>
-
-                                          {/* Pcs */}
-                                          <td className="cell-size" style={{ padding: '3px' }}>
-                                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                              <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                value={sizeRow.pcs}
-                                                onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
-                                                placeholder="Pcs"
-                                                className="modern-form-control"
-                                                style={{ textAlign: 'center' }}
-                                              />
-                                              </div>
-                                            </td>
-                                          </>
-                                          )}
-
-                                          {/* Total Sq.Ft (desktop-only) - skipped for Pcs blocks,
-                                              whose Quantity cell above already covers this column
-                                              (see its colSpan) since Total Pcs always equals
-                                              Quantity there and doesn't need its own cell. Shown
-                                              per-row (this line's own billed sq.ft) rather than
-                                              merged, so every line's sq.ft is readable at a glance;
-                                              the block's grand total is in the footer row below. */}
-                                          {!isPcsBlock && (
-                                            <td className="cell-total-sqft" style={{ verticalAlign: 'top', padding: '3px' }}>
-                                              <input
-                                                type="text"
-                                                value={(parseFloat(sizeRow.billed_sqft) || 0).toFixed(2)}
-                                                readOnly
-                                                className="modern-form-control"
-                                                style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#f1f5f9', fontWeight: '600', textAlign: 'center' }}
-                                              />
-                                            </td>
-                                          )}
-
-                                          {/* Total Price */}
-                                          {sIdx === 0 && (
-                                            <td rowSpan={block.sizes.length} className="cell-total" style={{ verticalAlign: 'top', background: '#fafafa', borderRight: '1px solid var(--border)', padding: '3px' }}>
-                                              <input
-                                                type="text"
-                                                value={totalPrice.toFixed(2)}
-                                                readOnly
-                                                className="modern-form-control"
-                                                style={{ backgroundColor: '#f1f5f9', fontWeight: 'bold', color: 'var(--primary)', textAlign: 'center', padding: '8px 10px', fontSize: '13px' }}
-                                              />
-                                            </td>
-                                          )}
-
-                                          {/* Block Actions */}
-                                          <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                              {/* Add/Delete hidden on the first row per request - row 1
-                                                  already has Excel/AI Scan for adding rows in bulk, so
-                                                  its own +/- buttons were just clutter alongside those. */}
-                                              {sIdx > 0 && !isPcsBlock && (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => addSizeRowToBlock(sec.id, block.id)}
-                                                  className="btn-action-circle btn-action-add"
-                                                  title="Add Size Row"
-                                                  style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                                >
-                                                  ➕
-                                                </button>
-                                              )}
-                                              {sIdx > 0 && (
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    if (!isPcsBlock && block.sizes.length > 1) {
-                                                      removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
-                                                    } else {
-                                                      removeProductBlock(sec.id, block.id);
-                                                    }
-                                                  }}
-                                                  className="btn-action-circle btn-action-delete"
-                                                  title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
-                                                  style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                                >
-                                                  🗑️
-                                                </button>
-                                              )}
-                                              {sIdx === 0 && !isPcsBlock && (
-                                                <>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      setExcelPasteTargetBlock({ sectionId: sec.id, blockId: block.id });
-                                                      setExcelPasteText('');
-                                                    }}
-                                                    style={{
-                                                      background: '#059669',
-                                                      color: '#ffffff',
-                                                      border: 'none',
-                                                      borderRadius: '6px',
-                                                      padding: '4px 7px',
-                                                      fontSize: '11px',
-                                                      fontWeight: 'bold',
-                                                      cursor: 'pointer'
-                                                    }}
-                                                    title="Paste Width, Height, Pcs from Excel"
-                                                  >
-                                                    📋 Excel
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setAiScanTargetBlock({ sectionId: sec.id, blockId: block.id })}
-                                                    style={{
-                                                      background: '#0891b2',
-                                                      color: '#ffffff',
-                                                      border: 'none',
-                                                      borderRadius: '6px',
-                                                      padding: '4px 7px',
-                                                      fontSize: '11px',
-                                                      fontWeight: 'bold',
-                                                      cursor: 'pointer'
-                                                    }}
-                                                    title="AI Measure (OCR Bill/Slip Scan)"
-                                                  >
-                                                    📷 AI Scan
-                                                  </button>
-                                                </>
-                                              )}
-                                            </div>
-                                          </td>
-                                        </tr>
-                                        ))}
-
-                                      {/* Total Sq.Ft footer - sums every line's own billed sq.ft
-                                          (shown per-row above) into one grand total for the block,
-                                          so it's easy to see how many sq.ft this product line adds
-                                          up to without adding the column by hand. */}
-                                      {!isPcsBlock && (
-                                        <tr style={{ background: '#eef2ff' }}>
-                                          <td colSpan={columnTitles.length - 3} style={{ padding: '6px 12px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: '#3730a3' }}>
-                                            Total Sq.Ft
-                                          </td>
-                                          <td className="cell-total-sqft" style={{ padding: '3px' }}>
-                                            <input
-                                              type="text"
-                                              value={totalBilledSqft.toFixed(2)}
-                                              readOnly
-                                              className="modern-form-control"
-                                              style={{ padding: '9px 12px', fontSize: '13px', borderRadius: '8px', backgroundColor: '#e0e7ff', fontWeight: '700', color: '#3730a3', textAlign: 'center' }}
-                                            />
-                                          </td>
-                                          <td></td>
-                                          <td></td>
-                                        </tr>
-                                      )}
-
-                                      {/* Product Specification Box - this is the "Description of
-                                          Goods" text that prints under the line's product name
-                                          (see lineSpecification.js); the print side already
-                                          renders it through renderRichText(), so editing it as
-                                          rich text here isn't a new capability, just finally a way
-                                          to produce the markup that side was already built for. */}
-                                      <tr style={{ background: '#f8fafc' }}>
-                                        <td colSpan={columnTitles.length - 1} style={{ padding: '8px 14px' }}>
-                                          <RichTextEditor
-                                            value={block.notes || ''}
-                                            onChange={(html) => handleBlockChange(sec.id, block.id, 'notes', html)}
-                                            placeholder="Enter specification details (Description of Goods)..."
-                                            minHeight="70px"
-                                          />
-                                        </td>
-                                        <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                                          <button 
-                                            type="button" 
-                                            onClick={() => handleBlockChange(sec.id, block.id, 'notes', '')} 
-                                            className="btn-action-circle btn-action-delete"
-                                            title="Clear Specification"
-                                          >
-                                            🗑️
-                                          </button>
-                                        </td>
-                                      </tr>
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })}
+                        {normalBlocks.length > 0 && normalBlocks.map((block) => renderItemTable(block))}
 
                         {/* 2. Option Groups Cards (Variations Selector) */}
                         {Object.keys(optionGroups).map((ogId, ogIdx) => {
@@ -2480,9 +2496,6 @@ const Quotations = () => {
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                                 {optionBlocks.map((b, optIdx) => {
                                   const isSelected = b.is_selected;
-                                  const isEnabled = b.is_enabled_for_print !== false;
-                                  const totalSqft = b.sizes.reduce((sum, s) => sum + (parseFloat(s.billed_sqft) || 0), 0);
-                                  const totalPrice = b.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
 
                                   return (
                                     <div 
@@ -2521,206 +2534,7 @@ const Quotations = () => {
                                         </div>
                                       </div>
 
-                                      {/* Option Product Selector & Inputs */}
-                                      <div className="option-grid-4col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
-                                        <div>
-                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Product Variant</label>
-                                          <SearchableSelect
-                                            options={productOptions}
-                                            value={b.product_id ? String(b.product_id) : ''}
-                                            onChange={(productId) => {
-                                              if (!productId) return; // Clear fires onChange('') too - ignore, keep the current option
-                                              handleBlockChange(sec.id, b.id, 'product_id', productId);
-                                            }}
-                                            placeholder="Search product by name or code..."
-                                            emptyLabel="No matching products"
-                                            ariaLabel="Choose option variant product"
-                                          />
-                                        </div>
-
-                                        <div>
-                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Unit Price (৳)</label>
-                                          <input
-                                            type="number"
-                                            value={b.unit_price}
-                                            onChange={(e) => handleBlockChange(sec.id, b.id, 'unit_price', e.target.value)}
-                                            className="modern-form-control"
-                                            style={{ textAlign: 'center' }}
-                                          />
-                                        </div>
-
-                                        <div>
-                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Total Sq.Ft</label>
-                                          <input
-                                            type="text"
-                                            value={totalSqft.toFixed(2)}
-                                            readOnly
-                                            className="modern-form-control"
-                                            style={{ textAlign: 'center', background: '#f1f5f9', fontWeight: 'bold' }}
-                                          />
-                                        </div>
-
-                                        <div>
-                                          <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Option Total Price</label>
-                                          <input
-                                            type="text"
-                                            value={isSelected ? `৳${totalPrice.toFixed(2)}` : '৳0.00 (Unselected)'}
-                                            readOnly
-                                            className="modern-form-control"
-                                            style={{ textAlign: 'center', background: '#f1f5f9', fontWeight: 'bold', color: isSelected ? '#7c3aed' : '#94a3b8' }}
-                                          />
-                                        </div>
-                                      </div>
-
-                                      {/* Mobile-only Width/Height/Pcs card (hidden on desktop) */}
-                                      <div className="mobile-size-card">
-                                        <div className="mobile-size-header-bar">
-                                          <div className="mobile-size-header-item">
-                                            <span className="mobile-size-header-icon icon-width">↔</span>
-                                            <span>WIDTH (INCH)</span>
-                                          </div>
-                                          <div className="mobile-size-header-item">
-                                            <span className="mobile-size-header-icon icon-height">↕</span>
-                                            <span>HEIGHT (INCH)</span>
-                                          </div>
-                                          <div className="mobile-size-header-item">
-                                            <span className="mobile-size-header-icon icon-pcs">📦</span>
-                                            <span>PCS/NOS</span>
-                                          </div>
-                                        </div>
-                                        <div className="mobile-size-rows">
-                                          {b.sizes.map((sz, szIdx) => (
-                                            <div className="mobile-size-row" key={sz.id}>
-                                              <input
-                                                type="number"
-                                                inputMode="decimal"
-                                                className="mobile-size-box"
-                                                value={sz.width}
-                                                onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'width', e.target.value)}
-                                              />
-                                              <input
-                                                type="number"
-                                                inputMode="decimal"
-                                                className="mobile-size-box"
-                                                value={sz.height}
-                                                onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'height', e.target.value)}
-                                              />
-                                              <input
-                                                type="number"
-                                                inputMode="numeric"
-                                                className="mobile-size-box"
-                                                value={sz.pcs}
-                                                onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'pcs', e.target.value)}
-                                              />
-                                              {szIdx === b.sizes.length - 1 && (
-                                                <button
-                                                  type="button"
-                                                  className="mobile-size-add-btn"
-                                                  onClick={() => addSizeRowToBlock(sec.id, b.id)}
-                                                  title="Add Row"
-                                                >
-                                                  +
-                                                </button>
-                                              )}
-                                              <button
-                                                type="button"
-                                                className="mobile-size-del-btn"
-                                                onClick={() => removeSizeRowFromBlock(sec.id, b.id, sz.id)}
-                                                disabled={b.sizes.length <= 1}
-                                                title="Remove Row"
-                                              >
-                                                −
-                                              </button>
-                                            </div>
-                                          ))}
-                                        </div>
-                                        <div className="mobile-size-totals-bar">
-                                          <div className="mobile-size-total-pill">
-                                            <span className="mobile-size-total-icon">▦</span>
-                                            <span className="mobile-size-total-text">
-                                              <span className="mobile-size-total-label">Total Pcs</span>
-                                              <span className="mobile-size-total-value">{b.sizes.reduce((sum, s) => sum + (parseInt(s.pcs) || 0), 0)}</span>
-                                            </span>
-                                          </div>
-                                          <div className="mobile-size-total-pill">
-                                            <span className="mobile-size-total-icon">▦</span>
-                                            <span className="mobile-size-total-text">
-                                              <span className="mobile-size-total-label">Total Sqft</span>
-                                              <span className="mobile-size-total-value">{totalSqft.toFixed(1)} sqft</span>
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Option Size Rows (desktop) */}
-                                      {b.sizes.map((sz, szIdx) => (
-                                        <div key={sz.id} className="option-size-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.5fr 40px', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
-                                          <input
-                                            type="number"
-                                            inputMode="decimal"
-                                            placeholder="Width"
-                                            value={sz.width}
-                                            onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'width', e.target.value)}
-                                            onKeyDown={(e) => focusNextField(e, 'Height')}
-                                            className="modern-form-control"
-                                            style={{ fontSize: '12px' }}
-                                          />
-                                          <input
-                                            type="number"
-                                            inputMode="decimal"
-                                            placeholder="Height"
-                                            value={sz.height}
-                                            onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'height', e.target.value)}
-                                            onKeyDown={(e) => focusNextField(e, 'Width', 'nextRow')}
-                                            className="modern-form-control"
-                                            style={{ fontSize: '12px' }}
-                                          />
-                                          <input
-                                            type="number"
-                                            inputMode="numeric"
-                                            placeholder="Pcs"
-                                            value={sz.pcs}
-                                            onChange={(e) => handleSizeChange(sec.id, b.id, sz.id, 'pcs', e.target.value)}
-                                            className="modern-form-control"
-                                            style={{ fontSize: '12px', textAlign: 'center' }}
-                                          />
-                                          <input
-                                            type="text"
-                                            value={`${sz.billed_sqft.toFixed(2)} sqft`}
-                                            readOnly
-                                            className="modern-form-control"
-                                            style={{ fontSize: '12px', background: '#f1f5f9', textAlign: 'center' }}
-                                          />
-                                          {szIdx === 0 ? (
-                                            <button
-                                              type="button"
-                                              onClick={() => addSizeRowToBlock(sec.id, b.id)}
-                                              className="btn-action-circle btn-action-add"
-                                              title="Add Size"
-                                            >
-                                              ➕
-                                            </button>
-                                          ) : (
-                                            <button
-                                              type="button"
-                                              onClick={() => removeSizeRowFromBlock(sec.id, b.id, sz.id)}
-                                              className="btn-action-circle btn-action-delete"
-                                              title="Delete Size"
-                                            >
-                                              🗑️
-                                            </button>
-                                          )}
-                                        </div>
-                                      ))}
-
-                                      <div style={{ marginTop: '6px' }}>
-                                        <RichTextEditor
-                                          value={b.notes || ''}
-                                          onChange={(html) => handleBlockChange(sec.id, b.id, 'notes', html)}
-                                          placeholder="Option notes/specifications (Description of Goods)..."
-                                          minHeight="60px"
-                                        />
-                                      </div>
+                                      {renderItemTable(b)}
                                     </div>
                                   );
                                 })}
