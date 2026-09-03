@@ -2506,16 +2506,17 @@ const Quotations = () => {
                                       <div className="option-grid-4col" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
                                         <div>
                                           <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Product Variant</label>
-                                          <select
-                                            value={b.product_id}
-                                            onChange={(e) => handleBlockChange(sec.id, b.id, 'product_id', e.target.value)}
-                                            className="modern-form-control"
-                                            style={{ fontSize: '13px', fontWeight: 'bold' }}
-                                          >
-                                            {products.map(p => (
-                                              <option key={p.id} value={p.id}>{p.product_code ? p.product_code.toUpperCase() : p.name}</option>
-                                            ))}
-                                          </select>
+                                          <SearchableSelect
+                                            options={productOptions}
+                                            value={b.product_id ? String(b.product_id) : ''}
+                                            onChange={(productId) => {
+                                              if (!productId) return; // Clear fires onChange('') too - ignore, keep the current option
+                                              handleBlockChange(sec.id, b.id, 'product_id', productId);
+                                            }}
+                                            placeholder="Search product by name or code..."
+                                            emptyLabel="No matching products"
+                                            ariaLabel="Choose option variant product"
+                                          />
                                         </div>
 
                                         <div>
