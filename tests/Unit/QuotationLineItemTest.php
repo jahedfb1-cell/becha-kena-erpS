@@ -150,7 +150,7 @@ class QuotationLineItemTest extends TestCase
     public function test_pvc_bills_whole_slats_rather_than_the_measured_width(): void
     {
         $result = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 60, 'height' => 84, 'pcs' => 1,
             'product_size' => 8, 'unit_price' => 100,
         ]);
@@ -173,7 +173,7 @@ class QuotationLineItemTest extends TestCase
     public function test_a_partial_slat_below_three_quarters_is_dropped(): void
     {
         $result = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 68.6, 'height' => 48, 'pcs' => 1, 'unit_price' => 100,
         ]);
 
@@ -184,7 +184,7 @@ class QuotationLineItemTest extends TestCase
     public function test_a_partial_slat_at_three_quarters_rounds_up(): void
     {
         $result = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 68.8, 'height' => 48, 'pcs' => 1, 'unit_price' => 100,
         ]);
 
@@ -196,7 +196,7 @@ class QuotationLineItemTest extends TestCase
     public function test_an_explicit_slat_count_overrides_the_calculation(): void
     {
         $result = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 60, 'height' => 84, 'pcs' => 1,
             'slats' => 14, 'product_size' => 8, 'unit_price' => 100,
         ]);
@@ -209,12 +209,12 @@ class QuotationLineItemTest extends TestCase
     public function test_slat_size_falls_back_to_eight_inches_when_unset(): void
     {
         $withoutSize = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 60, 'height' => 84, 'pcs' => 1, 'unit_price' => 100,
         ]);
 
         $withZeroSize = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 60, 'height' => 84, 'pcs' => 1,
             'product_size' => 0, 'unit_price' => 100,
         ]);
@@ -226,7 +226,7 @@ class QuotationLineItemTest extends TestCase
     public function test_pvc_area_is_multiplied_by_the_piece_count(): void
     {
         $result = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 60, 'height' => 84, 'pcs' => 2,
             'product_size' => 8, 'unit_price' => 100,
         ]);
@@ -234,20 +234,28 @@ class QuotationLineItemTest extends TestCase
         $this->assertSame(93.33, $result['billed_sqft']);
     }
 
-    /** PVC is recognised from the category, the unit or the product name. */
-    public function test_pvc_is_recognised_however_it_is_labelled(): void
+    /**
+     * The Measurement Unit is the ONLY signal for PVC billing - category and
+     * product name are never consulted, even when they say "PVC" or "Clear
+     * Water" outright. A product named "Magnetic PVC Strip Curtain" but
+     * saved with Unit = "Square feet" bills as plain sq.ft, full stop.
+     */
+    public function test_pvc_is_recognised_by_unit_alone(): void
     {
         $byUnit = $this->service->calculateLineItem([
             'unit' => 'PVC', 'width' => 60, 'height' => 84, 'pcs' => 1, 'unit_price' => 100,
         ]);
 
-        $byProductName = $this->service->calculateLineItem([
+        $byCategoryOrNameOnly = $this->service->calculateLineItem([
+            'unit' => 'Square feet', 'category_name' => 'PVC Strip Curtain',
             'product_name' => 'Clear Water Strip', 'width' => 60, 'height' => 84,
             'pcs' => 1, 'unit_price' => 100,
         ]);
 
         $this->assertSame(10, $byUnit['slats']);
-        $this->assertSame(10, $byProductName['slats']);
+        $this->assertNull($byCategoryOrNameOnly['slats']);
+        // 60 x 84 / 144 = 35 sq.ft, billed plain (no slat math applied)
+        $this->assertSame(35.0, $byCategoryOrNameOnly['billed_sqft']);
     }
 
     /**
@@ -257,7 +265,7 @@ class QuotationLineItemTest extends TestCase
     public function test_pvc_without_measurements_falls_back_to_area_billing(): void
     {
         $result = $this->service->calculateLineItem([
-            'category_name' => 'PVC Strip Curtain',
+            'unit' => 'PVC sq.ft',
             'width' => 0, 'height' => 84, 'pcs' => 1, 'unit_price' => 100,
         ]);
 

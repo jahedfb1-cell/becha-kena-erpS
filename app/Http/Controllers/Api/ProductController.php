@@ -47,13 +47,21 @@ class ProductController extends Controller
         }
 
         return \Illuminate\Support\Facades\DB::transaction(function () use ($request) {
+            $unit = $request->unit ?? 'sqft';
+
             $product = Product::create([
                 'product_code'        => $request->product_code,
                 'name'                => $request->name,
-                'unit'                => $request->unit ?? 'sqft',
+                'unit'                => $unit,
                 'product_category_id' => $request->product_category_id,
                 'default_unit_price'  => $request->default_unit_price,
-                'product_size'        => $request->product_size,
+                // Slat width only means anything for a PVC-billed product -
+                // clearing it whenever the unit isn't PVC keeps a product from
+                // ever sitting in the ambiguous "plain sq.ft unit, but a slat
+                // width is still saved" state that made an old product look
+                // PVC-billed even after its Measurement Unit was changed away
+                // from PVC sq.ft.
+                'product_size'        => str_contains(strtolower($unit), 'pvc') ? $request->product_size : null,
                 'details'             => $request->details,
                 'created_by'          => $request->user()->id,
             ]);
@@ -117,14 +125,18 @@ class ProductController extends Controller
 
         return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $product) {
             $oldValue = $product->toArray();
+            $unit = $request->unit ?? 'sqft';
 
             $product->update([
                 'product_code'        => $request->product_code,
                 'name'                => $request->name,
-                'unit'                => $request->unit ?? 'sqft',
+                'unit'                => $unit,
                 'product_category_id' => $request->product_category_id,
                 'default_unit_price'  => $request->default_unit_price,
-                'product_size'        => $request->product_size,
+                // See the same guard in store() - slat width is meaningless
+                // (and misleading) once Unit isn't PVC sq.ft, so it's cleared
+                // rather than left behind as stale data.
+                'product_size'        => str_contains(strtolower($unit), 'pvc') ? $request->product_size : null,
                 'details'             => $request->details,
             ]);
 

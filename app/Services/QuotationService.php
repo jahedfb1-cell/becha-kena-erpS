@@ -62,14 +62,20 @@ class QuotationService
         $width  = (float) ($item['width'] ?? 0);
         $height = (float) ($item['height'] ?? 0);
         $pcs    = (int) ($item['pcs'] ?? 1);
-        $unit         = $item['unit'] ?? ($item['product']['unit'] ?? '');
-        $categoryName = $item['category_name'] ?? ($item['product']['category']['name'] ?? '');
-        $productName  = $item['product_name'] ?? ($item['product']['name'] ?? '');
+        $unit   = $item['unit'] ?? ($item['product']['unit'] ?? '');
 
-        $isPvc = str_contains(strtolower($categoryName), 'pvc') ||
-                 str_contains(strtolower($unit), 'pvc') ||
-                 str_contains(strtolower($productName), 'pvc') ||
-                 str_contains(strtolower($productName), 'clear water');
+        // Measurement Unit is the ONLY signal for PVC slat billing - category
+        // and product name are never consulted, even when they contain the
+        // word "PVC" or "Clear Water". This must stay in lockstep with
+        // isPvcItem()/isPvcBlock() on the frontend (utils/billing.js,
+        // utils/quotationSections.js), which were fixed to the same unit-only
+        // rule after a product named "Magnetic PVC Strip Curtain" but with
+        // Unit = "Square feet" kept getting slat-billed anyway because this
+        // server-side copy still fell back to scanning its name for "PVC".
+        // This function is the authoritative one - it runs on every save
+        // regardless of what the client sent - so a stale rule here silently
+        // overrides a correct one on the frontend.
+        $isPvc = str_contains(strtolower($unit), 'pvc');
 
         // Pcs-unit products (hardware, accessories, remote controls, etc.)
         // have no meaningful width/height — bill by piece count instead.
