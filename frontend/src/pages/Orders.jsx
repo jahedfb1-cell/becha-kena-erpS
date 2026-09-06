@@ -2680,9 +2680,9 @@ const Orders = () => {
                           }
                           setShowAdvancePaymentModal(true);
                         }}
-                        style={{ fontSize: '11px', color: '#fff', background: 'linear-gradient(135deg, #d97706, #f59e0b)', border: 'none', borderRadius: '20px', padding: '5px 12px', cursor: 'pointer', fontWeight: '700', boxShadow: '0 1px 4px rgba(217, 119, 6, 0.35)' }}
+                        style={{ background: '#d97706', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
                       >
-                        {isEditMode ? '+ Add Advance' : draftAdvancePayment ? '✏️ Edit Draft' : '+ Add Advance'}
+                        {isEditMode ? '➕ Add Advance' : draftAdvancePayment ? '✏️ Edit Draft' : '➕ Add Advance'}
                       </button>
                     </div>
 
@@ -2748,8 +2748,8 @@ const Orders = () => {
                         </button>
                       </div>
                     ) : (
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>
-                        No advance queued — click "+ Add Advance" to record what the customer has already paid.
+                      <div style={{ textAlign: 'center', padding: '14px', background: '#f8fafc', borderRadius: '8px', color: '#64748b', fontSize: '12px' }}>
+                        No advance queued. Click <strong>"➕ Add Advance"</strong> to record what the customer has already paid.
                       </div>
                     )}
                   </div>
