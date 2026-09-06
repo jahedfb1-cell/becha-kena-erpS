@@ -12,6 +12,10 @@ class InvoiceService
 {
     use GeneratesDocumentNumbers;
 
+    public function __construct(protected PaymentService $paymentService)
+    {
+    }
+
     /**
      * Generate next invoice number: INV-2025-0001
      */
@@ -66,7 +70,14 @@ class InvoiceService
             'created_by'       => $userId,
         ]);
 
-        return $invoice;
+        // Fold in any advance payment taken against this order while it
+        // was still a quotation - links each payment's invoice_id and sets
+        // this invoice's own paid_amount/due_amount/payment_status
+        // accordingly, without repeating the ledger/book entry each advance
+        // already made when the cash actually came in.
+        $this->paymentService->linkAdvancePaymentsToInvoice($quotation, $invoice);
+
+        return $invoice->fresh();
     }
 
     /**

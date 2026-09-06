@@ -36,6 +36,7 @@ import CustomerModal from '../components/CustomerModal';
 import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
 import AISizeScanModal from '../components/AISizeScanModal';
+import AdvancePaymentModal from '../components/AdvancePaymentModal';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -101,6 +102,14 @@ const Orders = () => {
   // Edit Mode States
   const [isEditMode, setIsEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
+
+  // Advance payments taken against this order before it's been invoiced.
+  // Only meaningful once the order actually has an id — a brand-new,
+  // not-yet-saved order has nothing to record a payment against yet.
+  const [advancePayments, setAdvancePayments] = useState([]);
+  const [advancePaymentsLoading, setAdvancePaymentsLoading] = useState(false);
+  const [showAdvancePaymentModal, setShowAdvancePaymentModal] = useState(false);
+  const [editOrderNumber, setEditOrderNumber] = useState('');
 
   // -------------------------------------------------------------
   // FORM STATE FOR DIRECT ORDER CREATION (Dynamic Builder)
@@ -821,9 +830,36 @@ const Orders = () => {
     };
   }, [sections, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
 
+  const handleVoidAdvancePayment = async (payment) => {
+    if (!window.confirm(`Void advance payment ${payment.payment_number} (${formatCurrency(payment.amount)})? This reverses it from the cash book and customer ledger.`)) {
+      return;
+    }
+    try {
+      await api.post(`/quotations/advance-payments/${payment.id}/void`);
+      fetchAdvancePayments(editId);
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to void advance payment.');
+    }
+  };
+
+  const fetchAdvancePayments = async (quotationId) => {
+    if (!quotationId) { setAdvancePayments([]); return; }
+    setAdvancePaymentsLoading(true);
+    try {
+      const res = await api.get(`/quotations/${quotationId}/advance-payments`);
+      setAdvancePayments(res.data?.data || []);
+    } catch (e) {
+      console.warn('Failed to load advance payments:', e);
+    } finally {
+      setAdvancePaymentsLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setIsEditMode(false);
     setEditId(null);
+    setEditOrderNumber('');
+    setAdvancePayments([]);
     setDate(new Date().toISOString().substring(0, 10));
     setSelectedCustomerId('');
     setCustomerSearchQuery('');
@@ -872,6 +908,8 @@ const Orders = () => {
 
       setIsEditMode(true);
       setEditId(fullQ.id);
+      setEditOrderNumber(fullQ.quotation_number || '');
+      fetchAdvancePayments(fullQ.id);
       setDate(fullQ.created_at ? fullQ.created_at.substring(0, 10) : new Date().toISOString().substring(0, 10));
       setSelectedCustomerId(fullQ.customer_id);
       setCustomerSearchQuery(fullQ.customer ? (fullQ.customer.company_name || fullQ.customer.name) : '');
@@ -2597,6 +2635,76 @@ const Orders = () => {
                     </span>
                   </div>
 
+                  {/* ADVANCE PAYMENT — a receipt voucher filed against this
+                      order itself (see QuotationController::storeAdvancePayment),
+                      not bundled into Save/Submit, so re-saving the order's
+                      items never re-charges an advance a second time. Only
+                      possible once the order actually has an id. */}
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-heading)' }}>💰 Advance Payment</span>
+                      {isEditMode && editId && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAdvancePaymentModal(true)}
+                          style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontWeight: '600' }}
+                        >
+                          + Add Advance
+                        </button>
+                      )}
+                    </div>
+
+                    {!(isEditMode && editId) ? (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>
+                        Save the order first to record an advance payment.
+                      </div>
+                    ) : advancePaymentsLoading ? (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)' }}>Loading…</div>
+                    ) : (
+                      <>
+                        {(() => {
+                          const activeAdvances = advancePayments.filter(p => !p.is_archived);
+                          const totalAdvanced = activeAdvances.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                          return (
+                            <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: activeAdvances.length ? '8px' : 0 }}>
+                                <span>Total Advanced:</span>
+                                <span style={{ fontWeight: '700', color: '#b45309' }}>{formatCurrency(totalAdvanced)}</span>
+                              </div>
+                              {activeAdvances.length === 0 ? (
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>No advance payment recorded yet.</div>
+                              ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {activeAdvances.map(p => (
+                                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', background: 'var(--bg-subtle, #f8fafc)', borderRadius: '6px', padding: '6px 10px' }}>
+                                      <div>
+                                        <div style={{ fontWeight: '600' }}>{formatCurrency(p.amount)} <span style={{ fontWeight: 'normal', color: 'var(--text-muted, #64748b)' }}>({p.payment_method})</span></div>
+                                        <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>
+                                          {p.payment_number} · {p.payment_date}
+                                          {p.invoice_id && ' · applied to invoice'}
+                                        </div>
+                                      </div>
+                                      {!p.invoice_id && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleVoidAdvancePayment(p)}
+                                          title="Void this advance payment"
+                                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}
+                                        >
+                                          🗑️
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </>
+                    )}
+                  </div>
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '24px' }}>
                     <button type="submit" className="primary-btn" disabled={isSubmitting} style={{ padding: '12px' }}>
                       💾 {isSubmitting ? 'Creating Order...' : 'Save Direct Order'}
@@ -2706,6 +2814,19 @@ const Orders = () => {
         isOpen={!!aiScanTargetBlock}
         onClose={() => setAiScanTargetBlock(null)}
         onApply={handleApplyAiSizes}
+      />
+
+      <AdvancePaymentModal
+        isOpen={showAdvancePaymentModal}
+        onClose={() => setShowAdvancePaymentModal(false)}
+        quotation={editId ? {
+          id: editId,
+          quotation_number: editOrderNumber,
+          customer: customers?.find(c => c.id === parseInt(selectedCustomerId)) || null,
+          net_amount: financialSummary.netAmount,
+        } : null}
+        alreadyAdvanced={advancePayments.filter(p => !p.is_archived).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)}
+        onPaymentRecorded={() => fetchAdvancePayments(editId)}
       />
     </div>
   );

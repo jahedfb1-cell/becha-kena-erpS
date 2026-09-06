@@ -63,6 +63,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/convert-to-order', [QuotationController::class, 'convertToOrder']);
         Route::post('/{id}/approve', [QuotationController::class, 'approve']);
         Route::post('/{id}/reject', [QuotationController::class, 'reject']);
+
+        // Advance payments - money a customer pays against this order
+        // before it's ever invoiced. Kept separate from update() so
+        // re-saving an order's items never re-triggers one.
+        Route::get('/{id}/advance-payments', [QuotationController::class, 'advancePayments']);
+        Route::post('/{id}/advance-payments', [QuotationController::class, 'storeAdvancePayment']);
+        Route::post('/advance-payments/{paymentId}/void', [QuotationController::class, 'voidAdvancePayment']);
     });
 
     // Saved price lists / rate cards. Not part of the quotation pipeline —

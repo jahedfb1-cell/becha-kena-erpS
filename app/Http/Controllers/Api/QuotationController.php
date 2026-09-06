@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\QuotationRequest;
 use App\Models\AuditLog;
+use App\Models\Payment;
 use App\Models\Quotation;
 use App\Services\QuotationService;
 use App\Services\NotificationService;
+use App\Services\PaymentService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,11 +21,13 @@ class QuotationController extends Controller
 
     protected QuotationService $quotationService;
     protected NotificationService $notificationService;
+    protected PaymentService $paymentService;
 
-    public function __construct(QuotationService $quotationService, NotificationService $notificationService)
+    public function __construct(QuotationService $quotationService, NotificationService $notificationService, PaymentService $paymentService)
     {
         $this->quotationService = $quotationService;
         $this->notificationService = $notificationService;
+        $this->paymentService = $paymentService;
     }
 
     /**
@@ -583,6 +587,136 @@ class QuotationController extends Controller
                     : "Quotation {$quotation->quotation_number} sent back to draft — it can be converted to order again."
             );
         });
+    }
+
+    /**
+     * GET /api/quotations/{id}/advance-payments
+     * Every advance payment recorded against this order, invoiced or not.
+     */
+    public function advancePayments(int $id): JsonResponse
+    {
+        $quotation = Quotation::find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        $payments = Payment::where('quotation_id', $quotation->id)
+            ->with(['creator:id,name'])
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return $this->successResponse($payments, 'Advance payments retrieved successfully.');
+    }
+
+    /**
+     * POST /api/quotations/{id}/advance-payments
+     * Records an advance payment against this order — a separate action
+     * from update(), never bundled into the item-builder's save, so
+     * re-saving an order's items (add a line, change a price) never
+     * silently re-charges an advance a second time.
+     */
+    public function storeAdvancePayment(Request $request, int $id): JsonResponse
+    {
+        if (!$request->user()->can('payments:create')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
+        $quotation = Quotation::find($id);
+
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+
+        // Once invoiced this order has a real Invoice — payments belong on
+        // that (the ordinary Payments page/flow), not filed as an "advance"
+        // against a quotation that no longer represents the open balance.
+        if ($quotation->status === 'invoiced') {
+            return $this->errorResponse('This order has already been invoiced — record payments against its invoice instead.', 422);
+        }
+
+        $request->validate([
+            'amount'          => 'required|numeric|min:0.01',
+            'payment_method'  => 'required|in:cash,bank,mobile',
+            'payment_date'    => 'required|date',
+            'bank_name'       => 'required_if:payment_method,bank|string|max:100',
+            'mobile_provider' => 'required_if:payment_method,mobile|string|max:100',
+            'transaction_id'  => 'nullable|string|max:100',
+            'cheque_number'   => 'nullable|string|max:100',
+            'notes'           => 'nullable|string|max:1000',
+        ]);
+
+        // An advance can't exceed what's actually owed on the order, same
+        // guard PaymentController::store applies against an invoice's due
+        // amount — otherwise a customer could be recorded as having
+        // "overpaid" an order that was never priced that high.
+        $alreadyAdvanced = (float) Payment::where('quotation_id', $quotation->id)->active()->sum('amount');
+        $remaining = (float) $quotation->net_amount - $alreadyAdvanced;
+        if ((float) $request->amount > $remaining) {
+            return $this->errorResponse("Advance amount ({$request->amount}) exceeds the order's remaining balance ({$remaining}).", 422);
+        }
+
+        $user = $request->user();
+
+        return DB::transaction(function () use ($request, $quotation, $user) {
+            $payment = $this->paymentService->processAdvancePayment($request->all(), $quotation, $user->id);
+
+            AuditLog::record(
+                $user->id,
+                $user->name,
+                'create',
+                Payment::class,
+                $payment->id,
+                null,
+                $payment->toArray(),
+                "Recorded advance payment {$payment->payment_number} for order {$quotation->quotation_number}"
+            );
+
+            return $this->createdResponse(
+                $payment->load(['customer', 'quotation:id,quotation_number']),
+                "Advance payment {$payment->payment_number} recorded successfully."
+            );
+        });
+    }
+
+    /**
+     * POST /api/quotations/advance-payments/{paymentId}/void
+     */
+    public function voidAdvancePayment(int $paymentId, Request $request): JsonResponse
+    {
+        if (!$request->user()->can('payments:void')) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
+        $payment = Payment::active()->find($paymentId);
+
+        if (!$payment || !$payment->quotation_id) {
+            return $this->notFoundResponse('Advance payment not found.');
+        }
+
+        // Already folded into an invoice — voiding it now would desync the
+        // invoice's own paid/due amounts; that has to go through the
+        // ordinary invoice payment void instead.
+        if ($payment->invoice_id) {
+            return $this->errorResponse('This advance has already been applied to an invoice — void it as an invoice payment instead.', 422);
+        }
+
+        $user = $request->user();
+
+        $this->paymentService->voidAdvancePayment($payment, $user->id);
+
+        AuditLog::record(
+            $user->id,
+            $user->name,
+            'void',
+            Payment::class,
+            $payment->id,
+            null,
+            $payment->fresh()->toArray(),
+            "Voided advance payment {$payment->payment_number}"
+        );
+
+        return $this->successResponse(null, "Advance payment {$payment->payment_number} voided.");
     }
 
     /**

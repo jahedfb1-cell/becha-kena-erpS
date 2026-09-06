@@ -16,6 +16,7 @@ class Payment extends Model
         'brand_id',
         'payment_number',
         'invoice_id',
+        'quotation_id',
         'customer_id',
         'amount',
         'payment_method',
@@ -42,10 +43,25 @@ class Payment extends Model
     /**
      * Relationship: Invoice paid for.
      * Constraint: FK invoice_id -> invoices.id (restrictOnDelete)
+     * Null until this is either an ordinary payment against an already-
+     * generated invoice, or an advance payment (see quotation()) that has
+     * since been linked to the invoice generated from that same quotation.
      */
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class, 'invoice_id');
+    }
+
+    /**
+     * Relationship: Order/quotation this advance payment was taken against.
+     * Constraint: FK quotation_id -> quotations.id (restrictOnDelete)
+     * Set only for an advance payment recorded before an invoice exists;
+     * stays set even after invoice_id gets filled in on invoice generation,
+     * so an advance payment's origin order is never lost.
+     */
+    public function quotation(): BelongsTo
+    {
+        return $this->belongsTo(Quotation::class, 'quotation_id');
     }
 
     /**

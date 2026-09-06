@@ -8,6 +8,7 @@ use App\Models\CustomerLedger;
 use App\Models\Invoice;
 use App\Models\MobileBookEntry;
 use App\Models\Payment;
+use App\Models\Quotation;
 use App\Traits\GeneratesDocumentNumbers;
 use Illuminate\Support\Facades\DB;
 
@@ -72,6 +73,132 @@ class PaymentService
         $this->recordBookEntry($payment, 'in', $amount, $userId);
 
         return $payment;
+    }
+
+    /**
+     * Record an advance payment against an order that has no invoice yet.
+     *
+     * Deliberately mirrors processPayment() rather than sharing code with
+     * it: that method's first block updates an Invoice's own paid/due
+     * columns, which doesn't exist yet here - there is no invoice. Every
+     * other side of the accounting (Customer Ledger credit, Cash/Bank/Mobile
+     * Book entry) happens exactly the same way, because the cash really did
+     * just arrive, whether or not an invoice exists to apply it to yet.
+     */
+    public function processAdvancePayment(array $data, Quotation $quotation, int $userId): Payment
+    {
+        $paymentNumber = $this->generatePaymentNumber();
+        $amount = (float) $data['amount'];
+
+        $payment = Payment::create([
+            'payment_number'  => $paymentNumber,
+            'invoice_id'      => null,
+            'quotation_id'    => $quotation->id,
+            'customer_id'     => $quotation->customer_id,
+            'amount'          => $amount,
+            'payment_method'  => $data['payment_method'],
+            'bank_name'       => $data['bank_name'] ?? null,
+            'mobile_provider' => $data['mobile_provider'] ?? null,
+            'transaction_id'  => $data['transaction_id'] ?? null,
+            'cheque_number'   => $data['cheque_number'] ?? null,
+            'payment_date'    => $data['payment_date'],
+            'notes'           => $data['notes'] ?? null,
+            'created_by'      => $userId,
+        ]);
+
+        // Customer Ledger credit - same "money in reduces what they owe"
+        // entry a normal invoice payment makes, just filed as its own
+        // transaction_type so a ledger statement can tell the two apart.
+        $lastLedger = CustomerLedger::where('customer_id', $quotation->customer_id)
+            ->orderBy('id', 'desc')
+            ->first();
+        $previousBalance = $lastLedger ? (float) $lastLedger->balance : 0;
+
+        CustomerLedger::create([
+            'customer_id'      => $quotation->customer_id,
+            'salesman_id'      => $quotation->salesman_id,
+            'transaction_type' => 'advance_payment',
+            'reference_type'   => Payment::class,
+            'reference_id'     => $payment->id,
+            'description'      => "Advance payment received for order {$quotation->quotation_number} ({$payment->payment_number})",
+            'debit'            => 0,
+            'credit'           => $amount,
+            'balance'          => $previousBalance - $amount,
+            'transaction_date' => $payment->payment_date,
+            'created_by'       => $userId,
+        ]);
+
+        // Book Entry based on method - cash/bank/mobile actually moved now,
+        // regardless of whether an invoice exists to apply it to yet.
+        $this->recordBookEntry($payment, 'in', $amount, $userId, 'Advance payment');
+
+        return $payment;
+    }
+
+    /**
+     * Void an advance payment (one that was never linked to an invoice).
+     * Same shape as voidPayment(), minus the Invoice paid/due update that
+     * method does - there is no invoice yet to adjust.
+     */
+    public function voidAdvancePayment(Payment $payment, int $userId): void
+    {
+        $amount = (float) $payment->amount;
+        $quotation = $payment->quotation;
+
+        $lastLedger = CustomerLedger::where('customer_id', $payment->customer_id)
+            ->orderBy('id', 'desc')
+            ->first();
+        $previousBalance = $lastLedger ? (float) $lastLedger->balance : 0;
+
+        CustomerLedger::create([
+            'customer_id'      => $payment->customer_id,
+            'salesman_id'      => $quotation?->salesman_id,
+            'transaction_type' => 'adjustment',
+            'reference_type'   => Payment::class,
+            'reference_id'     => $payment->id,
+            'description'      => "Voided advance payment {$payment->payment_number}",
+            'debit'            => $amount,
+            'credit'           => 0,
+            'balance'          => $previousBalance + $amount,
+            'transaction_date' => now()->toDateString(),
+            'created_by'       => $userId,
+        ]);
+
+        $this->recordBookEntry($payment, 'out', $amount, $userId, 'Voided advance payment');
+
+        $payment->archive($userId, 'Voided advance payment');
+    }
+
+    /**
+     * Fold every still-unlinked advance payment taken against $quotation
+     * into the invoice just generated from it: link each payment's
+     * invoice_id, then set the invoice's paid_amount/due_amount/
+     * payment_status as if that much had just been paid against it - without
+     * repeating the Customer Ledger or Cash/Bank/Mobile Book entries, since
+     * those already happened the moment each advance was actually taken.
+     * Called from InvoiceService::generate() inside its own transaction.
+     */
+    public function linkAdvancePaymentsToInvoice(Quotation $quotation, Invoice $invoice): float
+    {
+        $advances = Payment::where('quotation_id', $quotation->id)
+            ->whereNull('invoice_id')
+            ->active()
+            ->get();
+
+        if ($advances->isEmpty()) {
+            return 0.0;
+        }
+
+        $total = (float) $advances->sum('amount');
+
+        Payment::whereIn('id', $advances->pluck('id'))->update(['invoice_id' => $invoice->id]);
+
+        $invoice->paid_amount = $total;
+        $invoice->due_amount = max(0, (float) $invoice->grand_total - $total);
+        $invoice->payment_status = $invoice->due_amount <= 0 ? 'paid' : 'partial';
+        $invoice->save();
+
+        return $total;
     }
 
     /**
