@@ -183,6 +183,79 @@ class AdvancePaymentApiTest extends TestCase
     }
 
     /** @test */
+    public function a_new_direct_order_can_carry_an_advance_payment_in_the_same_request(): void
+    {
+        $product = \App\Models\Product::create([
+            'product_code'       => 'BL-001',
+            'name'               => 'Vertical Blind Standard',
+            'unit'               => 'sqft',
+            'default_unit_price' => 100.00,
+            'created_by'         => $this->admin->id,
+        ]);
+
+        $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/quotations', [
+            'customer_id' => $this->customer->id,
+            'status'      => 'approved',
+            'items'       => [[
+                'product_id' => $product->id,
+                'width'      => 24,
+                'height'     => 36,
+                'pcs'        => 1,
+                'unit_price' => 100,
+            ]],
+            'advance_payment' => [
+                'amount'         => 300,
+                'payment_method' => 'cash',
+                'payment_date'   => now()->toDateString(),
+            ],
+        ]);
+
+        $response->assertStatus(201)->assertJsonPath('success', true);
+
+        $newOrderId = $response->json('data.id');
+        $payment = Payment::where('quotation_id', $newOrderId)->first();
+
+        $this->assertNotNull($payment);
+        $this->assertEquals(300, $payment->amount);
+        $this->assertNull($payment->invoice_id);
+
+        $this->assertEquals(1, CashBookEntry::where('entry_type', 'in')->count());
+    }
+
+    /** @test */
+    public function creating_an_order_rejects_an_advance_that_exceeds_the_order_total(): void
+    {
+        $product = \App\Models\Product::create([
+            'product_code'       => 'BL-002',
+            'name'               => 'Vertical Blind Small',
+            'unit'               => 'sqft',
+            'default_unit_price' => 50.00,
+            'created_by'         => $this->admin->id,
+        ]);
+
+        $response = $this->actingAs($this->admin, 'sanctum')->postJson('/api/quotations', [
+            'customer_id' => $this->customer->id,
+            'status'      => 'approved',
+            'items'       => [[
+                'product_id' => $product->id,
+                'width'      => 12,
+                'height'     => 12,
+                'pcs'        => 1,
+                'unit_price' => 50,
+            ]],
+            'advance_payment' => [
+                'amount'         => 999999,
+                'payment_method' => 'cash',
+                'payment_date'   => now()->toDateString(),
+            ],
+        ]);
+
+        $response->assertStatus(500);
+        $this->assertDatabaseCount('quotations', 1); // only the setUp() order — this one rolled back
+        $this->assertDatabaseCount('payments', 0);
+    }
+
+    /** @test */
     public function an_advance_cannot_be_recorded_against_an_already_invoiced_order(): void
     {
         $this->pendingOrder->update(['status' => 'invoiced']);

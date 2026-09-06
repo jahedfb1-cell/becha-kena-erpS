@@ -9,8 +9,16 @@ import { formatCurrency } from '../utils/format';
  * kind of receipt voucher, just filed against a quotation/order instead of
  * an invoice because none exists yet. See QuotationController::
  * storeAdvancePayment / PaymentService::processAdvancePayment.
+ *
+ * draftMode (a brand-new order that hasn't been saved yet, so there is no
+ * quotation.id to post an advance-payments call against): the same form
+ * instead hands the composed advance back to the caller via onDraftSave
+ * without calling the API, so Orders.jsx can hold it as a pending chip and
+ * send it along inside the order's own create payload — the advance is
+ * then actually recorded, in the same transaction as the order, by
+ * QuotationController::store(). See Orders.jsx's "+ Add Advance" card.
  */
-const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, onPaymentRecorded }) => {
+const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, onPaymentRecorded, draftMode = false, initialDraft = null, onDraftSave }) => {
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().substring(0, 10));
@@ -27,17 +35,18 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
 
   useEffect(() => {
     if (isOpen && quotation) {
-      setAmount('');
-      setPaymentMethod('cash');
-      setPaymentDate(new Date().toISOString().substring(0, 10));
-      setBankName('');
-      setChequeNumber('');
-      setMobileProvider('bKash');
-      setTransactionId('');
-      setNotes('');
+      const seed = draftMode ? (initialDraft || {}) : {};
+      setAmount(seed.amount != null ? String(seed.amount) : '');
+      setPaymentMethod(seed.payment_method || 'cash');
+      setPaymentDate(seed.payment_date || new Date().toISOString().substring(0, 10));
+      setBankName(seed.bank_name || '');
+      setChequeNumber(seed.cheque_number || '');
+      setMobileProvider(seed.mobile_provider || 'bKash');
+      setTransactionId(seed.transaction_id || '');
+      setNotes(seed.notes || '');
       setError('');
     }
-  }, [isOpen, quotation]);
+  }, [isOpen, quotation, draftMode, initialDraft]);
 
   if (!isOpen || !quotation) return null;
 
@@ -62,23 +71,29 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
       return;
     }
 
+    const payload = {
+      amount: payingAmt,
+      payment_method: paymentMethod,
+      payment_date: paymentDate,
+      notes,
+    };
+
+    if (paymentMethod === 'bank') {
+      payload.bank_name = bankName;
+      payload.cheque_number = chequeNumber;
+    } else if (paymentMethod === 'mobile') {
+      payload.mobile_provider = mobileProvider;
+      payload.transaction_id = transactionId;
+    }
+
+    if (draftMode) {
+      onDraftSave?.(payload);
+      handleClose();
+      return;
+    }
+
     setLoading(true);
     try {
-      const payload = {
-        amount: payingAmt,
-        payment_method: paymentMethod,
-        payment_date: paymentDate,
-        notes,
-      };
-
-      if (paymentMethod === 'bank') {
-        payload.bank_name = bankName;
-        payload.cheque_number = chequeNumber;
-      } else if (paymentMethod === 'mobile') {
-        payload.mobile_provider = mobileProvider;
-        payload.transaction_id = transactionId;
-      }
-
       const response = await api.post(`/quotations/${quotation.id}/advance-payments`, payload);
       const savedPayment = response.data.data;
       if (onPaymentRecorded) {
@@ -112,13 +127,13 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
         <div className="custom-modal-header" style={{ background: 'linear-gradient(135deg, rgba(217, 119, 6, 0.2) 0%, rgba(245, 158, 11, 0.2) 100%)', borderBottom: '1px solid rgba(245, 158, 11, 0.3)' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', color: '#fbbf24', fontWeight: 800 }}>
-              💰 Advance Payment Voucher
+              💰 Advance Payment Voucher {draftMode && <span style={{ background: 'rgba(96, 165, 250, 0.25)', color: '#93c5fd', padding: '2px 8px', borderRadius: '999px', fontSize: '10px', letterSpacing: '0.5px' }}>DRAFT</span>}
             </div>
             <h2 className="custom-modal-title" style={{ marginTop: '4px' }}>
-              Order #{quotation.quotation_number}
+              {draftMode ? 'New Order' : `Order #${quotation.quotation_number}`}
             </h2>
             <div style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '2px' }}>
-              Customer: <strong>{quotation.customer?.company_name || quotation.customer?.name}</strong>
+              Customer: <strong>{quotation.customer?.company_name || quotation.customer?.name || '—'}</strong>
             </div>
           </div>
 
@@ -156,6 +171,11 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
 
         {/* Modal Form Body */}
         <form onSubmit={handleSubmit} className="custom-modal-form">
+          {draftMode && (
+            <div style={{ background: 'rgba(96, 165, 250, 0.12)', border: '1px solid rgba(96, 165, 250, 0.35)', color: '#bfdbfe', padding: '10px 16px', borderRadius: '10px', fontSize: '12.5px' }}>
+              ℹ️ This order hasn't been saved yet — this advance is held as a draft and gets recorded for real (hitting the cash book and customer ledger) the moment you save the order.
+            </div>
+          )}
           {error && (
             <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fca5a5', padding: '12px 16px', borderRadius: '10px', fontSize: '13px', whiteSpace: 'pre-line' }}>
               ⚠️ {error}
@@ -308,7 +328,7 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
               disabled={loading}
               style={{ background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)', color: '#fff' }}
             >
-              {loading ? 'Processing...' : '💰 Record Advance Payment'}
+              {loading ? 'Processing...' : draftMode ? '💰 Save Advance to This Order' : '💰 Record Advance Payment'}
             </button>
           </div>
         </form>

@@ -14,6 +14,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class QuotationController extends Controller
 {
@@ -183,6 +184,33 @@ class QuotationController extends Controller
 
                 $quotation->update($summary);
 
+                // An advance the customer already paid while this order was
+                // still being built (Orders.jsx lets it be composed as a
+                // draft before the order has an id — see AdvancePaymentModal
+                // draftMode). Recorded in the same transaction as the order
+                // itself, right after net_amount is final, so it can be
+                // validated against the real total and hits the ledger/book
+                // the moment the order — and the cash — actually exist.
+                if ($request->filled('advance_payment.amount')) {
+                    $advance = $request->input('advance_payment');
+                    Validator::make($advance, [
+                        'amount'          => 'required|numeric|min:0.01',
+                        'payment_method'  => 'required|in:cash,bank,mobile',
+                        'payment_date'    => 'required|date',
+                        'bank_name'       => 'required_if:payment_method,bank|string|max:100',
+                        'mobile_provider' => 'required_if:payment_method,mobile|string|max:100',
+                        'transaction_id'  => 'nullable|string|max:100',
+                        'cheque_number'   => 'nullable|string|max:100',
+                        'notes'           => 'nullable|string|max:1000',
+                    ])->validate();
+
+                    if ((float) $advance['amount'] > (float) $quotation->net_amount) {
+                        abort(422, "Advance amount ({$advance['amount']}) exceeds the order total ({$quotation->net_amount}).");
+                    }
+
+                    $this->paymentService->processAdvancePayment($advance, $quotation, $user->id);
+                }
+
                 // If direct order created with approved status, generate purchase entries
                 if ($status === 'approved') {
                     $this->quotationService->createPurchaseEntries($quotation, $user->id);
@@ -218,7 +246,7 @@ class QuotationController extends Controller
             ]);
 
             $reason = $status === 'approved'
-                ? "could not auto-create the purchase entry ({$e->getMessage()})"
+                ? "could not complete the order (purchase entry / advance payment step: {$e->getMessage()})"
                 : $e->getMessage();
 
             return $this->errorResponse(

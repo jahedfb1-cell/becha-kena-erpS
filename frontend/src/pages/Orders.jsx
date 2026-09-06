@@ -110,6 +110,12 @@ const Orders = () => {
   const [advancePaymentsLoading, setAdvancePaymentsLoading] = useState(false);
   const [showAdvancePaymentModal, setShowAdvancePaymentModal] = useState(false);
   const [editOrderNumber, setEditOrderNumber] = useState('');
+  // A brand-new order has no id yet to record a real advance payment
+  // against, so "+ Add Advance" here composes one as a draft instead (see
+  // AdvancePaymentModal's draftMode) and it rides along inside the order's
+  // own create payload — QuotationController::store() actually records it,
+  // in the same transaction as the order itself.
+  const [draftAdvancePayment, setDraftAdvancePayment] = useState(null);
 
   // -------------------------------------------------------------
   // FORM STATE FOR DIRECT ORDER CREATION (Dynamic Builder)
@@ -860,6 +866,7 @@ const Orders = () => {
     setEditId(null);
     setEditOrderNumber('');
     setAdvancePayments([]);
+    setDraftAdvancePayment(null);
     setDate(new Date().toISOString().substring(0, 10));
     setSelectedCustomerId('');
     setCustomerSearchQuery('');
@@ -1122,6 +1129,13 @@ const Orders = () => {
       delivery_address: deliveryAddress || null,
       items: items
     };
+
+    // Only meaningful on the create path - an existing order already has
+    // its own real advance payments (see the Advance Payment card), so
+    // there is never a draft to attach once isEditMode is true.
+    if (!isEditMode && draftAdvancePayment) {
+      payload.advance_payment = draftAdvancePayment;
+    }
 
     try {
       setIsSubmitting(true);
@@ -2635,73 +2649,108 @@ const Orders = () => {
                     </span>
                   </div>
 
-                  {/* ADVANCE PAYMENT — a receipt voucher filed against this
-                      order itself (see QuotationController::storeAdvancePayment),
-                      not bundled into Save/Submit, so re-saving the order's
-                      items never re-charges an advance a second time. Only
-                      possible once the order actually has an id. */}
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
+                  {/* ADVANCE PAYMENT
+                      Editing a saved order: a real receipt voucher filed
+                      against it (QuotationController::storeAdvancePayment),
+                      deliberately not bundled into Save/Submit so
+                      re-saving the order's items never re-charges an
+                      advance a second time.
+                      A brand-new, not-yet-saved order: the same modal runs
+                      in draftMode (no id to post against yet) and just
+                      hands back the composed voucher, held here as a chip
+                      until Save Direct Order sends it along inside the
+                      order's own create payload - QuotationController::
+                      store() is what actually records it, in the same
+                      transaction as the order. */}
+                  <div style={{
+                    borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px',
+                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(217, 119, 6, 0.02))',
+                    borderRadius: '10px', padding: '14px', border: '1px solid rgba(245, 158, 11, 0.18)'
+                  }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-heading)' }}>💰 Advance Payment</span>
-                      {isEditMode && editId && (
-                        <button
-                          type="button"
-                          onClick={() => setShowAdvancePaymentModal(true)}
-                          style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontWeight: '600' }}
-                        >
-                          + Add Advance
-                        </button>
-                      )}
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-heading)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '16px' }}>💰</span> Advance Payment
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isEditMode && !selectedCustomerId) {
+                            alert('Select a customer first, then you can queue an advance payment for this order.');
+                            return;
+                          }
+                          setShowAdvancePaymentModal(true);
+                        }}
+                        style={{ fontSize: '11px', color: '#fff', background: 'linear-gradient(135deg, #d97706, #f59e0b)', border: 'none', borderRadius: '20px', padding: '5px 12px', cursor: 'pointer', fontWeight: '700', boxShadow: '0 1px 4px rgba(217, 119, 6, 0.35)' }}
+                      >
+                        {isEditMode ? '+ Add Advance' : draftAdvancePayment ? '✏️ Edit Draft' : '+ Add Advance'}
+                      </button>
                     </div>
 
-                    {!(isEditMode && editId) ? (
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>
-                        Save the order first to record an advance payment.
-                      </div>
-                    ) : advancePaymentsLoading ? (
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)' }}>Loading…</div>
-                    ) : (
-                      <>
-                        {(() => {
-                          const activeAdvances = advancePayments.filter(p => !p.is_archived);
-                          const totalAdvanced = activeAdvances.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-                          return (
-                            <>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: activeAdvances.length ? '8px' : 0 }}>
-                                <span>Total Advanced:</span>
-                                <span style={{ fontWeight: '700', color: '#b45309' }}>{formatCurrency(totalAdvanced)}</span>
-                              </div>
-                              {activeAdvances.length === 0 ? (
-                                <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>No advance payment recorded yet.</div>
-                              ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                  {activeAdvances.map(p => (
-                                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', background: 'var(--bg-subtle, #f8fafc)', borderRadius: '6px', padding: '6px 10px' }}>
-                                      <div>
-                                        <div style={{ fontWeight: '600' }}>{formatCurrency(p.amount)} <span style={{ fontWeight: 'normal', color: 'var(--text-muted, #64748b)' }}>({p.payment_method})</span></div>
-                                        <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>
-                                          {p.payment_number} · {p.payment_date}
-                                          {p.invoice_id && ' · applied to invoice'}
-                                        </div>
+                    {isEditMode ? (
+                      advancePaymentsLoading ? (
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)' }}>Loading…</div>
+                      ) : (() => {
+                        const activeAdvances = advancePayments.filter(p => !p.is_archived);
+                        const totalAdvanced = activeAdvances.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                        return (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: activeAdvances.length ? '8px' : 0 }}>
+                              <span>Total Advanced:</span>
+                              <span style={{ fontWeight: '700', color: '#b45309' }}>{formatCurrency(totalAdvanced)}</span>
+                            </div>
+                            {activeAdvances.length === 0 ? (
+                              <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>No advance payment recorded yet.</div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {activeAdvances.map(p => (
+                                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', background: 'var(--bg-subtle, #f8fafc)', borderRadius: '6px', padding: '6px 10px' }}>
+                                    <div>
+                                      <div style={{ fontWeight: '600' }}>{formatCurrency(p.amount)} <span style={{ fontWeight: 'normal', color: 'var(--text-muted, #64748b)' }}>({p.payment_method})</span></div>
+                                      <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>
+                                        {p.payment_number} · {p.payment_date}
+                                        {p.invoice_id && ' · applied to invoice'}
                                       </div>
-                                      {!p.invoice_id && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleVoidAdvancePayment(p)}
-                                          title="Void this advance payment"
-                                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}
-                                        >
-                                          🗑️
-                                        </button>
-                                      )}
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </>
+                                    {!p.invoice_id && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleVoidAdvancePayment(p)}
+                                        title="Void this advance payment"
+                                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}
+                                      >
+                                        🗑️
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()
+                    ) : draftAdvancePayment ? (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', background: '#fff', border: '1px dashed #f59e0b', borderRadius: '6px', padding: '8px 10px' }}>
+                        <div>
+                          <div style={{ fontWeight: '700', color: '#b45309' }}>
+                            {formatCurrency(draftAdvancePayment.amount)} <span style={{ fontWeight: 'normal', color: 'var(--text-muted, #64748b)' }}>({draftAdvancePayment.payment_method})</span>
+                          </div>
+                          <div style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>
+                            Queued — recorded when you save this order
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setDraftAdvancePayment(null)}
+                          title="Remove this draft advance"
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '13px' }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' }}>
+                        No advance queued — click "+ Add Advance" to record what the customer has already paid.
+                      </div>
                     )}
                   </div>
 
@@ -2819,14 +2868,24 @@ const Orders = () => {
       <AdvancePaymentModal
         isOpen={showAdvancePaymentModal}
         onClose={() => setShowAdvancePaymentModal(false)}
-        quotation={editId ? {
-          id: editId,
-          quotation_number: editOrderNumber,
-          customer: customers?.find(c => c.id === parseInt(selectedCustomerId)) || null,
-          net_amount: financialSummary.netAmount,
-        } : null}
-        alreadyAdvanced={advancePayments.filter(p => !p.is_archived).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)}
+        quotation={isEditMode
+          ? (editId ? {
+              id: editId,
+              quotation_number: editOrderNumber,
+              customer: customers?.find(c => c.id === parseInt(selectedCustomerId)) || null,
+              net_amount: financialSummary.netAmount,
+            } : null)
+          : (selectedCustomerId ? {
+              // Draft mode: no id yet, this order hasn't been saved.
+              customer: customers?.find(c => c.id === parseInt(selectedCustomerId)) || null,
+              net_amount: financialSummary.netAmount,
+            } : null)
+        }
+        alreadyAdvanced={isEditMode ? advancePayments.filter(p => !p.is_archived).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) : 0}
         onPaymentRecorded={() => fetchAdvancePayments(editId)}
+        draftMode={!isEditMode}
+        initialDraft={draftAdvancePayment}
+        onDraftSave={setDraftAdvancePayment}
       />
     </div>
   );
