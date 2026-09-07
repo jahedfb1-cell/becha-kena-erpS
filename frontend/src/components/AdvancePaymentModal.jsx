@@ -25,6 +25,8 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
 
   const [bankName, setBankName] = useState('');
   const [chequeNumber, setChequeNumber] = useState('');
+  const [bankAccounts, setBankAccounts] = useState(null); // null = not fetched yet
+  const [useCustomBank, setUseCustomBank] = useState(false);
 
   const [mobileProvider, setMobileProvider] = useState('bKash');
   const [transactionId, setTransactionId] = useState('');
@@ -40,6 +42,7 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
       setPaymentMethod(seed.payment_method || 'cash');
       setPaymentDate(seed.payment_date || new Date().toISOString().substring(0, 10));
       setBankName(seed.bank_name || '');
+      setUseCustomBank(false);
       setChequeNumber(seed.cheque_number || '');
       setMobileProvider(seed.mobile_provider || 'bKash');
       setTransactionId(seed.transaction_id || '');
@@ -47,6 +50,31 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
       setError('');
     }
   }, [isOpen, quotation, draftMode, initialDraft]);
+
+  // Fetch the registered bank accounts once, the first time the modal opens
+  // — see PaymentModal's identical fetch for why this has to be a dropdown
+  // of real accounts rather than free text (BankBookEntry keys its running
+  // balance off this exact string). Falls back to free text if none are
+  // registered yet or the fetch fails.
+  useEffect(() => {
+    if (isOpen && bankAccounts === null) {
+      api.get('/settings/bank-accounts')
+        .then((res) => setBankAccounts(res.data?.data || []))
+        .catch(() => setBankAccounts([]));
+    }
+  }, [isOpen, bankAccounts]);
+
+  const bankNameOptions = Array.from(new Set((bankAccounts || []).map((b) => b.bank_name).filter(Boolean)));
+
+  // A draft seeded with a bank name typed before the account list loaded (or
+  // one that isn't a registered account at all) needs the custom-text field
+  // switched on, or the dropdown would silently swap it for a blank value.
+  useEffect(() => {
+    if (isOpen && bankName && bankNameOptions.length > 0 && !bankNameOptions.includes(bankName)) {
+      setUseCustomBank(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, bankAccounts]);
 
   if (!isOpen || !quotation) return null;
 
@@ -279,7 +307,49 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
             <div className="custom-form-grid" style={{ padding: '16px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
               <div className="custom-form-group">
                 <label className="custom-form-label" style={{ color: '#60a5fa' }}>Bank Name *</label>
-                <input type="text" placeholder="e.g. Dutch-Bangla Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} disabled={loading} required className="custom-form-input" />
+                {bankNameOptions.length > 0 && !useCustomBank ? (
+                  <select
+                    value={bankName}
+                    onChange={(e) => {
+                      if (e.target.value === '__other__') {
+                        setUseCustomBank(true);
+                        setBankName('');
+                      } else {
+                        setBankName(e.target.value);
+                      }
+                    }}
+                    disabled={loading}
+                    required
+                    className="custom-form-input"
+                  >
+                    <option value="" disabled>Select bank...</option>
+                    {bankNameOptions.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                    <option value="__other__">+ Other (not listed)</option>
+                  </select>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="e.g. Dutch-Bangla Bank"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      disabled={loading}
+                      required
+                      className="custom-form-input"
+                    />
+                    {bankNameOptions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { setUseCustomBank(false); setBankName(''); }}
+                        style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '12px', cursor: 'pointer', padding: '4px 0', textAlign: 'left' }}
+                      >
+                        ‹ Choose from registered banks
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
               <div className="custom-form-group">
                 <label className="custom-form-label" style={{ color: '#60a5fa' }}>Cheque / Ref Number</label>
