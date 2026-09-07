@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Quotation;
 use App\Models\CustomerLedger;
 use App\Models\DeliveryChallan;
@@ -94,7 +95,23 @@ class InvoiceService
             $challan->archive($userId, 'Cascaded from Invoice Archive');
         }
 
-        // 2. Reverse Customer Ledger (credit the amount)
+        // 2. Unlink any advance payment folded into this invoice at
+        // generation time (Payment::quotation_id set - see
+        // PaymentService::processAdvancePayment/linkAdvancePaymentsToInvoice)
+        // back to "pending advance against the order", exactly reversing
+        // what generate() did. Its own Customer Ledger credit and
+        // Cash/Bank/Mobile Book entry are left completely alone - that
+        // money was genuinely received and archiving this invoice (usually
+        // to correct it and regenerate) must never make it disappear from
+        // the books. A payment with quotation_id null - one a customer
+        // paid directly against this invoice after it existed - was never
+        // reachable here anyway, since InvoiceController::destroy() blocks
+        // the archive outright while one of those exists.
+        Payment::where('invoice_id', $invoice->id)
+            ->whereNotNull('quotation_id')
+            ->update(['invoice_id' => null]);
+
+        // 3. Reverse Customer Ledger (credit the amount)
         $lastLedger = CustomerLedger::where('customer_id', $invoice->customer_id)
             ->orderBy('id', 'desc')
             ->first();
@@ -116,7 +133,7 @@ class InvoiceService
             'created_by'       => $userId,
         ]);
         
-        // 3. Unlock Quotation (set status back to approved)
+        // 4. Unlock Quotation (set status back to approved)
         $quotation = $invoice->quotation;
         if ($quotation) {
             $quotation->update(['status' => 'approved']);
@@ -136,6 +153,26 @@ class InvoiceService
         foreach ($challans as $challan) {
             $challan->restore();
         }
+
+        // Re-link back any advance payment archive() had unlinked from
+        // this invoice - the common case (restore right after an
+        // accidental archive, nothing else changed in between) puts things
+        // back exactly as they were. If a further-out advance was taken
+        // against this same order while the invoice sat archived, it gets
+        // pulled in here too rather than waiting on a second invoice that,
+        // once this one is restored, will likely never be generated - so
+        // paid_amount/due_amount/payment_status are recomputed from every
+        // payment now linked, not just re-applied from before archiving.
+        Payment::where('quotation_id', $invoice->quotation_id)
+            ->whereNull('invoice_id')
+            ->active()
+            ->update(['invoice_id' => $invoice->id]);
+
+        $paidAmount = (float) Payment::where('invoice_id', $invoice->id)->active()->sum('amount');
+        $invoice->paid_amount = $paidAmount;
+        $invoice->due_amount = max(0, (float) $invoice->grand_total - $paidAmount);
+        $invoice->payment_status = $invoice->due_amount <= 0 ? 'paid' : ($paidAmount > 0 ? 'partial' : 'unpaid');
+        $invoice->save();
 
         // Re-create Customer Ledger entry
         $lastLedger = CustomerLedger::where('customer_id', $invoice->customer_id)

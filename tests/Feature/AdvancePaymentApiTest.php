@@ -183,6 +183,113 @@ class AdvancePaymentApiTest extends TestCase
     }
 
     /** @test */
+    public function archiving_an_invoice_with_only_a_folded_advance_is_allowed_and_keeps_the_ledger(): void
+    {
+        $this->pendingOrder->update(['status' => 'approved']);
+
+        $this->actingAs($this->admin, 'sanctum')->postJson(
+            "/api/quotations/{$this->pendingOrder->id}/advance-payments",
+            ['amount' => 400, 'payment_method' => 'cash', 'payment_date' => now()->toDateString()]
+        )->assertStatus(201);
+
+        $genResponse = $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/invoices/generate/{$this->pendingOrder->id}?with_challan=0");
+        $invoiceId = $genResponse->json('data.invoice.id');
+
+        $ledgerRowsBefore = CustomerLedger::count();
+        $cashRowsBefore = CashBookEntry::count();
+
+        // This used to be rejected outright ("Cannot archive invoice
+        // because it has associated payments") purely because the folded
+        // advance counted as "an associated payment" - it must not,
+        // because unlike a genuine post-invoice payment there's nothing
+        // here that needs voiding first.
+        $response = $this->actingAs($this->admin, 'sanctum')->deleteJson("/api/invoices/{$invoiceId}");
+        $response->assertStatus(200)->assertJsonPath('success', true);
+
+        // The order is editable again.
+        $this->assertEquals('approved', $this->pendingOrder->fresh()->status);
+
+        // The advance is unlinked from the archived invoice but otherwise
+        // completely untouched - still active, same amount, no new ledger
+        // or book entry (archiving only adds the invoice's own reversal
+        // row, not a second reversal of the advance).
+        $payment = Payment::where('quotation_id', $this->pendingOrder->id)->first();
+        $this->assertNull($payment->invoice_id);
+        $this->assertFalse((bool) $payment->is_archived);
+        $this->assertEquals(400, $payment->amount);
+
+        $this->assertEquals($ledgerRowsBefore + 1, CustomerLedger::count()); // just the invoice reversal
+        $this->assertEquals($cashRowsBefore, CashBookEntry::count()); // untouched
+
+        // Customer's balance nets back to exactly what it was before this
+        // invoice existed (the advance's own credit is still in effect).
+        $latestLedger = CustomerLedger::where('customer_id', $this->customer->id)->orderBy('id', 'desc')->first();
+        $this->assertEquals(-400, $latestLedger->balance);
+    }
+
+    /** @test */
+    public function regenerating_the_invoice_after_archiving_folds_the_same_advance_back_in(): void
+    {
+        $this->pendingOrder->update(['status' => 'approved']);
+
+        $this->actingAs($this->admin, 'sanctum')->postJson(
+            "/api/quotations/{$this->pendingOrder->id}/advance-payments",
+            ['amount' => 400, 'payment_method' => 'cash', 'payment_date' => now()->toDateString()]
+        )->assertStatus(201);
+
+        $firstInvoiceId = $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/invoices/generate/{$this->pendingOrder->id}?with_challan=0")
+            ->json('data.invoice.id');
+
+        $this->actingAs($this->admin, 'sanctum')->deleteJson("/api/invoices/{$firstInvoiceId}")
+            ->assertStatus(200);
+
+        // Simulate the real workflow this whole fix is for: order edited
+        // while unlocked (a real edit isn't necessary to prove the point -
+        // just that a second invoice can be generated and picks the same
+        // advance back up).
+        $second = $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/invoices/generate/{$this->pendingOrder->id}?with_challan=0");
+
+        $second->assertStatus(201)
+            ->assertJsonPath('data.invoice.paid_amount', 400)
+            ->assertJsonPath('data.invoice.due_amount', 600);
+
+        $payment = Payment::where('quotation_id', $this->pendingOrder->id)->first();
+        $this->assertEquals($second->json('data.invoice.id'), $payment->invoice_id);
+
+        // Still exactly one advance_payment ledger row and one cash-in
+        // entry throughout - archiving/regenerating never re-charges it.
+        $this->assertEquals(1, CustomerLedger::where('transaction_type', 'advance_payment')->count());
+        $this->assertEquals(1, CashBookEntry::where('entry_type', 'in')->count());
+    }
+
+    /** @test */
+    public function an_invoice_with_a_genuine_post_invoice_payment_still_blocks_archiving(): void
+    {
+        $this->pendingOrder->update(['status' => 'approved']);
+
+        $invoiceId = $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/invoices/generate/{$this->pendingOrder->id}?with_challan=0")
+            ->json('data.invoice.id');
+
+        // A normal payment recorded directly against the invoice (not an
+        // advance) - Payment::quotation_id stays null for these.
+        $this->actingAs($this->admin, 'sanctum')->postJson('/api/payments', [
+            'invoice_id'     => $invoiceId,
+            'amount'         => 500,
+            'payment_method' => 'cash',
+            'payment_date'   => now()->toDateString(),
+        ])->assertStatus(201);
+
+        $response = $this->actingAs($this->admin, 'sanctum')->deleteJson("/api/invoices/{$invoiceId}");
+
+        $response->assertStatus(422)->assertJsonPath('success', false);
+        $this->assertEquals('invoiced', $this->pendingOrder->fresh()->status);
+    }
+
+    /** @test */
     public function a_new_direct_order_can_carry_an_advance_payment_in_the_same_request(): void
     {
         $product = \App\Models\Product::create([
