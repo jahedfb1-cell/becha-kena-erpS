@@ -266,7 +266,7 @@ class AdvancePaymentApiTest extends TestCase
     }
 
     /** @test */
-    public function an_invoice_with_a_genuine_post_invoice_payment_still_blocks_archiving(): void
+    public function an_invoice_with_a_genuine_post_invoice_payment_can_also_be_archived_and_keeps_the_ledger(): void
     {
         $this->pendingOrder->update(['status' => 'approved']);
 
@@ -274,8 +274,12 @@ class AdvancePaymentApiTest extends TestCase
             ->postJson("/api/invoices/generate/{$this->pendingOrder->id}?with_challan=0")
             ->json('data.invoice.id');
 
-        // A normal payment recorded directly against the invoice (not an
-        // advance) - Payment::quotation_id stays null for these.
+        // A normal payment recorded directly against the invoice (not a
+        // pre-invoice advance) - Payment::quotation_id stays null for these,
+        // set only by PaymentService::processAdvancePayment(). This is the
+        // real-world case an invoice like INV-2026-0045 hits: money already
+        // taken straight against the invoice, and the order still needs
+        // fixing and re-invoicing.
         $this->actingAs($this->admin, 'sanctum')->postJson('/api/payments', [
             'invoice_id'     => $invoiceId,
             'amount'         => 500,
@@ -283,10 +287,33 @@ class AdvancePaymentApiTest extends TestCase
             'payment_date'   => now()->toDateString(),
         ])->assertStatus(201);
 
-        $response = $this->actingAs($this->admin, 'sanctum')->deleteJson("/api/invoices/{$invoiceId}");
+        $ledgerRowsBefore = CustomerLedger::count();
+        $cashRowsBefore = CashBookEntry::count();
 
-        $response->assertStatus(422)->assertJsonPath('success', false);
-        $this->assertEquals('invoiced', $this->pendingOrder->fresh()->status);
+        $response = $this->actingAs($this->admin, 'sanctum')->deleteJson("/api/invoices/{$invoiceId}");
+        $response->assertStatus(200)->assertJsonPath('success', true);
+
+        // The order is editable again.
+        $this->assertEquals('approved', $this->pendingOrder->fresh()->status);
+
+        // The payment is unlinked from the archived invoice and backfilled
+        // to the order (quotation_id), ready to fold into whichever invoice
+        // gets generated next - but it is otherwise completely untouched:
+        // still active, same amount, no new ledger or book entry.
+        $payment = Payment::where('quotation_id', $this->pendingOrder->id)->first();
+        $this->assertNull($payment->invoice_id);
+        $this->assertFalse((bool) $payment->is_archived);
+        $this->assertEquals(500, $payment->amount);
+
+        $this->assertEquals($ledgerRowsBefore + 1, CustomerLedger::count()); // just the invoice reversal
+        $this->assertEquals($cashRowsBefore, CashBookEntry::count()); // untouched
+
+        // Regenerating a second invoice folds this same payment back in.
+        $second = $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/invoices/generate/{$this->pendingOrder->id}?with_challan=0");
+        $second->assertStatus(201)
+            ->assertJsonPath('data.invoice.paid_amount', 500);
+        $this->assertEquals($second->json('data.invoice.id'), $payment->fresh()->invoice_id);
     }
 
     /** @test */

@@ -95,21 +95,26 @@ class InvoiceService
             $challan->archive($userId, 'Cascaded from Invoice Archive');
         }
 
-        // 2. Unlink any advance payment folded into this invoice at
-        // generation time (Payment::quotation_id set - see
-        // PaymentService::processAdvancePayment/linkAdvancePaymentsToInvoice)
-        // back to "pending advance against the order", exactly reversing
-        // what generate() did. Its own Customer Ledger credit and
-        // Cash/Bank/Mobile Book entry are left completely alone - that
-        // money was genuinely received and archiving this invoice (usually
-        // to correct it and regenerate) must never make it disappear from
-        // the books. A payment with quotation_id null - one a customer
-        // paid directly against this invoice after it existed - was never
-        // reachable here anyway, since InvoiceController::destroy() blocks
-        // the archive outright while one of those exists.
+        // 2. Unlink every payment tied to this invoice - both a pre-invoice
+        // advance folded in at generation time (Payment::quotation_id
+        // already set - see PaymentService::processAdvancePayment /
+        // linkAdvancePaymentsToInvoice) and a payment taken directly against
+        // this invoice afterwards via the Payments page (quotation_id null
+        // there, since PaymentService::processPayment() never sets it).
+        // Either way the money was genuinely received and archiving this
+        // invoice - usually to correct it and regenerate - must never make
+        // it disappear from the books, so invoice_id is cleared and
+        // quotation_id backfilled to this invoice's order: the payment
+        // becomes "a pending credit against the order" exactly like a fresh
+        // advance, ready to fold into whichever invoice gets generated next
+        // (see linkAdvancePaymentsToInvoice, which matches on quotation_id).
+        // Its own Customer Ledger credit and Cash/Bank/Mobile Book entry are
+        // left completely alone.
         Payment::where('invoice_id', $invoice->id)
-            ->whereNotNull('quotation_id')
-            ->update(['invoice_id' => null]);
+            ->update([
+                'invoice_id'   => null,
+                'quotation_id' => $invoice->quotation_id,
+            ]);
 
         // 3. Reverse Customer Ledger (credit the amount)
         $lastLedger = CustomerLedger::where('customer_id', $invoice->customer_id)

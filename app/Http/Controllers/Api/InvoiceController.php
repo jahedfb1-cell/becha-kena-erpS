@@ -209,32 +209,20 @@ class InvoiceController extends Controller
             return $this->errorResponse('Unauthorized action.', 403);
         }
 
-        $invoice = Invoice::active()->with('payments')->find($id);
+        $invoice = Invoice::active()->find($id);
 
         if (!$invoice) {
             return $this->notFoundResponse('Invoice not found.');
         }
 
-        // Block archive only for a genuine post-invoice payment — one a
-        // customer paid directly against this invoice via the Payments
-        // page (Payment::quotation_id is null for those; PaymentService::
-        // processPayment() never sets it). Voiding one of those properly
-        // reverses its own ledger/book entries, which archiving an invoice
-        // was never meant to do, so those still have to be voided first.
-        //
-        // An advance payment folded into this invoice at generation time
-        // (Payment::quotation_id is set — see PaymentService::
-        // processAdvancePayment / linkAdvancePaymentsToInvoice) is not a
-        // reason to block: that money was already received before this
-        // invoice ever existed, its own ledger/cash-book entries stand
-        // regardless of this invoice's fate, and InvoiceService::archive()
-        // unlinks it back to a pending advance against the order so it
-        // folds into whichever invoice gets generated next.
-        $blockingPayments = $invoice->payments->whereNull('quotation_id');
-        if ($blockingPayments->count() > 0) {
-            return $this->errorResponse('Cannot archive invoice because it has associated payments.', 422);
-        }
-
+        // An associated payment - whether a pre-invoice advance folded in at
+        // generation time or one taken directly against this invoice
+        // afterwards via the Payments page - is never a reason to block
+        // archiving. InvoiceService::archive() unlinks each such payment
+        // back to a pending credit against the order (invoice_id cleared,
+        // quotation_id backfilled) rather than voiding it, so its Customer
+        // Ledger entry and Cash/Bank/Mobile Book entry stand untouched and
+        // the money folds into whichever invoice gets generated next.
         $user = $request->user();
         $reason = $request->get('reason', 'Archived via API');
 
