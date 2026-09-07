@@ -859,7 +859,7 @@ class ReportController extends Controller
     {
         $user = $request->user();
 
-        $query = Invoice::with(['customer:id,customer_code,name,phone,company_name', 'salesman:id,name'])
+        $query = Invoice::with(['customer:id,customer_code,name,phone,company_name,address,address_2', 'salesman:id,name'])
             ->where('is_archived', false)
             ->where('due_amount', '>', 0);
 
@@ -912,12 +912,21 @@ class ReportController extends Controller
 
         $customerDues = $invoices->groupBy('customer_id')->map(function ($group) {
             $customer = $group->first()->customer;
+            $salesman = $group->first()->salesman;
             return [
                 'customer_id'   => $customer ? $customer->id : null,
                 'customer_code' => $customer ? $customer->customer_code : '',
                 'customer_name' => $customer ? $customer->name : 'N/A',
                 'company_name'  => $customer ? $customer->company_name : '',
                 'phone'         => $customer ? $customer->phone : '',
+                // Both lines, joined - address_2 is the (optional) second
+                // line of a customer's address, same as everywhere else in
+                // this app that prints a customer's address in full.
+                'address'       => $customer
+                    ? trim(collect([$customer->address, $customer->address_2])->filter()->implode(', '))
+                    : '',
+                'salesman_id'   => $salesman ? $salesman->id : null,
+                'salesman_name' => $salesman ? $salesman->name : '',
                 'invoice_count' => $group->count(),
                 'total_grand'   => (float) $group->sum('grand_total'),
                 'total_paid'    => (float) $group->sum('paid_amount'),
