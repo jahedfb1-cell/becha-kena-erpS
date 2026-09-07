@@ -117,6 +117,32 @@ const Orders = () => {
   // in the same transaction as the order itself.
   const [draftAdvancePayment, setDraftAdvancePayment] = useState(null);
 
+  // Recording an advance straight from the Pending/Confirmed list, without
+  // opening full edit mode — a separate modal instance from the edit
+  // form's own Advance Payment card (that one's data lives in editId /
+  // editOrderNumber / financialSummary, none of which apply here; this one
+  // just needs the row's own quotation object). Not shown once an order is
+  // invoiced, same as QuotationController::storeAdvancePayment's own guard.
+  const [listAdvanceOrder, setListAdvanceOrder] = useState(null);
+  const [listAdvanceAlready, setListAdvanceAlready] = useState(0);
+  const [showListAdvanceModal, setShowListAdvanceModal] = useState(false);
+
+  const openListAdvanceModal = async (o) => {
+    setListAdvanceOrder(o);
+    setListAdvanceAlready(0);
+    setShowListAdvanceModal(true);
+    try {
+      const res = await api.get(`/quotations/${o.id}/advance-payments`);
+      const payments = res.data?.data || [];
+      const total = payments
+        .filter((p) => !p.is_archived)
+        .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      setListAdvanceAlready(total);
+    } catch (err) {
+      console.warn('Failed to load existing advance payments for this order:', err);
+    }
+  };
+
   // -------------------------------------------------------------
   // FORM STATE FOR DIRECT ORDER CREATION (Dynamic Builder)
   // -------------------------------------------------------------
@@ -1392,6 +1418,23 @@ const Orders = () => {
                               ✏️
                             </button>
                           )}
+                          {/* Record what the customer has already paid without
+                              opening full edit mode — a QuotationController::
+                              storeAdvancePayment call this order can accept
+                              any time before it's invoiced (pending or
+                              confirmed both), same guard as the edit form's
+                              own Advance Payment card. */}
+                          {o.status !== 'invoiced' && (
+                            <button
+                              type="button"
+                              className="btn-action-circle"
+                              onClick={() => openListAdvanceModal(o)}
+                              title="Record Advance Payment"
+                              style={{ marginRight: '4px', background: '#ffedd5', border: '1px solid #fdba74' }}
+                            >
+                              💰
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn-action-circle"
@@ -1481,6 +1524,15 @@ const Orders = () => {
                           onClick={() => handleEditClick(o)}
                         >
                           ✏️ Edit
+                        </button>
+                      )}
+                      {o.status !== 'invoiced' && (
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-orange"
+                          onClick={() => openListAdvanceModal(o)}
+                        >
+                          💰 Advance
                         </button>
                       )}
                     </div>
@@ -2886,6 +2938,19 @@ const Orders = () => {
         draftMode={!isEditMode}
         initialDraft={draftAdvancePayment}
         onDraftSave={setDraftAdvancePayment}
+      />
+
+      {/* Same modal, opened straight from the Pending/Confirmed list rows
+          (💰 button) instead of the edit form — see openListAdvanceModal. */}
+      <AdvancePaymentModal
+        isOpen={showListAdvanceModal}
+        onClose={() => setShowListAdvanceModal(false)}
+        quotation={listAdvanceOrder}
+        alreadyAdvanced={listAdvanceAlready}
+        onPaymentRecorded={() => {
+          setShowListAdvanceModal(false);
+          fetchOrders();
+        }}
       />
     </div>
   );

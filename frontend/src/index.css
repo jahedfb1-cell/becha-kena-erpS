@@ -3734,6 +3734,20 @@ a, button, select, input, textarea, .nav-item {
   background: #fde68a;
 }
 
+/* A genuine action (record an advance payment), not a status — kept
+   visually distinct from .pill-amber above (which means "waiting on the
+   supplier", not something to click) even though both are in the amber
+   family, so the two don't read as the same thing on the mobile card's
+   pill row. */
+.mobile-action-pill.pill-orange {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fdba74;
+}
+.mobile-action-pill.pill-orange:hover {
+  background: #fed7aa;
+}
+
 .mobile-action-pill.pill-indigo {
   background: #e0e7ff;
   color: #4338ca;
