@@ -277,35 +277,14 @@ const ChallanPrintPage = () => {
             did not match the rest. `display: block` overrides the flex on
             .print-header while keeping that class's orange bottom rule. */}
         <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
-          {/* Tested on the raw path field, not on *_logo_url: getLogoUrl()
-              never returns null — it hands back /logo-demo.svg whenever
-              nothing is uploaded, so the _url field is always truthy and
-              could never select this branch. A brand with no logo would
-              otherwise print the demo placeholder on a customer's challan;
-              the trade name as text is what this page printed before it
-              gained the standard letterhead. */}
-          <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-            {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
-              <img
-                src={logoSrc}
-                alt="Invoice & Print Header Logo"
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  height: 'auto',
-                  maxHeight: '140px',
-                  objectFit: 'contain',
-                  display: 'block',
-                  margin: '0 auto'
-                }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            ) : (
-              <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>
-                {brand.name}
-              </h1>
-            )}
-          </div>
+          {/* No logo image here - it moved into the item table's <thead>
+              (see below), which is the only way to make it repeat on every
+              printed page a table spans. Keeping a second copy here too
+              just duplicated it on page 1, right under the letterhead, so
+              this page's own logo now lives solely in the thead - one
+              full-width logo per page, page 1 included. A brand with no
+              logo shows nothing here (see brand.name fallback still used
+              inside the thead's own conditional below). */}
 
           {/* Office Address Centered Horizontal Line */}
           <div style={{
@@ -373,24 +352,26 @@ const ChallanPrintPage = () => {
                 spans (already why the column-title row below shows again
                 on page 2+) - a real, well-supported browser feature, unlike
                 the CSS-only "repeat this on every printed page" that isn't
-                supported at all. Riding on that same mechanism, this row
-                puts the brand logo there too, so a continuation page never
-                reads as a bare, unbranded table - it also shows once above
-                the column titles on page 1, which reads as a normal small
-                brand mark under the full letterhead rather than a
-                duplicate, since the two headers look nothing alike. */}
-            {(companyProfile?.invoice_logo || companyProfile?.company_logo) && (
-              <tr>
-                <th colSpan={7} style={{ padding: '4px 0', background: '#ffffff', border: 'none', textAlign: 'center' }}>
+                supported at all, and the only way a continuation page ever
+                carries branding at all. This is the SOLE logo in the whole
+                document now (removed from the standalone letterhead above,
+                which used to duplicate it on page 1) - full width, exactly
+                like that letterhead's own logo used to render, so it reads
+                the same on every page including the first. */}
+            <tr>
+              <th colSpan={7} style={{ padding: '4px 0', background: '#ffffff', border: 'none', textAlign: 'center' }}>
+                {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
                   <img
                     src={logoSrc}
-                    alt="Dhaka Blinds"
-                    style={{ height: '32px', maxWidth: '220px', objectFit: 'contain', display: 'inline-block' }}
+                    alt="Invoice & Print Header Logo"
+                    style={{ width: '100%', maxWidth: '100%', height: 'auto', maxHeight: '140px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
-                </th>
-              </tr>
-            )}
+                ) : (
+                  <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>{brand.name}</h1>
+                )}
+              </th>
+            </tr>
             <tr>
               <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
               <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Description of Goods</th>
