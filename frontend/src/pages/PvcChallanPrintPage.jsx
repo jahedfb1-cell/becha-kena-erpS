@@ -239,10 +239,34 @@ const PvcChallanPrintPage = () => {
 
         {/* ── HEADER ── */}
         <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
-          {/* No logo image here - see the item table's <thead> below for
-              why (it moved there, so it repeats on every printed page a
-              table spans; keeping a second copy here duplicated it on
-              page 1, right under the letterhead). */}
+          {/* This logo only ever appears once, here, at the top of page 1
+              - see ChallanPrintPage's identical header for why it can't
+              also repeat on continuation pages without either duplicating
+              on page 1 or rendering below "Office Address" instead of
+              above it (a table's <thead> always comes after this block,
+              never before it). A continuation page carries no header. */}
+          <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+            {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
+              <img
+                src={brand.logoSrc}
+                alt="Invoice & Print Header Logo"
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  height: 'auto',
+                  maxHeight: '140px',
+                  objectFit: 'contain',
+                  display: 'block',
+                  margin: '0 auto'
+                }}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#000000' }}>
+                {brand.name}
+              </h1>
+            )}
+          </div>
 
           {/* Office Address Centered Horizontal Line */}
           <div style={{
@@ -306,29 +330,6 @@ const PvcChallanPrintPage = () => {
         <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
         <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto', background: '#ffffff' }}>
           <thead>
-            {/* See ChallanPrintPage's identical row: Chromium repeats a
-                <thead> at the top of every page a table spans (already why
-                the column-title row below shows again on page 2+), so
-                riding on that same, well-supported mechanism is the only
-                way a continuation page ever carries branding at all. This
-                is the SOLE logo in the whole document now (removed from
-                the standalone letterhead above, which used to duplicate it
-                on page 1) - full width, exactly like that letterhead's own
-                logo used to render, so it reads the same on every page. */}
-            <tr>
-              <th colSpan={8} style={{ padding: '4px 0', background: '#ffffff', border: 'none', textAlign: 'center' }}>
-                {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
-                  <img
-                    src={brand.logoSrc}
-                    alt="Invoice & Print Header Logo"
-                    style={{ width: '100%', maxWidth: '100%', height: 'auto', maxHeight: '140px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                  />
-                ) : (
-                  <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#000000' }}>{brand.name}</h1>
-                )}
-              </th>
-            </tr>
             <tr>
               <th style={{ width: '40px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>SL No.</th>
               <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Goods Description</th>
