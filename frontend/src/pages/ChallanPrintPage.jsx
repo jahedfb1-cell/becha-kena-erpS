@@ -269,113 +269,105 @@ const ChallanPrintPage = () => {
       >
 
         {/* ── HEADER ──
-            The standard letterhead every printed document in this app uses
-            (see QuotationPrintPage): brand logo image, office address, red
-            rule, then contact details / document title / document meta laid
-            out in three columns. This page previously typed the company name
-            as an <h1> and stacked the contact lines, which is why its header
-            did not match the rest. `display: block` overrides the flex on
-            .print-header while keeping that class's orange bottom rule. */}
-        <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
-          {/* Tested on the raw path field, not on *_logo_url: getLogoUrl()
-              never returns null — it hands back /logo-demo.svg whenever
-              nothing is uploaded, so the _url field is always truthy and
-              could never select this branch. A brand with no logo would
-              otherwise print the demo placeholder on a customer's challan;
-              the trade name as text is what this page printed before it
-              gained the standard letterhead.
-              This logo only ever appears once, here, at the top of page 1
-              - a table's <thead> can repeat it on every printed page, but
-              only by rendering below this block (inside the table, which
-              always comes after it), never above "Office Address" the way
-              this position needs. A continuation page simply carries no
-              header at all rather than a duplicate or a wrongly-placed
-              one - see the item table below for the same trade-off. */}
-          <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-            {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
-              <img
-                src={logoSrc}
-                alt="Invoice & Print Header Logo"
-                style={{
-                  width: '100%',
-                  maxWidth: '100%',
-                  height: 'auto',
-                  maxHeight: '140px',
-                  objectFit: 'contain',
-                  display: 'block',
-                  margin: '0 auto'
-                }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            ) : (
-              <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>
-                {brand.name}
-              </h1>
-            )}
-          </div>
-
-          {/* Office Address Centered Horizontal Line */}
-          <div style={{
-            fontSize: '11px',
-            color: '#222',
-            textAlign: 'center',
-            fontWeight: '700',
-            paddingBottom: '4px',
-            marginBottom: '2px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.3px'
-          }}>
-            Office Address : {brand.officeAddress}
-          </div>
-
-          {/* Red Divider Line under Logo */}
-          <div style={{
-            borderBottom: '1.5px solid #dc2626',
-            marginBottom: '12px',
-            width: '100%'
-          }}></div>
-
-          {/* 3-Column Info Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
-            <div>
-              Mobile : {brand.mobile}<br/>
-              Email : {brand.email}<br/>
-              Web : {brand.web}
-              {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
-            </div>
-
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
-                Delivery Challan
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'right', fontSize: '12px' }}>
-              <div>Date : <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong></div>
-              <div>Challan No. : <strong>{challan.challan_number}</strong></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Delivery Challan to box */}
-        <div style={{ marginBottom: '20px', width: '30%', minWidth: '240px' }}>
-          <div>
-            <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>DELIVERY CHALLAN to :</div>
-            <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px' }}>
-              <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka'}</div>
-              {customer?.address_2 && (
-                <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
-              )}
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Items table */}
+            The standard letterhead (logo, office address, red rule, 3-column
+            contact/title/date block) plus the "DELIVERY CHALLAN to :" box
+            live inside the table's own <thead> now, not as separate blocks
+            above it - a <thead> is the only thing Chromium repeats
+            identically at the top of every printed page a table spans, and
+            "logo above Office Address on every page, page 1 included" can
+            only be achieved by putting both inside that same repeating unit,
+            in this exact order, rather than splitting the logo off into its
+            own copy (which either duplicates on page 1, or - since the
+            standalone block a <thead> repeat always renders below always
+            renders after it - can never land above "Office Address" at
+            all; both were tried and reverted in earlier commits). The
+            customer's delivery address rides along for the same reason:
+            leaving it outside would put it either above the letterhead
+            (wrong order) or below the repeating block on every page (visual
+            gap where the letterhead used to end). Repeating it is also
+            genuinely useful - a continuation page on its own still says
+            which order it's for. */}
         <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
         <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto' }}>
           <thead>
+            <tr>
+              <th colSpan={7} style={{ border: 'none', padding: 0, background: '#ffffff' }}>
+                <div className="print-header" style={{ display: 'block', marginBottom: '16px', textAlign: 'left', fontWeight: 'normal', textTransform: 'none' }}>
+                  {/* Tested on the raw path field, not on *_logo_url: getLogoUrl()
+                      never returns null — it hands back /logo-demo.svg whenever
+                      nothing is uploaded, so the _url field is always truthy and
+                      could never select this branch. A brand with no logo would
+                      otherwise print the demo placeholder on a customer's challan;
+                      the trade name as text is what this page printed before it
+                      gained the standard letterhead. */}
+                  <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+                    {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
+                      <img
+                        src={logoSrc}
+                        alt="Invoice & Print Header Logo"
+                        style={{
+                          width: '100%',
+                          maxWidth: '100%',
+                          height: 'auto',
+                          maxHeight: '140px',
+                          objectFit: 'contain',
+                          display: 'block',
+                          margin: '0 auto'
+                        }}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#111' }}>
+                        {brand.name}
+                      </h1>
+                    )}
+                  </div>
+
+                  {/* Office Address Centered Horizontal Line */}
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#222',
+                    textAlign: 'center',
+                    fontWeight: '700',
+                    paddingBottom: '4px',
+                    marginBottom: '2px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.3px'
+                  }}>
+                    Office Address : {brand.officeAddress}
+                  </div>
+
+                  {/* Red Divider Line under Logo */}
+                  <div style={{
+                    borderBottom: '1.5px solid #dc2626',
+                    marginBottom: '12px',
+                    width: '100%'
+                  }}></div>
+
+                  {/* 3-Column Info Header */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
+                    <div style={{ flex: 1 }}>
+                      Mobile : {brand.mobile}<br/>
+                      Email : {brand.email}<br/>
+                      Web : {brand.web}
+                      {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
+                    </div>
+
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
+                        Delivery Challan
+                      </div>
+                    </div>
+
+                    <div style={{ flex: 1, textAlign: 'right', fontSize: '12px' }}>
+                      <div>Date : <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong></div>
+                      <div>Challan No. : <strong>{challan.challan_number}</strong></div>
+                    </div>
+                  </div>
+                </div>
+
+              </th>
+            </tr>
             <tr>
               <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
               <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Description of Goods</th>
@@ -387,6 +379,34 @@ const ChallanPrintPage = () => {
             </tr>
           </thead>
           <tbody>
+            {/* Delivery Challan to box - a plain tbody row rather than part
+                of the repeating <thead> above. Testing showed the letterhead
+                alone repeats correctly on every page, but adding this box's
+                height to it stops Chromium from repeating the whole thead at
+                all (some page-fit threshold, not any specific CSS on the
+                box itself - a plain equal-height spacer broke it too, and
+                the box completely alone repeated fine). tbody content never
+                repeats regardless, so this still lands exactly once, right
+                after the letterhead, in its normal reading position - it
+                just won't show again on a continuation page, same as the
+                item rows and everything else in the body. */}
+            <tr>
+              <td colSpan={7} style={{ border: 'none', padding: 0 }}>
+                <div style={{ marginBottom: '20px', width: '30%', minWidth: '240px' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>DELIVERY CHALLAN to :</div>
+                    <div style={{ border: '1px solid #000', padding: '8px 12px', borderRadius: '2px' }}>
+                      <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+                      <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka'}</div>
+                      {customer?.address_2 && (
+                        <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+                      )}
+                      <div style={{ fontSize: '12px', color: '#333' }}>{customer?.phone}</div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
             {groups.length === 0 ? (
               <tr>
                 <td colSpan="7" style={{ padding: '20px', textAlign: 'center', color: '#64748b', border: '1px solid #cbd5e1' }}>No line items found.</td>
