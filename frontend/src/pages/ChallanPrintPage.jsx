@@ -368,28 +368,35 @@ const ChallanPrintPage = () => {
 
               </th>
             </tr>
-            <tr>
-              <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
-              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Description of Goods</th>
-              <th style={{ width: '75px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Colour</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>T. Width (in)</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Height</th>
-              <th style={{ width: '50px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs</th>
-              <th style={{ width: '110px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Quantity / Sq.Ft</th>
-            </tr>
           </thead>
           <tbody>
-            {/* Delivery Challan to box - a plain tbody row rather than part
-                of the repeating <thead> above. Testing showed the letterhead
-                alone repeats correctly on every page, but adding this box's
-                height to it stops Chromium from repeating the whole thead at
-                all (some page-fit threshold, not any specific CSS on the
-                box itself - a plain equal-height spacer broke it too, and
-                the box completely alone repeated fine). tbody content never
-                repeats regardless, so this still lands exactly once, right
-                after the letterhead, in its normal reading position - it
-                just won't show again on a continuation page, same as the
-                item rows and everything else in the body. */}
+            {/* Delivery Challan to box AND the column-title row both live
+                here in tbody now, not in the repeating <thead> above -
+                tbody content never repeats per page regardless of height,
+                so both still land exactly once, in their normal reading
+                order right after the letterhead (customer box first, then
+                column titles, matching how this page always read before
+                any of this), same as the item rows and everything else in
+                the body.
+
+                They're here together, rather than the column-title row
+                staying in <thead> the way it used to, because of a real
+                Chromium limit measured directly against this page: a
+                repeating <thead> here stops repeating at all, on any page,
+                once its TOTAL height crosses roughly 284px - the letterhead
+                alone plus the column-title row together already used about
+                264px of that budget, leaving only ~20px of headroom, nowhere
+                near enough to also fit a real customer address box (~100-
+                140px with its name, address lines and phone). Splitting the
+                customer box into its own separate <tr> didn't help - it's
+                the thead's cumulative height that trips the limit, not any
+                one row's. So the column-title row had to come out too, to
+                leave the letterhead enough headroom on its own to keep
+                repeating on every page - the one thing explicitly asked
+                for. The trade-off: a continuation page (2+) carries the
+                logo/letterhead but not a repeated column-title row anymore -
+                nobody asked for that specifically, unlike the ordering and
+                the logo, so it's the piece given up here. */}
             <tr>
               <td colSpan={7} style={{ border: 'none', padding: 0 }}>
                 <div style={{ marginBottom: '20px', width: '30%', minWidth: '240px' }}>
@@ -406,6 +413,15 @@ const ChallanPrintPage = () => {
                   </div>
                 </div>
               </td>
+            </tr>
+            <tr>
+              <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
+              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Description of Goods</th>
+              <th style={{ width: '75px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Colour</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>T. Width (in)</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Height</th>
+              <th style={{ width: '50px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Pcs</th>
+              <th style={{ width: '110px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Quantity / Sq.Ft</th>
             </tr>
             {groups.length === 0 ? (
               <tr>

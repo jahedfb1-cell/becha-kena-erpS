@@ -319,26 +319,23 @@ const PvcChallanPrintPage = () => {
 
               </th>
             </tr>
-            <tr>
-              <th style={{ width: '40px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>SL No.</th>
-              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Goods Description</th>
-              <th style={{ width: '80px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Code</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Pcs of Slats</th>
-              <th style={{ width: '65px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>T. Length</th>
-              <th style={{ width: '60px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Height</th>
-              <th style={{ width: '50px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Pcs</th>
-              <th style={{ width: '90px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>UOM - SQ.Ft</th>
-            </tr>
           </thead>
           <tbody>
-            {/* Delivery Challan to box - see ChallanPrintPage's identical
-                tbody row for why this lives here rather than inside the
-                repeating <thead> above: the letterhead alone repeats
-                correctly on every page, but adding this box's height to it
-                stops the whole thead from repeating at all (a page-fit
-                threshold, confirmed unrelated to the box's own CSS).
-                tbody content never repeats regardless, so it still lands
-                exactly once, right after the letterhead. */}
+            {/* Delivery Challan to box AND the column-title row both live
+                here in tbody now - see ChallanPrintPage's identical tbody
+                rows for the full reasoning: a repeating <thead> here stops
+                repeating at all, on any page, once its total height crosses
+                a measured ~284px limit, and the letterhead plus a real
+                customer address box together blow well past that (a plain
+                spacer of the same height broke it identically - it's not
+                anything about the box's own CSS). The column-title row had
+                to come out too to leave the letterhead's own height enough
+                headroom to keep repeating on every page. Both land here in
+                their normal reading order (customer box, then column
+                titles) right after the letterhead, exactly once - a
+                continuation page keeps the logo but not a repeated column-
+                title row, the trade-off nobody asked for here but the
+                thead's height budget doesn't allow keeping it. */}
             <tr>
               <td colSpan={8} style={{ border: 'none', padding: 0 }}>
                 <div style={{ marginBottom: '20px', width: '30%', minWidth: '240px' }}>
@@ -355,6 +352,16 @@ const PvcChallanPrintPage = () => {
                   </div>
                 </div>
               </td>
+            </tr>
+            <tr>
+              <th style={{ width: '40px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>SL No.</th>
+              <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Goods Description</th>
+              <th style={{ width: '80px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Code</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Pcs of Slats</th>
+              <th style={{ width: '65px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>T. Length</th>
+              <th style={{ width: '60px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Height</th>
+              <th style={{ width: '50px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>Pcs</th>
+              <th style={{ width: '90px', textAlign: 'center', background: '#ffffff', color: '#000000', border: '1px solid #000000' }}>UOM - SQ.Ft</th>
             </tr>
             {groups.length === 0 ? (
               <tr>
