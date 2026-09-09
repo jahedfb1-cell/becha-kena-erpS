@@ -369,6 +369,28 @@ const ChallanPrintPage = () => {
         <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto' }}>
         <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', flex: '1 1 auto' }}>
           <thead>
+            {/* Chromium repeats a <thead> at the top of every page a table
+                spans (already why the column-title row below shows again
+                on page 2+) - a real, well-supported browser feature, unlike
+                the CSS-only "repeat this on every printed page" that isn't
+                supported at all. Riding on that same mechanism, this row
+                puts the brand logo there too, so a continuation page never
+                reads as a bare, unbranded table - it also shows once above
+                the column titles on page 1, which reads as a normal small
+                brand mark under the full letterhead rather than a
+                duplicate, since the two headers look nothing alike. */}
+            {(companyProfile?.invoice_logo || companyProfile?.company_logo) && (
+              <tr>
+                <th colSpan={7} style={{ padding: '4px 0', background: '#ffffff', border: 'none', textAlign: 'center' }}>
+                  <img
+                    src={logoSrc}
+                    alt="Dhaka Blinds"
+                    style={{ height: '32px', maxWidth: '220px', objectFit: 'contain', display: 'inline-block' }}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                </th>
+              </tr>
+            )}
             <tr>
               <th style={{ width: '45px', textAlign: 'center', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>SL No.</th>
               <th style={{ textAlign: 'left', paddingLeft: '12px', background: '#d1d5db', color: '#000', border: '1px solid #9ca3af' }}>Description of Goods</th>
@@ -398,53 +420,67 @@ const ChallanPrintPage = () => {
                   return sum + (parseFloat(item.billed_sqft) || fallback);
                 }, 0);
 
-                return rows.map((item, rowInGroup) => {
-                  const isFirst = rowInGroup === 0;
-                  const isLast = rowInGroup === span - 1;
-                  // A real rowSpan can't be split across a print page break -
-                  // when a large group (many sizes under one product) doesn't
-                  // fit in what's left of the current page, Chromium defers
-                  // the *whole* spanned block to the next page as one atomic
-                  // unit, leaving the rest of the current page blank. Faking
-                  // the same merged look instead - content only on the first
-                  // row, blank cells after it, with the border between them
-                  // removed so it still reads as one merged block - lets the
-                  // table paginate row by row like any other, at the cost of
-                  // the merged block no longer being vertically centered
-                  // across a page boundary if it ever needs to (it wasn't
-                  // being centered before either - see the top-aligned
-                  // verticalAlign this already used).
-                  const mergedCellStyle = {
-                    borderLeft: '1px solid #cbd5e1',
-                    borderRight: '1px solid #cbd5e1',
-                    borderTop: isFirst ? '1px solid #cbd5e1' : 'none',
-                    borderBottom: isLast ? '1px solid #cbd5e1' : 'none',
-                  };
-                  return (
-                    <tr key={item.id}>
-                      <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle }}>
-                        {isFirst ? groupIdx + 1 : ''}
-                      </td>
-                      <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', ...mergedCellStyle }}>
-                        {isFirst && (
-                          <>
-                            <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
-                            {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
-                          </>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle }}>
-                        {isFirst ? (firstItem.product?.product_code || firstItem.variant?.name || '-') : ''}
-                      </td>
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.height}</td>
-                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.pcs}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle }}>
-                        {isFirst ? `${groupTotalSqft.toFixed(2)} Square feet` : ''}
-                      </td>
-                    </tr>
-                  );
+                // A real rowSpan can't be split across a print page break -
+                // when a large group (many sizes under one product) doesn't
+                // fit in what's left of the current page, Chromium defers
+                // the *whole* spanned block to the next page as one atomic
+                // unit, leaving the rest of the current page blank. Faking
+                // the same merged look instead - content only on one row,
+                // blank cells elsewhere, with the border between them
+                // removed so it still reads as one merged block - lets the
+                // table paginate row by row like any other.
+                //
+                // That merged content (product name + spec bullets, often
+                // several lines) sits on its OWN dedicated row here, above
+                // the size rows, rather than sharing a row with the first
+                // size's Width/Height/Pcs the way a real rowSpan's first
+                // covered row would. Cramming both into one row forces that
+                // row exactly as tall as the spec text needs, which leaves
+                // the Width/Height/Pcs cells sharing it - just one short
+                // line of their own content - sitting in a lot of dead
+                // space beneath it. Giving the spec text a row of its own
+                // means every actual size row stays a normal, short height.
+                const mergedCellStyle = (isFirst, isLast) => ({
+                  borderLeft: '1px solid #cbd5e1',
+                  borderRight: '1px solid #cbd5e1',
+                  borderTop: isFirst ? '1px solid #cbd5e1' : 'none',
+                  borderBottom: isLast ? '1px solid #cbd5e1' : 'none',
                 });
+                return [
+                  <tr key={`${firstItem.id}-info`}>
+                    <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle(true, false) }}>
+                      {groupIdx + 1}
+                    </td>
+                    <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', ...mergedCellStyle(true, false) }}>
+                      <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
+                      {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
+                    </td>
+                    <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle(true, false) }}>
+                      {firstItem.product?.product_code || firstItem.variant?.name || '-'}
+                    </td>
+                    <td style={{ border: '1px solid #cbd5e1' }}></td>
+                    <td style={{ border: '1px solid #cbd5e1' }}></td>
+                    <td style={{ border: '1px solid #cbd5e1' }}></td>
+                    <td style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle(true, false) }}>
+                      {groupTotalSqft.toFixed(2)} Square feet
+                    </td>
+                  </tr>,
+                  ...rows.map((item, rowInGroup) => {
+                    const isLast = rowInGroup === span - 1;
+                    const blankMergedStyle = mergedCellStyle(false, isLast);
+                    return (
+                      <tr key={item.id}>
+                        <td style={blankMergedStyle}></td>
+                        <td style={blankMergedStyle}></td>
+                        <td style={blankMergedStyle}></td>
+                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
+                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.height}</td>
+                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.pcs}</td>
+                        <td style={blankMergedStyle}></td>
+                      </tr>
+                    );
+                  }),
+                ];
               })
             )}
 
