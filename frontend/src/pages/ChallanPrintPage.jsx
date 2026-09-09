@@ -400,32 +400,48 @@ const ChallanPrintPage = () => {
 
                 return rows.map((item, rowInGroup) => {
                   const isFirst = rowInGroup === 0;
+                  const isLast = rowInGroup === span - 1;
+                  // A real rowSpan can't be split across a print page break -
+                  // when a large group (many sizes under one product) doesn't
+                  // fit in what's left of the current page, Chromium defers
+                  // the *whole* spanned block to the next page as one atomic
+                  // unit, leaving the rest of the current page blank. Faking
+                  // the same merged look instead - content only on the first
+                  // row, blank cells after it, with the border between them
+                  // removed so it still reads as one merged block - lets the
+                  // table paginate row by row like any other, at the cost of
+                  // the merged block no longer being vertically centered
+                  // across a page boundary if it ever needs to (it wasn't
+                  // being centered before either - see the top-aligned
+                  // verticalAlign this already used).
+                  const mergedCellStyle = {
+                    borderLeft: '1px solid #cbd5e1',
+                    borderRight: '1px solid #cbd5e1',
+                    borderTop: isFirst ? '1px solid #cbd5e1' : 'none',
+                    borderBottom: isLast ? '1px solid #cbd5e1' : 'none',
+                  };
                   return (
                     <tr key={item.id}>
-                      {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                          {groupIdx + 1}
-                        </td>
-                      )}
-                      {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
-                          <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
-                          {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
-                        </td>
-                      )}
-                      {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                          {firstItem.product?.product_code || firstItem.variant?.name || '-'}
-                        </td>
-                      )}
+                      <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle }}>
+                        {isFirst ? groupIdx + 1 : ''}
+                      </td>
+                      <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', ...mergedCellStyle }}>
+                        {isFirst && (
+                          <>
+                            <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
+                            {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
+                          </>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle }}>
+                        {isFirst ? (firstItem.product?.product_code || firstItem.variant?.name || '-') : ''}
+                      </td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.height}</td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.pcs}</td>
-                      {isFirst && (
-                        <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                          {groupTotalSqft.toFixed(2)} Square feet
-                        </td>
-                      )}
+                      <td style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle }}>
+                        {isFirst ? `${groupTotalSqft.toFixed(2)} Square feet` : ''}
+                      </td>
                     </tr>
                   );
                 });
