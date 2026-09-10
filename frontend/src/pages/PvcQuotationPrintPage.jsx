@@ -432,55 +432,48 @@ const PvcQuotationPrintPage = () => {
                     </tr>
                   )}
 
-                  {group.rows.map((entry, rowInGroup) => {
+                  {/* One row per group, not one per size - see the identical
+                      note on PvcInvoicePrintPage. Every column here is a
+                      per-group figure (the per-size numbers are in the slat
+                      breakdown table below), so the rows after the first
+                      carried no cells of their own and existed only to be
+                      covered by a rowSpan that a printer cannot split across
+                      a page. */}
+                  {group.rows.slice(0, 1).map((entry) => {
                     const { item, idx } = entry;
                     const unitPrice = parseFloat(item.unit_price) || 0;
-                    const span = group.rows.length;
-                    const isFirst = rowInGroup === 0;
 
                     return (
                       <tr key={idx}>
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                            {groupIdx + 1}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                          {groupIdx + 1}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
-                            <div>
-                              <strong style={{ fontSize: '13px', color: '#111' }}>
-                                {item.product?.name || 'Blind Item'}
-                              </strong>
-                            </div>
-                            {hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
+                          <div>
+                            <strong style={{ fontSize: '13px', color: '#111' }}>
+                              {item.product?.name || 'Blind Item'}
+                            </strong>
+                          </div>
+                          {hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                            {item.product?.product_code || item.variant?.name || '-'}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                          {item.product?.product_code || item.variant?.name || '-'}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                            {groupTotalSqft.toFixed(2)}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                          {groupTotalSqft.toFixed(2)}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
-                            {unitPrice.toFixed(2)}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
+                          {unitPrice.toFixed(2)}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1', color: (item.is_selected !== false) ? '#000' : '#64748b' }}>
-                            {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1', color: (item.is_selected !== false) ? '#000' : '#64748b' }}>
+                          {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
+                        </td>
                       </tr>
                     );
                   })}

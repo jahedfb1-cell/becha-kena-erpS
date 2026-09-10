@@ -409,55 +409,51 @@ const PvcInvoicePrintPage = () => {
                     </tr>
                   )}
 
-                  {group.rows.map((entry, rowInGroup) => {
+                  {/* One row per group, not one per size. Every column in
+                      this table is a per-group figure - the per-size numbers
+                      live in the slat breakdown table further down - so the
+                      rows after the first carried no cells of their own and
+                      existed only to be covered by a rowSpan. Dropping them
+                      prints exactly the same thing while leaving the table
+                      free to break between groups: a real rowSpan cannot be
+                      split across a printed page, so a group tall enough to
+                      overflow used to be pushed whole to the next page and
+                      leave the previous one blank (see ChallanPrintPage). */}
+                  {group.rows.slice(0, 1).map((entry) => {
                     const { item, idx } = entry;
                     const unitPrice = parseFloat(item.unit_price) || 0;
-                    const span = group.rows.length;
-                    const isFirst = rowInGroup === 0;
 
                     return (
                       <tr key={idx} style={{ background: '#ffffff' }}>
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
-                            {groupIdx + 1}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
+                          {groupIdx + 1}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #000000', color: '#000000' }}>
-                            <div>
-                              <strong style={{ fontSize: '13px', color: '#000000' }}>
-                                {item.product?.name || 'Blind Item'}
-                              </strong>
-                            </div>
-                            {hasSpecification(item) ? renderRichText(lineSpecification(item), { color: '#000000' }) : null}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #000000', color: '#000000' }}>
+                          <div>
+                            <strong style={{ fontSize: '13px', color: '#000000' }}>
+                              {item.product?.name || 'Blind Item'}
+                            </strong>
+                          </div>
+                          {hasSpecification(item) ? renderRichText(lineSpecification(item), { color: '#000000' }) : null}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
-                            {item.product?.product_code || item.variant?.name || '-'}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
+                          {item.product?.product_code || item.variant?.name || '-'}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
-                            {groupTotalSqft.toFixed(2)}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #000000', color: '#000000' }}>
+                          {groupTotalSqft.toFixed(2)}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #000000', color: '#000000' }}>
-                            {unitPrice.toFixed(2)}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #000000', color: '#000000' }}>
+                          {unitPrice.toFixed(2)}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={span} style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #000000', color: '#000000' }}>
-                            {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#000000' }}>(Alternative Choice)</div>}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #000000', color: '#000000' }}>
+                          {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#000000' }}>(Alternative Choice)</div>}
+                        </td>
                       </tr>
                     );
                   })}

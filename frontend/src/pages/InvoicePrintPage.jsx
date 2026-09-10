@@ -58,6 +58,18 @@ const getDisplayWidth = (item) => {
   return Math.round(slats * slatSize * 100) / 100;
 };
 
+/**
+ * Roughly how tall the product's specification block will render, in lines -
+ * see ChallanPrintPage's copy for why this is estimated rather than measured.
+ */
+const estimateSpecLines = (item) => {
+  const spec = String(lineSpecification(item) || '');
+  const plain = spec.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').trim();
+  if (!plain) return 0;
+  const breaks = (spec.match(new RegExp("<(br|/p|/li|/div|/h[1-6])[^>]*>", "gi")) || []).length;
+  return Math.max(breaks || 1, Math.ceil(plain.length / 55));
+};
+
 const InvoicePrintPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -606,30 +618,54 @@ const InvoicePrintPage = () => {
 
                     if (!isDetailed && !isFirst) return null;
 
-                    const currentRowSpan = isDetailed ? span : 1;
+                    // See ChallanPrintPage for the full reasoning: a real
+                    // rowSpan cannot be split across a printed page, so a
+                    // product with enough sizes to overflow gets deferred
+                    // whole to the next page, leaving the previous one blank
+                    // below the header. The merged look is rebuilt here
+                    // without one - shared cells carry their content on the
+                    // first row and drop the border between rows - and the
+                    // description is lifted out of that row's flow when the
+                    // group has enough rows below to cover it, so the first
+                    // size still lines up with the product name instead of
+                    // sitting atop a row as tall as the whole specification.
+                    // Only the detailed layout renders more than one row per
+                    // group, so only it can overflow or need the overlay.
+                    const isLast = !isDetailed || rowInGroup === span - 1;
+                    const mergedCell = {
+                      borderLeft: '1px solid #cbd5e1',
+                      borderRight: '1px solid #cbd5e1',
+                      borderTop: isFirst ? '1px solid #cbd5e1' : 'none',
+                      borderBottom: isLast ? '1px solid #cbd5e1' : 'none',
+                    };
+                    const descHeight = 18 + estimateSpecLines(group.rows[0].item) * 15;
+                    const overlayDescription = isDetailed && (span - 1) * 26 >= descHeight;
+                    const description = isFirst ? (
+                      <>
+                        <strong style={{ fontSize: '13px', color: '#111' }}>
+                          {item.product?.name || 'Blind Item'}
+                        </strong>
+                        {hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
+                      </>
+                    ) : null;
 
                     return (
                       <tr key={idx}>
-                        {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                            {groupIdx + 1}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                          {isFirst ? groupIdx + 1 : ''}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', border: '1px solid #cbd5e1' }}>
-                            <strong style={{ fontSize: '13px', color: '#111' }}>
-                              {item.product?.name || 'Blind Item'}
-                            </strong>
-                            {hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', position: 'relative', ...mergedCell }}>
+                          {isFirst && (overlayDescription ? (
+                            <div style={{ position: 'absolute', top: '8px', left: '12px', right: '8px' }}>
+                              {description}
+                            </div>
+                          ) : description)}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                            {item.product?.product_code || item.variant?.name || '-'}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                          {isFirst ? (item.product?.product_code || item.variant?.name || '-') : ''}
+                        </td>
 
                         {isDetailed && (
                           <>
@@ -639,23 +675,17 @@ const InvoicePrintPage = () => {
                           </>
                         )}
 
-                        {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                            {groupTotalSqft.toFixed(2)}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                          {isFirst ? groupTotalSqft.toFixed(2) : ''}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
-                            {unitPrice.toFixed(2)}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', ...mergedCell }}>
+                          {isFirst ? unitPrice.toFixed(2) : ''}
+                        </td>
 
-                        {isFirst && (
-                          <td rowSpan={currentRowSpan} style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1' }}>
-                            {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                        )}
+                        <td style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', ...mergedCell }}>
+                          {isFirst ? groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                        </td>
                       </tr>
                     );
                   })}
