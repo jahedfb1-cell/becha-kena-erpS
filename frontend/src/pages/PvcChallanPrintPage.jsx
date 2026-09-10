@@ -252,26 +252,20 @@ const PvcChallanPrintPage = () => {
               <th colSpan={8} style={{ border: 'none', padding: 0, background: '#ffffff' }}>
                 <div className="print-header" style={{ display: 'block', marginBottom: '16px', textAlign: 'left', fontWeight: 'normal', textTransform: 'none' }}>
                   <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-                    {(companyProfile?.invoice_logo || companyProfile?.company_logo) ? (
-                      <img
-                        src={brand.logoSrc}
-                        alt="Invoice & Print Header Logo"
-                        style={{
-                          width: '100%',
-                          maxWidth: '100%',
-                          height: 'auto',
-                          maxHeight: '140px',
-                          objectFit: 'contain',
-                          display: 'block',
-                          margin: '0 auto'
-                        }}
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <h1 style={{ margin: 0, fontSize: '30px', fontWeight: 800, color: '#000000' }}>
-                        {brand.name}
-                      </h1>
-                    )}
+                    <img
+                      src={brand.logoSrc}
+                      alt="Invoice & Print Header Logo"
+                      style={{
+                        width: '100%',
+                        maxWidth: '100%',
+                        height: 'auto',
+                        maxHeight: '140px',
+                        objectFit: 'contain',
+                        display: 'block',
+                        margin: '0 auto'
+                      }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
                   </div>
 
                   {/* Office Address Centered Horizontal Line */}
@@ -280,39 +274,35 @@ const PvcChallanPrintPage = () => {
                     color: '#000000',
                     textAlign: 'center',
                     fontWeight: '700',
-                    paddingBottom: '4px',
                     marginBottom: '2px',
                     textTransform: 'uppercase',
                     letterSpacing: '0.3px'
                   }}>
                     Office Address : {brand.officeAddress}
                   </div>
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#000000',
+                    textAlign: 'center',
+                    fontWeight: '700',
+                    paddingBottom: '4px',
+                    marginBottom: '2px',
+                    letterSpacing: '0.3px'
+                  }}>
+                    Mobile : {brand.mobile}, &nbsp;Email : {brand.email}, &nbsp;Web : {brand.web}{brand.vatRegNo ? <>, &nbsp;VAT Reg No : {brand.vatRegNo}</> : ''}
+                  </div>
 
                   {/* Red Divider Line under Logo */}
                   <div style={{
                     borderBottom: '1.5px solid #dc2626',
-                    marginBottom: '12px',
+                    marginBottom: '4px',
                     width: '100%'
                   }}></div>
 
-                  {/* 3-Column Info Header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#000000', lineHeight: '1.5' }}>
-                    <div>
-                      Mobile : {brand.mobile}<br/>
-                      Email : {brand.email}<br/>
-                      Web : {brand.web}
-                      {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
-                    </div>
-
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000000', letterSpacing: '0.5px', textAlign: 'center' }}>
-                        PVC Challan
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right', fontSize: '12px', color: '#000000' }}>
-                      <div>Date : <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong></div>
-                      <div>Challan No. : <strong>{challan.challan_number}</strong></div>
+                  {/* Header Title under Red Divider */}
+                  <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000000', letterSpacing: '0.5px', textAlign: 'center', lineHeight: 1.1 }}>
+                      PVC Challan
                     </div>
                   </div>
                 </div>
@@ -338,17 +328,35 @@ const PvcChallanPrintPage = () => {
                 thead's height budget doesn't allow keeping it. */}
             <tr>
               <td colSpan={8} style={{ border: 'none', padding: 0 }}>
-                <div style={{ marginBottom: '20px', width: '30%', minWidth: '240px' }}>
-                  <div>
-                    <div style={{ fontWeight: 'bold', fontSize: '12px', marginBottom: '4px', textDecoration: 'underline', color: '#000000' }}>DELIVERY CHALLAN to :</div>
-                    <div style={{ border: '1px solid #000000', padding: '8px 12px', borderRadius: '2px', background: '#ffffff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000000' }}>DELIVERY CHALLAN to :</div>
+                    <div style={{ border: '1.5px solid #000000', padding: '8px 12px', borderRadius: '2px', background: '#ffffff', height: 'calc(100% - 22px)' }}>
                       <strong style={{ fontSize: '14px', color: '#000000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-                      <div style={{ fontSize: '12px', color: '#000000' }}>{customer?.address || 'Dhaka'}</div>
+                      <div style={{ fontSize: '12px', color: '#000000' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
                       {customer?.address_2 && (
                         <div style={{ fontSize: '12px', color: '#000000' }}>{customer.address_2}</div>
                       )}
-                      <div style={{ fontSize: '12px', color: '#000000' }}>{customer?.phone}</div>
+                      {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                        <div style={{ fontSize: '12px', color: '#000000' }}>{customer.phone}</div>
+                      )}
                     </div>
+                  </div>
+                  
+                  {shipToAddress && shipToAddress !== (customer?.address || 'Dhaka, Bangladesh') ? (
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000000' }}>Delivery Address:</div>
+                      <div style={{ border: '1.5px solid #000000', padding: '8px 12px', borderRadius: '2px', background: '#ffffff', height: 'calc(100% - 22px)' }}>
+                        <div style={{ fontSize: '12px', color: '#000000', whiteSpace: 'pre-line' }}>{shipToAddress}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1 }}></div>
+                  )}
+
+                  <div style={{ textAlign: 'right', fontSize: '12px', lineHeight: '1.6', minWidth: '180px', flexShrink: 0, color: '#000000' }}>
+                    <div>Date : <strong>{formatDate(challan.delivery_date || challan.created_at)}</strong></div>
+                    <div>Challan No. : <strong>{challan.challan_number}</strong></div>
                   </div>
                 </div>
               </td>

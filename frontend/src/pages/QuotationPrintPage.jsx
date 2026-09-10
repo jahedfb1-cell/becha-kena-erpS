@@ -434,7 +434,7 @@ const QuotationPrintPage = () => {
         
         {/* HEADER */}
         {!isPad ? (
-          <div className="print-header" style={{ display: 'block', marginBottom: '16px' }}>
+          <div className="print-header" style={{ display: 'block', marginBottom: '8px' }}>
             <div style={{ textAlign: 'center', marginBottom: '4px' }}>
               <img
                 src={logoSrc}
@@ -458,44 +458,40 @@ const QuotationPrintPage = () => {
               color: '#222',
               textAlign: 'center',
               fontWeight: '700',
-              paddingBottom: '4px',
               marginBottom: '2px',
               textTransform: 'uppercase',
               letterSpacing: '0.3px'
             }}>
               Office Address : {brand.officeAddress}
             </div>
+            <div style={{
+              fontSize: '11px',
+              color: '#222',
+              textAlign: 'center',
+              fontWeight: '700',
+              paddingBottom: '4px',
+              marginBottom: '2px',
+              letterSpacing: '0.3px'
+            }}>
+              Mobile : {brand.mobile}, &nbsp;Email : {brand.email}, &nbsp;Web : {brand.web}{brand.vatRegNo ? <>, &nbsp;VAT Reg No : {brand.vatRegNo}</> : ''}
+            </div>
 
             {/* Red Divider Line under Logo */}
             <div style={{
               borderBottom: '1.5px solid #dc2626',
-              marginBottom: '12px',
+              marginBottom: '4px',
               width: '100%'
             }}></div>
 
-                {/* 3-Column Info Header */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'flex-start', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
-                  <div>
-                    Mobile : {brand.mobile}<br/>
-                    Email : {brand.email}<br/>
-                    Web : {brand.web}
-                    {brand.vatRegNo && <div>VAT Reg No : {brand.vatRegNo}</div>}
-                  </div>
-
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center' }}>
-                      Quotation
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right', fontSize: '12px' }}>
-                    <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
-                    <div>Quotation No. : <strong>{quotation.quotation_number}</strong></div>
+                {/* Header Title under Red Divider */}
+                <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', letterSpacing: '0.5px', textAlign: 'center', lineHeight: 1.1 }}>
+                    Quotation
                   </div>
                 </div>
           </div>
         ) : (
-          <div style={{ display: 'block', marginBottom: '16px' }}>
+          <div style={{ display: 'block', marginBottom: '8px' }}>
             <div style={{ height: '36mm' }} className="pad-print-spacer"></div>
             {/* Office Address Centered Line for Pad Paper Print */}
             <div style={{
@@ -503,28 +499,33 @@ const QuotationPrintPage = () => {
               color: '#222',
               textAlign: 'center',
               fontWeight: '700',
-              paddingBottom: '4px',
-              borderBottom: '1px solid #cbd5e1',
-              marginBottom: '10px',
+              marginBottom: '2px',
               textTransform: 'uppercase',
               letterSpacing: '0.3px'
             }}>
               Office Address : {brand.officeAddress}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center' }}>
-              <div></div>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', textAlign: 'center' }}>Quotation</div>
-              <div style={{ textAlign: 'right', fontSize: '12px' }}>
-                <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
-                <div>Quotation No. : <strong>{quotation.quotation_number}</strong></div>
-              </div>
+            <div style={{
+              fontSize: '11px',
+              color: '#222',
+              textAlign: 'center',
+              fontWeight: '700',
+              paddingBottom: '4px',
+              borderBottom: '1px solid #cbd5e1',
+              marginBottom: '4px',
+              letterSpacing: '0.3px'
+            }}>
+              Mobile : {brand.mobile}, &nbsp;Email : {brand.email}, &nbsp;Web : {brand.web}{brand.vatRegNo ? <>, &nbsp;VAT Reg No : {brand.vatRegNo}</> : ''}
+            </div>
+            <div style={{ textAlign: 'center', marginBottom: '2px' }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: '"David", "David Libre", "Times New Roman", serif', color: '#000', textAlign: 'center', lineHeight: 1.1 }}>Quotation</div>
             </div>
           </div>
         )}
 
-        {/* Quotation To & Delivery Address Section */}
+        {/* Quotation To & Delivery Address Section with Date & Quotation No on Right */}
         {quotation?.delivery_address ? (
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '16px' }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Quotation To:</div>
               <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff', height: 'calc(100% - 22px)' }}>
@@ -544,19 +545,29 @@ const QuotationPrintPage = () => {
                 <div style={{ fontSize: '12px', color: '#333', whiteSpace: 'pre-line' }}>{quotation.delivery_address}</div>
               </div>
             </div>
+            <div style={{ textAlign: 'right', fontSize: '12px', lineHeight: '1.6', minWidth: '180px', flexShrink: 0 }}>
+              <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
+              <div>Quotation No. : <strong>{quotation.quotation_number}</strong></div>
+            </div>
           </div>
         ) : (
-          <div style={{ width: '300px', marginBottom: '16px' }}>
-            <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Quotation To:</div>
-            <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff' }}>
-              <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
-              <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
-              {customer?.address_2 && (
-                <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
-              )}
-              {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
-                <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
-              )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px', marginBottom: '16px' }}>
+            <div style={{ width: '320px' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '4px', textDecoration: 'underline', color: '#000' }}>Quotation To:</div>
+              <div style={{ border: '1.5px solid #000', padding: '8px 12px', borderRadius: '2px', background: '#fff' }}>
+                <strong style={{ fontSize: '14px', color: '#000', display: 'block' }}>{customer?.company_name || customer?.name}</strong>
+                <div style={{ fontSize: '12px', color: '#333' }}>{customer?.address || 'Dhaka, Bangladesh'}</div>
+                {customer?.address_2 && (
+                  <div style={{ fontSize: '12px', color: '#333' }}>{customer.address_2}</div>
+                )}
+                {customer?.phone && customer?.contact_show_status !== 'cannot_show_contact_number' && (
+                  <div style={{ fontSize: '12px', color: '#333' }}>{customer.phone}</div>
+                )}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: '12px', lineHeight: '1.6', minWidth: '180px', flexShrink: 0 }}>
+              <div>Date : <strong>{formatDate(quotation.created_at || quotation.date || new Date())}</strong></div>
+              <div>Quotation No. : <strong>{quotation.quotation_number}</strong></div>
             </div>
           </div>
         )}

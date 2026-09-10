@@ -4,6 +4,7 @@ import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
+import { brandFields } from '../utils/brandProfile';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -61,6 +62,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
       });
   }, [isOpen, quotation?.brand_id]);
 
+  const brand = brandFields(companyProfile);
   const rawItems = quotation?.items || [];
 
   // Calculate Subtotal and Net Amount strictly from selected items (is_selected !== false)
@@ -372,15 +374,16 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                     background: '#fff'
                   }}>
                     <h2 style={{ margin: '0 0 3px 0', fontSize: '22px', fontWeight: 800, color: '#000', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                      {companyProfile?.company_name || 'Dhaka Blinds'}
+                      {brand.name}
                     </h2>
                     <div style={{ fontSize: '11px', color: '#222', fontWeight: 600, marginBottom: '4px' }}>
-                      {companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh.'}
+                      {brand.companyAddress || brand.officeAddress}
                     </div>
                     <div style={{ fontSize: '11px', color: '#111', display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap', fontWeight: 600 }}>
-                      <span>Mobile: <strong>{companyProfile?.mobile || '01629000200'}</strong></span>
-                      <span>Email: <strong>{companyProfile?.email || 'dhakablinds@gmail.com'}</strong></span>
-                      <span>Web: <strong>{companyProfile?.company_web || 'www.dhakablinds.com'}</strong></span>
+                      <span>Mobile: <strong>{brand.mobile}</strong></span>
+                      <span>Email: <strong>{brand.email}</strong></span>
+                      <span>Web: <strong>{brand.web}</strong></span>
+                      {brand.vatRegNo ? <span>VAT Reg No: <strong>{brand.vatRegNo}</strong></span> : null}
                     </div>
                   </div>
                 )}
@@ -389,11 +392,11 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                   <div>
                     {!isOrder && (
                       <>
-                        <strong>{companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh,.'}</strong><br/>
-                        Mobile : {companyProfile?.mobile || '01629000200'}<br/>
-                        Email : {companyProfile?.email || 'dhakablinds@gmail.com'}<br/>
-                        Web : {companyProfile?.company_web || 'www.dhakablinds.com'}
-                        {companyProfile?.vat_reg_no && <div>VAT Reg No : {companyProfile.vat_reg_no}</div>}
+                        <strong>{brand.companyAddress || brand.officeAddress}</strong><br/>
+                        Mobile : {brand.mobile}<br/>
+                        Email : {brand.email}<br/>
+                        Web : {brand.web}
+                        {brand.vatRegNo ? <div>VAT Reg No : {brand.vatRegNo}</div> : null}
                       </>
                     )}
                   </div>

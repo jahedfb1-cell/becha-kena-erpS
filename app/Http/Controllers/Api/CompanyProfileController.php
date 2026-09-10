@@ -143,6 +143,7 @@ class CompanyProfileController extends Controller
                 'mobile'            => '01718040323',
                 'email'             => 'westernblindltd@gmail.com',
                 'company_web'       => 'www.westernblindsltd.com',
+                'vat_reg_no'        => '004557266-0110',
                 'browser_title'     => 'Western Blinds Ltd - ERP & IMS Portal',
                 'terms_conditions'  => "You'll have to make 50% of the total payment at the time of placing order with (PO) and the remaining 50% is to be paid after completion of the decoration.\nPlease make your payment by cash or cheque in favour of \"Western Blinds Ltd\" we hope you'll find ours rates reasonable and place an order with us.",
             ];

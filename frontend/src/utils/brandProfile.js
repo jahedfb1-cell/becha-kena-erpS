@@ -33,23 +33,38 @@ export const fetchProfileForRecord = async (api, record) => {
  * the original Dhaka Blinds wording as the last-resort fallback so a failed
  * profile fetch degrades to the pre-brand output rather than to blanks.
  */
-export const brandFields = (profile) => ({
-  logoSrc:
-    profile?.invoice_logo_url || profile?.company_logo_url || '/logo-demo.svg',
-  receiptLogoSrc:
-    profile?.receipt_logo_url || profile?.company_logo_url || '/logo-demo.svg',
-  name: profile?.company_name || 'Dhaka Blinds',
-  footerName:
-    profile?.footer_name || profile?.company_name || 'Dhaka Blinds',
-  chequeFavourName:
-    profile?.cheque_favour_name || profile?.company_name || 'Dhaka Blinds',
-  officeAddress:
-    profile?.office_address ||
-    'Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215',
-  companyAddress: profile?.company_address || '',
-  mobile: profile?.mobile || '01629000200',
-  email: profile?.email || 'dhakablinds@gmail.com',
-  web: profile?.company_web || 'www.dhakablinds.com',
-  vatRegNo: profile?.vat_reg_no || '',
-  termsConditions: profile?.terms_conditions || '',
-});
+export const brandFields = (profile) => {
+  const isWestern =
+    profile?.id === 2 ||
+    profile?.brand_id === 2 ||
+    (profile?.company_name && /western/i.test(profile.company_name)) ||
+    (profile?.office_address && /badda/i.test(profile.office_address)) ||
+    (profile?.office_address && /house:\s*300/i.test(profile.office_address));
+
+  return {
+    logoSrc:
+      profile?.invoice_logo_url || profile?.company_logo_url || '/logo-demo.svg',
+    receiptLogoSrc:
+      profile?.receipt_logo_url || profile?.company_logo_url || '/logo-demo.svg',
+    name: profile?.company_name || (isWestern ? 'Western Blinds Ltd' : 'Dhaka Blinds'),
+    footerName:
+      profile?.footer_name || profile?.company_name || (isWestern ? 'Western Blinds Ltd' : 'Dhaka Blinds'),
+    chequeFavourName:
+      profile?.cheque_favour_name || profile?.company_name || (isWestern ? 'Western Blinds Ltd' : 'Dhaka Blinds'),
+    officeAddress:
+      profile?.office_address ||
+      (isWestern
+        ? 'House: 300, (1st Floor), Road: Shadhinata Shoroni, Uttar Badda, Dhaka -1212'
+        : 'Chowrangi Super Market, (3rd Floor), 1, Indira Road, Farmgate, Dhaka -1215'),
+    companyAddress:
+      profile?.company_address ||
+      (isWestern
+        ? 'House: 300, (1st Floor), Road: Shadhinata Shoroni, Uttar Badda, Dhaka-1212'
+        : ''),
+    mobile: profile?.mobile || (isWestern ? '01718040323' : '01629000200'),
+    email: profile?.email || (isWestern ? 'westernblindltd@gmail.com' : 'dhakablinds@gmail.com'),
+    web: profile?.company_web || profile?.website || profile?.web || (isWestern ? 'www.westernblindsltd.com' : 'www.dhakablinds.com'),
+    vatRegNo: profile?.vat_reg_no || (isWestern ? '004557266-0110' : ''),
+    termsConditions: profile?.terms_conditions || '',
+  };
+};

@@ -4,6 +4,7 @@ import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import renderRichText from '../utils/renderRichText';
+import { brandFields } from '../utils/brandProfile';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -55,6 +56,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
     window.print();
   };
 
+  const brand = brandFields(companyProfile);
   const customer = invoice.customer || {};
   const quotation = invoice.quotation || {};
   const items = quotation.items || [];
@@ -262,11 +264,11 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'center', gap: '12px', fontSize: '11px', color: '#111', lineHeight: '1.5' }}>
                   <div>
-                    <strong>{companyProfile?.company_address || '1, Indira Road, (3rd Floor) Farmgate, Dhaka-1215, Bangladesh.'}</strong><br/>
-                    Mobile : {companyProfile?.mobile || '01629000200'}<br/>
-                    Email : {companyProfile?.email || 'dhakablinds@gmail.com'}<br/>
-                    Web : {companyProfile?.company_web || 'www.dhakablinds.com'}
-                    {companyProfile?.vat_reg_no && <div>VAT Reg No : {companyProfile.vat_reg_no}</div>}
+                    <strong>{brand.companyAddress || brand.officeAddress}</strong><br/>
+                    Mobile : {brand.mobile}<br/>
+                    Email : {brand.email}<br/>
+                    Web : {brand.web}
+                    {brand.vatRegNo ? <div>VAT Reg No : {brand.vatRegNo}</div> : null}
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
