@@ -22,6 +22,18 @@ const getDisplayWidth = (item) => {
   return Math.round(slats * slatSize * 100) / 100;
 };
 
+/**
+ * Roughly how tall the product's specification block will render, in lines -
+ * see ChallanPrintPage's copy for why this is estimated rather than measured.
+ */
+const estimateSpecLines = (item) => {
+  const spec = String(lineSpecification(item) || '');
+  const plain = spec.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').trim();
+  if (!plain) return 0;
+  const breaks = (spec.match(new RegExp("<(br|/p|/li|/div|/h[1-6])[^>]*>", "gi")) || []).length;
+  return Math.max(breaks || 1, Math.ceil(plain.length / 55));
+};
+
 const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed', isOrderPrint = false }) => {
   const [logoSrc, setLogoSrc] = useState(DEMO_LOGO);
   const [companyProfile, setCompanyProfile] = useState(null);
@@ -576,32 +588,57 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
 
                         if (!isDetailed && !isFirst) return null;
 
-                        const currentRowSpan = isDetailed ? span : 1;
+                        // See ChallanPrintPage for the full reasoning: a real
+                        // rowSpan cannot be split across a printed page, so a
+                        // product with enough sizes to overflow gets deferred
+                        // whole to the next page, leaving the previous one
+                        // blank below the header. This modal prints through
+                        // window.print() like the standalone pages do, so it
+                        // had the same bug. The merged look is rebuilt without
+                        // a rowSpan - shared cells carry their content on the
+                        // first row and drop the border between rows (the
+                        // left/right border still comes from .print-table td) -
+                        // and the description is lifted out of that row's flow
+                        // when the group has enough rows below to cover it, so
+                        // the first size stays level with the product name.
+                        // An order print hides the specification entirely, so
+                        // there is only ever the one product-name line to fit.
+                        const isLast = !isDetailed || rowInGroup === span - 1;
+                        const mergedCell = {
+                          borderTop: isFirst ? '1px solid #ccc' : 'none',
+                          borderBottom: isLast ? '1px solid #ccc' : 'none',
+                        };
+                        const showsSpec = !isOrder && hasSpecification(group.rows[0].item);
+                        const descHeight = 18 + (showsSpec ? estimateSpecLines(group.rows[0].item) * 15 : 0);
+                        const overlayDescription = isDetailed && (span - 1) * 26 >= descHeight;
+                        const description = isFirst ? (
+                          <>
+                            <div>
+                              <strong style={{ fontSize: isOrder ? '14px' : '13px', color: '#111' }}>
+                                {item.product?.name || 'Blind Item'}
+                              </strong>
+                            </div>
+                            {!isOrder && hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
+                          </>
+                        ) : null;
 
                         return (
                           <tr key={idx}>
-                            {isFirst && (
-                              <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px' }}>
-                                {groupIdx + 1}
-                              </td>
-                            )}
+                            <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                              {isFirst ? groupIdx + 1 : ''}
+                            </td>
 
-                            {isFirst && (
-                              <td rowSpan={currentRowSpan} style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px' }}>
-                                <div>
-                                  <strong style={{ fontSize: isOrder ? '14px' : '13px', color: '#111' }}>
-                                    {item.product?.name || 'Blind Item'}
-                                  </strong>
+                            <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', position: 'relative', ...mergedCell }}>
+                              {isFirst && (overlayDescription ? (
+                                <div style={{ position: 'absolute', top: '8px', left: '12px', right: '8px' }}>
+                                  {description}
                                 </div>
-                                {!isOrder && hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
-                              </td>
-                            )}
+                              ) : description)}
+                            </td>
 
-                            {isFirst && (
-                              <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', fontSize: isOrder ? '13px' : '12px' }}>
-                                {item.product?.product_code || item.variant?.name || '-'}
-                              </td>
-                            )}
+                            <td style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', fontSize: isOrder ? '13px' : '12px', ...mergedCell }}>
+                              {isFirst ? (item.product?.product_code || item.variant?.name || '-') : ''}
+                            </td>
 
                             {isDetailed && (() => {
                               const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
@@ -630,22 +667,26 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                               );
                             })()}
 
-                            {!isDetailed && isFirst && (
-                              <td rowSpan={currentRowSpan} style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px' }}>
-                                {groupTotalSqft.toFixed(2)}
+                            {!isDetailed && (
+                              <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                                {isFirst ? groupTotalSqft.toFixed(2) : ''}
                               </td>
                             )}
 
-                            {!hidePrices && isFirst && (
-                              <td rowSpan={currentRowSpan} style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px' }}>
-                                {unitPrice.toFixed(2)}
+                            {!hidePrices && (
+                              <td style={{ textAlign: 'right', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', ...mergedCell }}>
+                                {isFirst ? unitPrice.toFixed(2) : ''}
                               </td>
                             )}
 
-                            {!hidePrices && isFirst && (
-                              <td rowSpan={currentRowSpan} style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', color: (item.is_selected !== false) ? '#000' : '#64748b' }}>
-                                {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
+                            {!hidePrices && (
+                              <td style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', ...mergedCell, color: (item.is_selected !== false) ? '#000' : '#64748b' }}>
+                                {isFirst && (
+                                  <>
+                                    {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
+                                  </>
+                                )}
                               </td>
                             )}
                           </tr>
