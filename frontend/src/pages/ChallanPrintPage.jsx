@@ -36,6 +36,25 @@ const getDisplayWidth = (item) => {
   return Math.round(slats * slatSize * 100) / 100;
 };
 
+/**
+ * Roughly how tall the product's specification block will render, in lines.
+ *
+ * Used only to decide whether the description can safely be lifted out of
+ * the row's normal flow (see the item table below). It counts block-level
+ * breaks in the rich text rather than measuring the DOM, because the
+ * decision has to be made while rendering, and being wrong here only costs
+ * a slightly taller first row - never lost text.
+ */
+const estimateSpecLines = (item) => {
+  const spec = String(lineSpecification(item) || '');
+  const plain = spec.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').trim();
+  if (!plain) return 0;
+  const breaks = (spec.match(new RegExp("<(br|/p|/li|/div|/h[1-6])[^>]*>", "gi")) || []).length;
+  // A long single line still wraps, so never assume fewer than one line per
+  // ~55 characters of text at this column width.
+  return Math.max(breaks || 1, Math.ceil(plain.length / 55));
+};
+
 const ChallanPrintPage = () => {
   const { id } = useParams(); // invoice id
   const navigate = useNavigate();
@@ -437,7 +456,6 @@ const ChallanPrintPage = () => {
               </tr>
             ) : (
               groups.map((rows, groupIdx) => {
-                const firstItem = rows[0];
                 const span = rows.length;
                 // getDisplayWidth() rather than the raw item width, so a
                 // PVC row's total-width figure drives the sq.ft math here
@@ -449,67 +467,77 @@ const ChallanPrintPage = () => {
                   return sum + (parseFloat(item.billed_sqft) || fallback);
                 }, 0);
 
-                // A real rowSpan can't be split across a print page break -
-                // when a large group (many sizes under one product) doesn't
-                // fit in what's left of the current page, Chromium defers
-                // the *whole* spanned block to the next page as one atomic
-                // unit, leaving the rest of the current page blank. Faking
-                // the same merged look instead - content only on one row,
-                // blank cells elsewhere, with the border between them
-                // removed so it still reads as one merged block - lets the
-                // table paginate row by row like any other.
+                // A real rowSpan cannot be split across a printed page:
+                // Chromium defers the whole spanned block to the next page
+                // once it no longer fits, which leaves the previous page
+                // blank below the header and turns a two-page challan into
+                // three. The same merged look is built here without one -
+                // the group's shared cells carry their content on the first
+                // row only, and the border between rows is dropped so the
+                // column still reads as one merged box.
                 //
-                // That merged content (product name + spec bullets, often
-                // several lines) sits on its OWN dedicated row here, above
-                // the size rows, rather than sharing a row with the first
-                // size's Width/Height/Pcs the way a real rowSpan's first
-                // covered row would. Cramming both into one row forces that
-                // row exactly as tall as the spec text needs, which leaves
-                // the Width/Height/Pcs cells sharing it - just one short
-                // line of their own content - sitting in a lot of dead
-                // space beneath it. Giving the spec text a row of its own
-                // means every actual size row stays a normal, short height.
-                const mergedCellStyle = (isFirst, isLast) => ({
-                  borderLeft: '1px solid #cbd5e1',
-                  borderRight: '1px solid #cbd5e1',
-                  borderTop: isFirst ? '1px solid #cbd5e1' : 'none',
-                  borderBottom: isLast ? '1px solid #cbd5e1' : 'none',
+                // The description is the one piece that cannot simply sit in
+                // the first row: a multi-line specification would make that
+                // row as tall as itself, leaving the Width/Height/Pcs value
+                // beside it stranded at the top of a tall, mostly empty row -
+                // the gap this table used to show. So when the group has
+                // enough rows underneath to cover it, the text is taken out
+                // of the row's flow and drawn over the empty cells below
+                // instead, exactly where a rowSpan would have painted it,
+                // while the row itself stays a normal height so the first
+                // size lines up with the product name. A group too short to
+                // cover the text keeps it in normal flow, where a taller
+                // first row is correct and nothing can overflow.
+                const specLines = estimateSpecLines(rows[0]);
+                const descHeight = 18 + specLines * 15;
+                const overlayDescription = (span - 1) * 26 >= descHeight;
+
+                return rows.map((item, rowInGroup) => {
+                  const isFirst = rowInGroup === 0;
+                  const isLast = rowInGroup === span - 1;
+                  const mergedCell = {
+                    borderLeft: '1px solid #cbd5e1',
+                    borderRight: '1px solid #cbd5e1',
+                    borderTop: isFirst ? '1px solid #cbd5e1' : 'none',
+                    borderBottom: isLast ? '1px solid #cbd5e1' : 'none',
+                  };
+                  const description = isFirst ? (
+                    <>
+                      <strong style={{ fontSize: '13px', color: '#111' }}>{item.product?.name || 'Blind Item'}</strong>
+                      {hasSpecification(item) ? renderRichText(lineSpecification(item)) : null}
+                    </>
+                  ) : null;
+
+                  return (
+                    <tr key={item.id}>
+                      <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                        {isFirst ? groupIdx + 1 : ''}
+                      </td>
+                      <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', position: 'relative', ...mergedCell }}>
+                        {isFirst && (overlayDescription ? (
+                          <div style={{ position: 'absolute', top: '8px', left: '12px', right: '8px' }}>
+                            {description}
+                          </div>
+                        ) : description)}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                        {isFirst ? (item.product?.product_code || item.variant?.name || '-') : ''}
+                      </td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                        {getDisplayWidth(item)}
+                      </td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                        {item.height}
+                      </td>
+                      <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
+                        {item.pcs}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
+                        {isFirst ? `${groupTotalSqft.toFixed(2)} Square feet` : ''}
+                      </td>
+                    </tr>
+                  );
                 });
-                return [
-                  <tr key={`${firstItem.id}-info`}>
-                    <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle(true, false) }}>
-                      {groupIdx + 1}
-                    </td>
-                    <td style={{ textAlign: 'left', verticalAlign: 'top', paddingTop: '8px', paddingLeft: '12px', ...mergedCellStyle(true, false) }}>
-                      <strong style={{ fontSize: '13px', color: '#111' }}>{firstItem.product?.name || 'Blind Item'}</strong>
-                      {hasSpecification(firstItem) ? renderRichText(lineSpecification(firstItem)) : null}
-                    </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle(true, false) }}>
-                      {firstItem.product?.product_code || firstItem.variant?.name || '-'}
-                    </td>
-                    <td style={{ border: '1px solid #cbd5e1' }}></td>
-                    <td style={{ border: '1px solid #cbd5e1' }}></td>
-                    <td style={{ border: '1px solid #cbd5e1' }}></td>
-                    <td style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', ...mergedCellStyle(true, false) }}>
-                      {groupTotalSqft.toFixed(2)} Square feet
-                    </td>
-                  </tr>,
-                  ...rows.map((item, rowInGroup) => {
-                    const isLast = rowInGroup === span - 1;
-                    const blankMergedStyle = mergedCellStyle(false, isLast);
-                    return (
-                      <tr key={item.id}>
-                        <td style={blankMergedStyle}></td>
-                        <td style={blankMergedStyle}></td>
-                        <td style={blankMergedStyle}></td>
-                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
-                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.height}</td>
-                        <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{item.pcs}</td>
-                        <td style={blankMergedStyle}></td>
-                      </tr>
-                    );
-                  }),
-                ];
               })
             )}
 
