@@ -36,22 +36,69 @@ export const downloadPrintPdf = async (filename, { selector = '.printable-area' 
   const html2pdf = await loadHtml2Pdf();
   const safeName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
 
-  const opt = {
-    margin: [8, 10, 8, 10],
-    filename: safeName,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, allowTaint: true },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    pagebreak: { mode: ['css', 'legacy'] },
-  };
+  // html2canvas paints the DOM exactly as it looks on screen - it never
+  // switches to the @media print stylesheet the way an actual print does.
+  // Left alone, that means: the "Print / Download PDF / Back" button row
+  // (only hidden by print CSS's `button { display: none }`) gets baked into
+  // the PDF, and the on-screen "card" chrome - drop shadow, rounded corners,
+  // 30px padding, and a fixed 281mm min-height meant to make a short
+  // quotation still *look* like a full page on screen - comes along too.
+  //
+  // The fix has to happen on the LIVE element, not inside html2canvas's
+  // `onclone` callback. html2canvas measures this element's bounding box on
+  // the real document *before* cloning it, then crops its offscreen render
+  // to that same box. Mutating layout-affecting styles (padding, width,
+  // min-height) only on the clone reflows the clone's content to a new
+  // position/size while the crop box stays based on the old, unmutated
+  // layout - the two go out of sync and the result is exactly what we saw:
+  // huge blank gaps and content sliced apart at the wrong point. So instead
+  // we apply these overrides to the real DOM, let the browser reflow for
+  // real (which updates the element's own bounding box), capture, then put
+  // everything back.
+  const noPrintEls = Array.from(element.querySelectorAll('.no-print'));
+  const restoreNoPrintDisplay = noPrintEls.map((el) => el.style.display);
+  noPrintEls.forEach((el) => { el.style.display = 'none'; });
 
-  const pdfBlob = await html2pdf().from(element).set(opt).output('blob');
-  const url = URL.createObjectURL(pdfBlob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = safeName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  const restoreElStyle = {
+    boxShadow: element.style.boxShadow,
+    borderRadius: element.style.borderRadius,
+    maxWidth: element.style.maxWidth,
+    width: element.style.width,
+    margin: element.style.margin,
+    padding: element.style.padding,
+    minHeight: element.style.minHeight,
+  };
+  Object.assign(element.style, {
+    boxShadow: 'none',
+    borderRadius: '0',
+    maxWidth: 'none',
+    width: '100%',
+    margin: '0',
+    padding: '0',
+    minHeight: 'auto',
+  });
+
+  try {
+    const opt = {
+      margin: [8, 10, 8, 10],
+      filename: safeName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, allowTaint: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] },
+    };
+
+    const pdfBlob = await html2pdf().from(element).set(opt).output('blob');
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } finally {
+    Object.assign(element.style, restoreElStyle);
+    noPrintEls.forEach((el, i) => { el.style.display = restoreNoPrintDisplay[i]; });
+  }
 };
