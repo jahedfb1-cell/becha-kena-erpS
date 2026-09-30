@@ -122,6 +122,10 @@ const Quotations = () => {
   const [vatEnabled, setVatEnabled] = useState(false);
   const [vatRate, setVatRate] = useState(10);
   const [vatInclusive, setVatInclusive] = useState(false);
+  // Whether the printed document carries the "All prices quoted above are
+  // excluding VAT & TAX" note - see Orders.jsx for the full note. Defaults
+  // on, which is what every quotation printed before.
+  const [showTaxExclusionNote, setShowTaxExclusionNote] = useState(true);
   const [discountType, setDiscountType] = useState('flat');
   const [discountValue, setDiscountValue] = useState(0);
   
@@ -786,6 +790,7 @@ const Quotations = () => {
       vat_enabled: vatEnabled,
       vat_rate: vatEnabled ? (parseFloat(vatRate) || 0) : null,
       vat_inclusive: vatEnabled ? vatInclusive : false,
+      show_tax_exclusion_note: showTaxExclusionNote,
       discount_type: discountType,
       discount_value: discountValue,
       note: remark,
@@ -851,6 +856,9 @@ const Quotations = () => {
       setVatEnabled(!!fullQ.vat_enabled);
       setVatRate(fullQ.vat_rate == null ? 10 : parseFloat(fullQ.vat_rate));
       setVatInclusive(!!fullQ.vat_inclusive);
+      // Only an explicit false turns it off - an older quotation saved
+      // before this column existed comes back undefined and keeps its note.
+      setShowTaxExclusionNote(fullQ.show_tax_exclusion_note !== false);
       setDiscountType(fullQ.discount_type || 'flat');
       setDiscountValue(parseFloat(fullQ.discount_value) || 0);
       setRemark(fullQ.note || '');
@@ -2677,6 +2685,29 @@ const Quotations = () => {
                       </div>
                     </>
                   )}
+                </div>
+
+                {/* The printed "excluding VAT & TAX" note - see Orders.jsx
+                    for why this stays visible but disabled once the
+                    quotation charges VAT of its own. */}
+                <div className="form-group" style={{ marginTop: '10px', marginBottom: '12px' }}>
+                  <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: vatPercentage > 0 ? 'not-allowed' : 'pointer', opacity: vatPercentage > 0 ? 0.55 : 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={showTaxExclusionNote}
+                      disabled={vatPercentage > 0}
+                      onChange={(e) => setShowTaxExclusionNote(e.target.checked)}
+                      style={{ width: 'auto', margin: 0 }}
+                    />
+                    Print "excluding VAT &amp; TAX" note
+                  </label>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '4px' }}>
+                    {vatPercentage > 0
+                      ? 'Hidden automatically — this quotation already charges VAT.'
+                      : (showTaxExclusionNote
+                          ? 'Prints: "All prices quoted above are excluding VAT & TAX".'
+                          : 'Note hidden — for a customer whose price already includes tax.')}
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>

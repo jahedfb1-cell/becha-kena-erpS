@@ -87,6 +87,7 @@ class QuotationRequest extends FormRequest
             'vat_enabled'         => 'nullable|boolean',
             'vat_rate'            => 'nullable|required_if:vat_enabled,true,1|numeric|min:0|max:100',
             'vat_inclusive'       => 'nullable|boolean',
+            'show_tax_exclusion_note' => 'nullable|boolean',
             'discount_type'       => 'nullable|in:percentage,flat',
             'discount_value'      => 'nullable|numeric|min:0',
             'note'                => 'nullable|string|max:2000',

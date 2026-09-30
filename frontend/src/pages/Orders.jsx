@@ -181,6 +181,12 @@ const Orders = () => {
   const [vatEnabled, setVatEnabled] = useState(false);
   const [vatRate, setVatRate] = useState(10);
   const [vatInclusive, setVatInclusive] = useState(false);
+  // Whether the printed document carries the "All prices quoted above are
+  // excluding VAT & TAX" note. Only ever visible on an order that has no VAT
+  // of its own; this switch is what lets it be suppressed there too, for a
+  // customer who deducts tax at source and whose quoted price already
+  // includes it. Defaults on, which is what every order printed before.
+  const [showTaxExclusionNote, setShowTaxExclusionNote] = useState(true);
   const [discountType, setDiscountType] = useState('flat');
   const [discountValue, setDiscountValue] = useState(0);
   const [remark, setRemark] = useState('');
@@ -954,6 +960,9 @@ const Orders = () => {
       setVatEnabled(!!fullQ.vat_enabled);
       setVatRate(fullQ.vat_rate == null ? 10 : parseFloat(fullQ.vat_rate));
       setVatInclusive(!!fullQ.vat_inclusive);
+      // Only an explicit false turns it off - an older order saved before
+      // this column existed comes back undefined and must keep its note.
+      setShowTaxExclusionNote(fullQ.show_tax_exclusion_note !== false);
       setDiscountType(fullQ.discount_type || 'flat');
       setDiscountValue(parseFloat(fullQ.discount_value) || 0);
       setRemark(fullQ.note || '');
@@ -1149,6 +1158,7 @@ const Orders = () => {
       vat_enabled: vatEnabled,
       vat_rate: vatEnabled ? (parseFloat(vatRate) || 0) : null,
       vat_inclusive: vatEnabled ? vatInclusive : false,
+      show_tax_exclusion_note: showTaxExclusionNote,
       discount_type: discountType,
       discount_value: parseFloat(discountValue) || 0,
       note: remark || null,
@@ -2661,6 +2671,31 @@ const Orders = () => {
                       </div>
                     </>
                   )}
+                </div>
+
+                {/* The printed "excluding VAT & TAX" note. It is only ever
+                    shown on an order with no VAT of its own, so with VAT on
+                    this switch has nothing to control - it stays visible but
+                    disabled, with the reason spelled out, rather than
+                    vanishing and leaving the setting unexplained. */}
+                <div className="form-group" style={{ marginTop: '10px' }}>
+                  <label style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', cursor: vatPercentage > 0 ? 'not-allowed' : 'pointer', opacity: vatPercentage > 0 ? 0.55 : 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={showTaxExclusionNote}
+                      disabled={vatPercentage > 0}
+                      onChange={(e) => setShowTaxExclusionNote(e.target.checked)}
+                      style={{ width: 'auto', margin: 0 }}
+                    />
+                    Print "excluding VAT &amp; TAX" note
+                  </label>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '4px' }}>
+                    {vatPercentage > 0
+                      ? 'Hidden automatically — this order already charges VAT.'
+                      : (showTaxExclusionNote
+                          ? 'Prints: "All prices quoted above are excluding VAT & TAX".'
+                          : 'Note hidden — for a customer whose price already includes tax.')}
+                  </div>
                 </div>
                   </div>
 

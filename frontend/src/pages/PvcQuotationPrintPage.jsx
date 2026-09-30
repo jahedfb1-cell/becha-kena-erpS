@@ -519,7 +519,7 @@ const PvcQuotationPrintPage = () => {
               </tr>
             )}
 
-            {(!quotation.vat_percentage || parseFloat(quotation.vat_percentage) <= 0) && (
+            {(!quotation.vat_percentage || parseFloat(quotation.vat_percentage) <= 0) && quotation.show_tax_exclusion_note !== false && (
               <tr>
                 <td colSpan={6} style={{ fontSize: '11px', fontStyle: 'italic', color: '#333', background: '#fafafa', padding: '6px 12px', border: '1px solid #cbd5e1' }}>
                   All prices quoted above are excluding VAT &amp; TAX

@@ -160,6 +160,10 @@ class QuotationController extends Controller
                     'vat_enabled'        => $request->boolean('vat_enabled'),
                     'vat_rate'           => $request->boolean('vat_enabled') ? $request->get('vat_rate') : null,
                     'vat_inclusive'      => $request->boolean('vat_inclusive'),
+                    // Defaults to true when the field is absent, so an older
+                    // client that does not send it still gets the note it
+                    // has always printed.
+                    'show_tax_exclusion_note' => $request->boolean('show_tax_exclusion_note', true),
                     'discount_type'      => $request->get('discount_type', 'flat'),
                     'discount_value'     => $request->get('discount_value', 0),
                     'note'               => $request->note,
@@ -343,6 +347,10 @@ class QuotationController extends Controller
                 'vat_enabled'        => $request->boolean('vat_enabled'),
                 'vat_rate'           => $request->boolean('vat_enabled') ? $request->get('vat_rate') : null,
                 'vat_inclusive'      => $request->boolean('vat_inclusive'),
+                // Falls back to the order's own saved setting rather than to
+                // true, so an edit that does not touch this field leaves it
+                // exactly as the salesman last set it.
+                'show_tax_exclusion_note' => $request->boolean('show_tax_exclusion_note', (bool) $quotation->show_tax_exclusion_note),
                 'discount_type'      => $request->get('discount_type', $quotation->discount_type),
                 'discount_value'     => $request->get('discount_value', $quotation->discount_value),
                 'note'               => $request->get('note', $quotation->note),

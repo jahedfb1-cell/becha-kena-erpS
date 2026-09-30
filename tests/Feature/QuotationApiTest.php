@@ -358,4 +358,49 @@ class QuotationApiTest extends TestCase
             ->deleteJson("/api/quotations/{$quotation->id}");
         $deleteResponse->assertStatus(422);
     }
+
+    /** @test */
+    public function the_tax_exclusion_note_defaults_on_and_can_be_switched_off(): void
+    {
+        $item = [['product_id' => $this->product->id, 'width' => 36, 'height' => 48, 'pcs' => 1, 'unit_price' => 100]];
+
+        // A request that says nothing about the note keeps it on, so every
+        // order created before this switch existed prints what it always did.
+        $this->actingAs($this->salesman, 'sanctum')
+            ->postJson('/api/quotations', ['customer_id' => $this->customer->id, 'items' => $item])
+            ->assertStatus(201)
+            ->assertJsonPath('data.show_tax_exclusion_note', true);
+
+        // Switched off for a customer who deducts tax at source and whose
+        // quoted price already includes it.
+        $off = $this->actingAs($this->salesman, 'sanctum')
+            ->postJson('/api/quotations', [
+                'customer_id'             => $this->customer->id,
+                'items'                   => $item,
+                'show_tax_exclusion_note' => false,
+            ]);
+        $off->assertStatus(201)->assertJsonPath('data.show_tax_exclusion_note', false);
+
+        $id = $off->json('data.id');
+        $this->assertFalse((bool) Quotation::find($id)->show_tax_exclusion_note);
+
+        // An edit that does not mention the field leaves it off rather than
+        // silently switching the note back on.
+        $this->actingAs($this->salesman, 'sanctum')
+            ->putJson("/api/quotations/{$id}", ['customer_id' => $this->customer->id, 'items' => $item])
+            ->assertStatus(200);
+
+        $this->assertFalse((bool) Quotation::find($id)->show_tax_exclusion_note);
+
+        // And it can be turned back on.
+        $this->actingAs($this->salesman, 'sanctum')
+            ->putJson("/api/quotations/{$id}", [
+                'customer_id'             => $this->customer->id,
+                'items'                   => $item,
+                'show_tax_exclusion_note' => true,
+            ])
+            ->assertStatus(200);
+
+        $this->assertTrue((bool) Quotation::find($id)->show_tax_exclusion_note);
+    }
 }
