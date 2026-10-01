@@ -322,12 +322,27 @@ const Orders = () => {
     }
   };
 
+  // Advances taken against the order being viewed. Fetched separately
+  // because /quotations/{id} doesn't carry payments, and shown on the detail
+  // view for EVERY status — once an order is invoiced the list row loses its
+  // 💰 and ✏️ buttons, so without this the advance (and its money receipt)
+  // became unreachable from this page the moment the invoice was generated.
+  const [detailAdvances, setDetailAdvances] = useState([]);
+
   const loadOrderDetails = async (id) => {
     try {
       setActionLoading(true);
       const response = await api.get(`/quotations/${id}`);
       setSelectedOrder(response.data?.data || response.data);
+      setDetailAdvances([]);
       setView('detail');
+      try {
+        const adv = await api.get(`/quotations/${id}/advance-payments`);
+        setDetailAdvances(adv.data?.data || []);
+      } catch (e) {
+        // A failed advance lookup must not cost the user the whole order view.
+        console.warn('Failed to load advance payments for this order:', e);
+      }
     } catch (err) {
       alert('Failed to retrieve order details.');
     } finally {
@@ -1455,12 +1470,20 @@ const Orders = () => {
                               any time before it's invoiced (pending or
                               confirmed both), same guard as the edit form's
                               own Advance Payment card. */}
-                          {o.status !== 'invoiced' && (
+                          {/* Still shown after invoicing when an advance was
+                              actually taken — recording a new one is blocked
+                              then (QuotationController::storeAdvancePayment
+                              returns 422), but the one already collected must
+                              stay reachable, so the button opens the order's
+                              detail view where it is listed with its receipt. */}
+                          {(o.status !== 'invoiced' || parseFloat(o.payments_sum_amount) > 0) && (
                             <button
                               type="button"
                               className="btn-action-circle"
-                              onClick={() => openListAdvanceModal(o)}
-                              title="Record Advance Payment"
+                              onClick={() => (o.status === 'invoiced' ? loadOrderDetails(o.id) : openListAdvanceModal(o))}
+                              title={o.status === 'invoiced'
+                                ? `Advance taken: ${formatCurrency(o.payments_sum_amount)} — view it and its money receipt`
+                                : 'Record Advance Payment'}
                               style={{ marginRight: '4px', background: '#ffedd5', border: '1px solid #fdba74' }}
                             >
                               💰
@@ -1573,13 +1596,13 @@ const Orders = () => {
                           ✏️ Edit
                         </button>
                       )}
-                      {o.status !== 'invoiced' && (
+                      {(o.status !== 'invoiced' || parseFloat(o.payments_sum_amount) > 0) && (
                         <button
                           type="button"
                           className="mobile-action-pill pill-orange"
-                          onClick={() => openListAdvanceModal(o)}
+                          onClick={() => (o.status === 'invoiced' ? loadOrderDetails(o.id) : openListAdvanceModal(o))}
                         >
-                          💰 Advance
+                          💰 {o.status === 'invoiced' ? formatCurrency(o.payments_sum_amount) : 'Advance'}
                         </button>
                       )}
                       {(o.status === 'approved' || o.status === 'invoiced') && (
@@ -1831,6 +1854,70 @@ const Orders = () => {
                   </button>
                 </div>
               </div>
+
+              {/* ── ADVANCE PAYMENTS ──
+                  Money the customer paid against this order before it was
+                  invoiced. Listed here for every status, including invoiced:
+                  generating the invoice moves the payment onto the invoice
+                  (see linkAdvancePaymentsToInvoice) and the list row drops its
+                  💰 button, so this card is the only place on the Orders page
+                  the receipt stays reachable afterwards. */}
+              {detailAdvances.filter((p) => !p.is_archived).length > 0 && (
+                <div className="welcome-banner" style={{ padding: '20px', marginTop: '20px' }}>
+                  <h3 style={{ margin: '0 0 16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-heading)' }}>
+                    💰 Advance Payments
+                  </h3>
+
+                  {(() => {
+                    const active = detailAdvances.filter((p) => !p.is_archived);
+                    const total = active.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+                    const net = parseFloat(selectedOrder?.net_amount) || 0;
+                    return (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+                          <span>Total Advanced</span>
+                          <strong style={{ color: '#b45309' }}>{formatCurrency(total)}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px dashed var(--border)' }}>
+                          <span>Remaining on this order</span>
+                          <strong style={{ color: net - total > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                            {formatCurrency(Math.max(net - total, 0))}
+                          </strong>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {active.map((p) => (
+                            <div key={p.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 12px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <strong style={{ fontSize: '13px' }}>{p.payment_number}</strong>
+                                <strong style={{ fontSize: '14px', color: '#b45309' }}>{formatCurrency(p.amount)}</strong>
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '3px' }}>
+                                {formatDate(p.payment_date || p.created_at)} · {String(p.payment_method || '').toUpperCase()}
+                                {p.mobile_provider ? ` · ${p.mobile_provider}` : ''}
+                                {p.bank_name ? ` · ${p.bank_name}` : ''}
+                              </div>
+                              {p.invoice_id && (
+                                <div style={{ fontSize: '11.5px', color: 'var(--success)', marginTop: '3px' }}>
+                                  ✓ Applied to this order&apos;s invoice
+                                </div>
+                              )}
+                              <a
+                                href={`/payments/${p.id}/receipt`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}
+                              >
+                                🧾 Money Receipt
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         </div>

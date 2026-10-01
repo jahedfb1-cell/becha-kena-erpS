@@ -64,7 +64,13 @@ class QuotationController extends Controller
             ->withCount('items')
             ->withSum(['items' => function($q) {
                 $q->where('is_selected', true)->where('is_enabled_for_print', true);
-            }], 'billed_sqft');
+            }], 'billed_sqft')
+            // So a row can show that an advance was taken against this order
+            // even after it has been invoiced — one subquery rather than a
+            // payments lookup per row.
+            ->withSum(['payments' => function($q) {
+                $q->where('is_archived', false);
+            }], 'amount');
 
         // Archived filter
         if ($request->boolean('archived')) {

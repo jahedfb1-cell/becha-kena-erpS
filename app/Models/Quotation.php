@@ -93,6 +93,18 @@ class Quotation extends Model
     }
 
     /**
+     * Relationship: advance payments taken against this order.
+     *
+     * Keeps pointing here after the order is invoiced — generating the invoice
+     * fills in the payment's invoice_id but deliberately leaves quotation_id
+     * set, so an advance never loses the order it was collected for.
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class, 'quotation_id');
+    }
+
+    /**
      * Relationship: Purchase entries generated from approval.
      */
     public function purchaseEntries(): HasMany
