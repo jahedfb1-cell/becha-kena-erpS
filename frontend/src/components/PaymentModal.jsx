@@ -7,7 +7,10 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().substring(0, 10));
   const [discountAmount, setDiscountAmount] = useState('');
-  
+  // Why the waive-off was given. Optional — left blank, the receipt simply
+  // doesn't carry a reason line.
+  const [discountNote, setDiscountNote] = useState('');
+
   // Bank details
   const [bankName, setBankName] = useState('');
   const [chequeNumber, setChequeNumber] = useState('');
@@ -27,6 +30,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
       // Leave amount blank — user must manually enter the received amount
       setAmount('');
       setDiscountAmount('');
+      setDiscountNote('');
       setPaymentMethod('cash');
       setPaymentDate(new Date().toISOString().substring(0, 10));
       setBankName('');
@@ -61,11 +65,13 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
   const handleFullPay = () => {
     setAmount(dueAmt.toFixed(2));
     setDiscountAmount('');
+    setDiscountNote('');
   };
 
   const handleHalfPay = () => {
     setAmount((dueAmt / 2).toFixed(2));
     setDiscountAmount('');
+    setDiscountNote('');
   };
 
   const handleSubmit = async (e) => {
@@ -90,6 +96,9 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
         payment_method: paymentMethod,
         payment_date: paymentDate,
         discount_amount: discAmt,
+        // Only meaningful alongside a waive-off; sent trimmed so a stray
+        // space never counts as a reason and prints an empty line.
+        discount_note: discAmt > 0 ? discountNote.trim() : '',
         notes,
       };
 
@@ -123,6 +132,7 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
     setPaymentMethod('cash');
     setPaymentDate(new Date().toISOString().substring(0, 10));
     setDiscountAmount('');
+    setDiscountNote('');
     setBankName('');
     setChequeNumber('');
     setMobileProvider('bKash');
@@ -240,6 +250,35 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
               />
             </div>
           </div>
+
+          {/* Why the waive-off was given. Appears only once an amount has
+              been entered — on a receipt with no discount there is nothing
+              to explain, and an always-visible field would just be one more
+              thing to skip past on the common path. Staying optional is
+              deliberate: a reason that has to be typed before the receipt
+              can be saved would be filled with "discount" within a week. */}
+          {discAmt > 0 && (
+            <div className="custom-form-group animate-fade-in">
+              <label className="custom-form-label">
+                Reason for the waive-off
+                <span style={{ marginLeft: '6px', fontWeight: 500, color: '#94a3b8' }}>(optional)</span>
+              </label>
+              <input
+                type="text"
+                maxLength={255}
+                placeholder="e.g. Rounding adjustment, agreed settlement, delay compensation"
+                value={discountNote}
+                onChange={(e) => setDiscountNote(e.target.value)}
+                disabled={loading}
+                className="custom-form-input"
+              />
+              <span style={{ display: 'block', marginTop: '6px', fontSize: '11.5px', color: '#94a3b8' }}>
+                {discountNote.trim()
+                  ? `✅ Printed on the receipt under the ${formatCurrency(discAmt)} waive-off.`
+                  : 'Leave blank and the receipt shows the waive-off amount without a reason.'}
+              </span>
+            </div>
+          )}
 
           {/* Interactive Payment Method Selector Tiles */}
           <div>

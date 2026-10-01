@@ -236,6 +236,7 @@ const MoneyReceiptPage = () => {
   };
 
   const amount = parseFloat(payment.amount) || 0;
+  const discountAmt = parseFloat(payment.discount_amount) || 0;
 
   const loadHtml2Pdf = () => {
     return new Promise((resolve, reject) => {
@@ -513,6 +514,26 @@ const MoneyReceiptPage = () => {
               <td style={cellLabel}>Amount by Cash / Cheque NO.</td>
               <td style={cellValue} colSpan={3}>{paymentMethodLabel()}</td>
             </tr>
+
+            {/* Waive-off. Only on receipts that actually carry one, and the
+                reason line only when somebody wrote one — a receipt with an
+                empty "Reason:" on it looks like a mistake. The Tk box below
+                stays the cash received, which is what the customer is
+                acknowledging; the waive-off is shown separately so the two
+                are never read as one figure. */}
+            {discountAmt > 0 && (
+              <tr>
+                <td style={cellLabel}>Waive-off / Discount</td>
+                <td style={cellValue} colSpan={3}>
+                  <div>{formatCurrency(discountAmt)}</div>
+                  {payment.discount_note && (
+                    <div style={{ fontSize: '12px', fontWeight: 'normal', fontStyle: 'italic', color: '#475569', marginTop: '3px' }}>
+                      {payment.discount_note}
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )}
 
             {/* Amount in words */}
             <tr>

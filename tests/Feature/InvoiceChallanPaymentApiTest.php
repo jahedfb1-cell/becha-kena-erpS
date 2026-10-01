@@ -207,6 +207,65 @@ class InvoiceChallanPaymentApiTest extends TestCase
         $cashEntry = CashBookEntry::where('entry_type', 'in')->first();
         $this->assertNotNull($cashEntry);
         $this->assertEquals(500, $cashEntry->amount);
+
+        // The waive-off is now kept on the receipt itself, not only folded
+        // into the invoice's running discount total.
+        $payment = \App\Models\Payment::first();
+        $this->assertEquals(50, $payment->discount_amount);
+    }
+
+    /**
+     * The reason behind a waive-off is optional and is printed on the money
+     * receipt only when it is actually filled in — so a blank reason must be
+     * stored as nothing at all, never as an empty string the receipt would
+     * then render as a stray empty line.
+     *
+     * @test
+     */
+    public function a_waive_off_reason_is_kept_only_when_there_is_both_a_discount_and_a_reason()
+    {
+        $makeInvoice = function (string $number) {
+            return Invoice::create([
+                'invoice_number' => $number,
+                'quotation_id'   => $this->approvedQuotation->id,
+                'customer_id'    => $this->customer->id,
+                'subtotal'       => 1000,
+                'grand_total'    => 1050,
+                'due_amount'     => 1050,
+                'invoice_date'   => now()->toDateString(),
+                'created_by'     => $this->admin->id,
+            ]);
+        };
+
+        $cases = [
+            // [discount, reason sent, reason expected on the receipt]
+            ['INV-2026-0101', 50, 'Delay compensation agreed with the client', 'Delay compensation agreed with the client'],
+            ['INV-2026-0102', 50, '', null],
+            // A reason without a waive-off explains nothing, so it is dropped
+            // rather than sitting on a receipt that shows no discount.
+            ['INV-2026-0103', 0, 'Should not be kept', null],
+        ];
+
+        foreach ($cases as [$number, $discount, $reasonSent, $reasonExpected]) {
+            $invoice = $makeInvoice($number);
+
+            $id = $this->actingAs($this->admin, 'sanctum')
+                ->postJson('/api/payments', [
+                    'invoice_id'      => $invoice->id,
+                    'amount'          => 500,
+                    'payment_method'  => 'cash',
+                    'payment_date'    => now()->toDateString(),
+                    'discount_amount' => $discount,
+                    'discount_note'   => $reasonSent,
+                ])
+                ->assertStatus(201)
+                ->json('data.id');
+
+            $payment = \App\Models\Payment::find($id);
+
+            $this->assertEquals($discount, $payment->discount_amount, "Wrong discount stored for {$number}");
+            $this->assertSame($reasonExpected, $payment->discount_note, "Wrong reason stored for {$number}");
+        }
     }
 
     /** @test */

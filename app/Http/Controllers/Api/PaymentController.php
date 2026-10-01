@@ -107,6 +107,9 @@ class PaymentController extends Controller
             'payment_method'  => 'required|in:cash,bank,mobile',
             'payment_date'    => 'required|date',
             'discount_amount' => 'nullable|numeric|min:0',
+            // Optional: why the waive-off was given. Printed on the receipt
+            // only when it is filled in.
+            'discount_note'   => 'nullable|string|max:255',
             // Required so the bank/mobile book-entry (which has a NOT NULL
             // bank_name/provider column) never fails at the database level.
             'bank_name'       => 'required_if:payment_method,bank|string|max:100',

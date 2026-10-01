@@ -19,6 +19,8 @@ class Payment extends Model
         'quotation_id',
         'customer_id',
         'amount',
+        'discount_amount',
+        'discount_note',
         'payment_method',
         'bank_name',
         'mobile_provider',
@@ -34,7 +36,8 @@ class Payment extends Model
     ];
 
     protected $casts = [
-        'amount'       => 'float',
+        'amount'          => 'float',
+        'discount_amount' => 'float',
         'payment_date' => 'date',
         'is_archived'   => 'boolean',
         'archived_at'   => 'datetime',

@@ -39,6 +39,11 @@ class PaymentService
             'invoice_id'       => $invoice->id,
             'customer_id'      => $invoice->customer_id,
             'amount'           => $amount,
+            // Kept on the receipt itself, not only rolled into the invoice's
+            // running discount total, so the receipt handed to the customer
+            // can say what was waived here and why.
+            'discount_amount'  => $discountAmount,
+            'discount_note'    => $discountAmount > 0 ? ($data['discount_note'] ?? null) : null,
             'payment_method'   => $data['payment_method'],
             'bank_name'        => $data['bank_name'] ?? null,
             'mobile_provider'  => $data['mobile_provider'] ?? null,
