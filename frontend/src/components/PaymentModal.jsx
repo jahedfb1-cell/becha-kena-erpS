@@ -251,34 +251,37 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
             </div>
           </div>
 
-          {/* Why the waive-off was given. Appears only once an amount has
-              been entered — on a receipt with no discount there is nothing
-              to explain, and an always-visible field would just be one more
-              thing to skip past on the common path. Staying optional is
-              deliberate: a reason that has to be typed before the receipt
-              can be saved would be filled with "discount" within a week. */}
-          {discAmt > 0 && (
-            <div className="custom-form-group animate-fade-in">
-              <label className="custom-form-label">
-                Reason for the waive-off
-                <span style={{ marginLeft: '6px', fontWeight: 500, color: '#94a3b8' }}>(optional)</span>
-              </label>
-              <input
-                type="text"
-                maxLength={255}
-                placeholder="e.g. Rounding adjustment, agreed settlement, delay compensation"
-                value={discountNote}
-                onChange={(e) => setDiscountNote(e.target.value)}
-                disabled={loading}
-                className="custom-form-input"
-              />
-              <span style={{ display: 'block', marginTop: '6px', fontSize: '11.5px', color: '#94a3b8' }}>
-                {discountNote.trim()
-                  ? `✅ Printed on the receipt under the ${formatCurrency(discAmt)} waive-off.`
-                  : 'Leave blank and the receipt shows the waive-off amount without a reason.'}
-              </span>
-            </div>
-          )}
+          {/* Why the waive-off was given. Always on screen, directly under the
+              amount it explains — it used to appear only once a discount had
+              been typed, and a field nobody can see reads as a field that was
+              never built. The conditionality lives in the hint line instead.
+              Staying optional is deliberate: a reason that had to be filled in
+              before the receipt could be saved would be answered "discount"
+              within a week, which looks like a record but is not one. */}
+          <div className="custom-form-group">
+            <label className="custom-form-label">
+              Reason for the waive-off
+              <span style={{ marginLeft: '6px', fontWeight: 500, color: '#94a3b8' }}>(optional)</span>
+            </label>
+            <input
+              type="text"
+              maxLength={255}
+              placeholder="e.g. Rounding adjustment, agreed settlement, delay compensation"
+              value={discountNote}
+              onChange={(e) => setDiscountNote(e.target.value)}
+              disabled={loading}
+              className="custom-form-input"
+            />
+            <span style={{ display: 'block', marginTop: '6px', fontSize: '11.5px', color: discAmt <= 0 && discountNote.trim() ? '#fbbf24' : '#94a3b8' }}>
+              {discAmt <= 0
+                ? (discountNote.trim()
+                    ? '⚠️ No waive-off amount entered above, so this reason will not be saved.'
+                    : 'Used only when you enter a waive-off amount above.')
+                : (discountNote.trim()
+                    ? `✅ Printed on the receipt under the ${formatCurrency(discAmt)} waive-off.`
+                    : 'Leave blank and the receipt shows the waive-off amount without a reason.')}
+            </span>
+          </div>
 
           {/* Interactive Payment Method Selector Tiles */}
           <div>
