@@ -284,6 +284,17 @@ const Orders = () => {
    * cancelled order) are excluded — they no longer represent something
    * still being waited on.
    */
+  /**
+   * Advances the customer has already paid against an order, straight off the
+   * list payload — the index query eager-loads the live ones, so the row can
+   * show the figure and link to each money receipt without a lookup per row.
+   * These stay attached after the order is invoiced (the payment keeps its
+   * quotation_id), which is exactly when they used to disappear from view.
+   */
+  const advancesOf = (order) => order?.payments || [];
+  const advanceTotalOf = (order) =>
+    advancesOf(order).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
   const purchaseStatusOf = (order) => {
     const entries = (order?.purchase_entries || []).filter(
       (pe) => !pe.is_reversed && !pe.is_archived
@@ -1341,6 +1352,7 @@ const Orders = () => {
                     <th>Delivery Address</th>
                     <th className="hide-mobile-col">Salesman</th>
                     <th>Total Sq.Ft</th>
+                    <th>Advance</th>
                     <th>Status</th>
                     <th>Date</th>
                     <th>Actions</th>
@@ -1349,7 +1361,7 @@ const Orders = () => {
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: 'center' }}>No confirmed orders found.</td>
+                      <td colSpan="9" style={{ textAlign: 'center' }}>No confirmed orders found.</td>
                     </tr>
                   ) : (
                     filteredOrders.map((o) => (
@@ -1385,6 +1397,33 @@ const Orders = () => {
                         <td className="hide-mobile-col">{o.salesman?.name || o.creator?.name || '-'}</td>
                         <td style={{ fontWeight: 'bold', color: '#0f172a' }}>
                           {o.items_sum_billed_sqft ? parseFloat(o.items_sum_billed_sqft).toFixed(2) : '0.00'} sq.ft
+                        </td>
+                        {/* What the customer has already paid on this order,
+                            with its money receipt one click away. Each advance
+                            gets its own receipt link, because each one is a
+                            separate voucher the customer may ask for. */}
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {advancesOf(o).length === 0 ? (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          ) : (
+                            <>
+                              <div style={{ fontWeight: 700, color: '#b45309' }}>
+                                {formatCurrency(advanceTotalOf(o))}
+                              </div>
+                              {advancesOf(o).map((p) => (
+                                <a
+                                  key={p.id}
+                                  href={`/payments/${p.id}/receipt`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={`${p.payment_number} · ${formatCurrency(p.amount)} · ${formatDate(p.payment_date || p.created_at)} — open money receipt`}
+                                  style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--primary)', textDecoration: 'none', marginTop: '2px' }}
+                                >
+                                  🧾 {p.payment_number}
+                                </a>
+                              ))}
+                            </>
+                          )}
                         </td>
                         <td>
                           <span className={`badge ${
@@ -1476,13 +1515,13 @@ const Orders = () => {
                               returns 422), but the one already collected must
                               stay reachable, so the button opens the order's
                               detail view where it is listed with its receipt. */}
-                          {(o.status !== 'invoiced' || parseFloat(o.payments_sum_amount) > 0) && (
+                          {(o.status !== 'invoiced' || advanceTotalOf(o) > 0) && (
                             <button
                               type="button"
                               className="btn-action-circle"
                               onClick={() => (o.status === 'invoiced' ? loadOrderDetails(o.id) : openListAdvanceModal(o))}
                               title={o.status === 'invoiced'
-                                ? `Advance taken: ${formatCurrency(o.payments_sum_amount)} — view it and its money receipt`
+                                ? `Advance taken: ${formatCurrency(advanceTotalOf(o))} — view it and its money receipt`
                                 : 'Record Advance Payment'}
                               style={{ marginRight: '4px', background: '#ffedd5', border: '1px solid #fdba74' }}
                             >
@@ -1596,13 +1635,13 @@ const Orders = () => {
                           ✏️ Edit
                         </button>
                       )}
-                      {(o.status !== 'invoiced' || parseFloat(o.payments_sum_amount) > 0) && (
+                      {(o.status !== 'invoiced' || advanceTotalOf(o) > 0) && (
                         <button
                           type="button"
                           className="mobile-action-pill pill-orange"
                           onClick={() => (o.status === 'invoiced' ? loadOrderDetails(o.id) : openListAdvanceModal(o))}
                         >
-                          💰 {o.status === 'invoiced' ? formatCurrency(o.payments_sum_amount) : 'Advance'}
+                          💰 {o.status === 'invoiced' ? formatCurrency(advanceTotalOf(o)) : 'Advance'}
                         </button>
                       )}
                       {(o.status === 'approved' || o.status === 'invoiced') && (
@@ -1645,6 +1684,25 @@ const Orders = () => {
                       <span>Total Sq.Ft</span>
                       <span>{o.items_sum_billed_sqft ? parseFloat(o.items_sum_billed_sqft).toFixed(2) : '0.00'} sq.ft</span>
                     </div>
+                    {advancesOf(o).length > 0 && (
+                      <div className="order-mobile-card-row">
+                        <span>Advance</span>
+                        <span style={{ textAlign: 'right' }}>
+                          <strong style={{ color: '#b45309' }}>{formatCurrency(advanceTotalOf(o))}</strong>
+                          {advancesOf(o).map((p) => (
+                            <a
+                              key={p.id}
+                              href={`/payments/${p.id}/receipt`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}
+                            >
+                              🧾 {p.payment_number}
+                            </a>
+                          ))}
+                        </span>
+                      </div>
+                    )}
                     <div className="order-mobile-card-row">
                       <span>Status</span>
                       <span className={`badge ${

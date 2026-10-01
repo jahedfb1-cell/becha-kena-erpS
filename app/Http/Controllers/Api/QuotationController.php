@@ -60,17 +60,20 @@ class QuotationController extends Controller
                 'customer:id,customer_code,name,company_name,phone',
                 'salesman:id,name,email',
                 'purchaseEntries:id,quotation_id,status,is_reversed,is_archived',
+                // Advances taken against the order, so the list can show what
+                // the customer has already paid and link straight to each
+                // money receipt. Kept to the columns the row actually prints,
+                // and only the live ones — a voided advance is not money.
+                'payments' => function ($q) {
+                    $q->where('is_archived', false)
+                      ->select('id', 'quotation_id', 'payment_number', 'amount', 'payment_date', 'payment_method', 'invoice_id')
+                      ->orderBy('id');
+                },
             ])
             ->withCount('items')
             ->withSum(['items' => function($q) {
                 $q->where('is_selected', true)->where('is_enabled_for_print', true);
-            }], 'billed_sqft')
-            // So a row can show that an advance was taken against this order
-            // even after it has been invoiced — one subquery rather than a
-            // payments lookup per row.
-            ->withSum(['payments' => function($q) {
-                $q->where('is_archived', false);
-            }], 'amount');
+            }], 'billed_sqft');
 
         // Archived filter
         if ($request->boolean('archived')) {
