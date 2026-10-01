@@ -732,12 +732,12 @@ const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
                     back and push the form off the right edge of the screen. */}
                 <div className="form-group span-full">
                   <label>Address Line 1</label>
-                  <textarea value={form.address} onChange={(e) => handleChange('address', e.target.value)} disabled={loading} rows="2" placeholder="Primary address" />
+                  <textarea value={form.address} onChange={(e) => handleChange('address', e.target.value)} disabled={loading} rows="1" placeholder="Primary address" />
                 </div>
 
                 <div className="form-group span-full">
                   <label>Address Line 2</label>
-                  <textarea value={form.address_2} onChange={(e) => handleChange('address_2', e.target.value)} disabled={loading} rows="2" placeholder="Secondary address / floor / unit" />
+                  <textarea value={form.address_2} onChange={(e) => handleChange('address_2', e.target.value)} disabled={loading} rows="1" placeholder="Secondary address / floor / unit" />
                 </div>
               </div>
             </div>
@@ -753,7 +753,7 @@ const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
             </div>
             <div className="form-section-body">
               <div className="form-group">
-                <textarea value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} disabled={loading} rows="3" placeholder="Anything the team should know about this customer" />
+                <textarea value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} disabled={loading} rows="2" placeholder="Anything the team should know about this customer" />
               </div>
             </div>
           </section>

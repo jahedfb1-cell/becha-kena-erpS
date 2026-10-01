@@ -198,7 +198,10 @@ body {
 .form-group textarea {
   /* Horizontal resize would drag a field out of its grid cell. */
   resize: vertical;
-  min-height: 64px;
+  /* Barely taller than a single-line input, so the `rows` attribute decides
+     how tall each field actually is instead of a floor forcing every
+     textarea to look like a comment box. Drag the corner for more. */
+  min-height: 38px;
   line-height: 1.5;
 }
 
