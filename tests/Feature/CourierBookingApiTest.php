@@ -109,10 +109,14 @@ class CourierBookingApiTest extends TestCase
 
         $descriptions = array_column($response->json('data.lines'), 'description');
 
-        $this->assertContains('Roller blinds', $descriptions);
-        $this->assertContains('vertical blinds fabric curtoon', $descriptions);
+        // The goods line names the category AND the product, so whoever opens
+        // the parcel can tell a roller from a zebra without a price list.
+        $this->assertContains('Roller Blinds : Roller Blinds item', $descriptions);
+        $this->assertContains('Vertical Blinds : Vertical Blinds item', $descriptions);
+        $this->assertContains('PVC Strip Curtain : PVC Strip Curtain item', $descriptions);
+
+        // The hardware parcels are not order lines, so they carry no product.
         $this->assertContains('Channels', $descriptions);
-        $this->assertContains('PVC rolls', $descriptions);
         $this->assertContains('SS channels', $descriptions);
 
         // One line for Roller, two each for Vertical and PVC - a mixed order
@@ -132,7 +136,7 @@ class CourierBookingApiTest extends TestCase
 
         // Both halves of a split category report the category's own piece
         // count - the fabric and its channels came off the same 7 windows.
-        $this->assertSame(7, $counts['vertical blinds fabric curtoon']);
+        $this->assertSame(7, $counts['Vertical Blinds : Vertical Blinds item']);
         $this->assertSame(7, $counts['Channels']);
     }
 
@@ -148,7 +152,7 @@ class CourierBookingApiTest extends TestCase
             'description'
         );
 
-        $this->assertSame(['Roller blinds'], $descriptions);
+        $this->assertSame(['Roller Blinds : Roller Blinds item'], $descriptions);
     }
 
     /** @test */

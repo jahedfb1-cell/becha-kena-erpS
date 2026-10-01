@@ -10,22 +10,21 @@ use App\Models\Quotation;
 class CourierBookingService
 {
     /**
-     * How each product category is packed for the courier counter.
+     * Extra parcels a category leaves in, beyond the goods themselves.
      *
      * Roller and Zebra travel as a single wrapped bundle, so they take one
-     * line. A Vertical Blinds order leaves as two separate parcels — the
-     * fabric in a carton and the rails tied together — and PVC the same way,
-     * so those categories produce two lines. Everything else defaults to one
-     * line under its own category name.
+     * line and appear here not at all. A Vertical Blinds order leaves as two
+     * separate parcels — the fabric in a carton and the rails tied together —
+     * and PVC the same way, so each of those adds a second line for the
+     * hardware, which is not an order line of its own and so has no product
+     * name to carry.
      *
      * Keyed by the lowercased category name so a stray capital in the master
      * data doesn't silently drop an order back to the default.
      */
-    protected const PACKING_RULES = [
-        'roller blinds'    => ['Roller blinds'],
-        'zebra blinds'     => ['Zebra double shade roller'],
-        'vertical blinds'  => ['vertical blinds fabric curtoon', 'Channels'],
-        'pvc strip curtain' => ['PVC rolls', 'SS channels'],
+    protected const EXTRA_PARCELS = [
+        'vertical blinds'   => 'Channels',
+        'pvc strip curtain' => 'SS channels',
     ];
 
     /**
@@ -110,7 +109,12 @@ class CourierBookingService
             }
 
             if (!isset($groups[$key])) {
-                $groups[$key] = ['name' => $name, 'codes' => [], 'pcs' => 0];
+                $groups[$key] = ['name' => $name, 'codes' => [], 'products' => [], 'pcs' => 0];
+            }
+
+            $productName = trim((string) ($product?->name ?? ''));
+            if ($productName !== '' && !in_array($productName, $groups[$key]['products'], true)) {
+                $groups[$key]['products'][] = $productName;
             }
 
             // How many pieces of this category are going out. Not printed -
@@ -128,16 +132,29 @@ class CourierBookingService
         $order = 0;
 
         foreach ($groups as $key => $group) {
-            $descriptions = self::PACKING_RULES[$key] ?? [$group['name']];
-            $colour       = implode(', ', $group['codes']);
+            $colour = implode(', ', $group['codes']);
 
-            foreach ($descriptions as $index => $description) {
+            // "Roller Blinds : Roller blinds Curtain" — the category alone
+            // isn't enough for whoever receives the parcel to know what's in
+            // it, and the product name alone doesn't say which kind of blind
+            // it is. Several products of one category are listed together,
+            // since they all travel in the same bundle.
+            $products = implode(', ', $group['products']);
+
+            $lines[] = [
+                'description' => $products !== '' ? "{$group['name']} : {$products}" : $group['name'],
+                'colour'      => $colour ?: null,
+                'bundles'     => 1,
+                'sort_order'  => $order++,
+                'pcs'         => $group['pcs'],
+            ];
+
+            if (isset(self::EXTRA_PARCELS[$key])) {
                 $lines[] = [
-                    'description' => $description,
-                    // Only the first line of a split category carries the fabric
-                    // code; the channels that go with it have no colour of their
-                    // own, which is why the sample slip writes a dash there.
-                    'colour'      => $index === 0 ? ($colour ?: null) : null,
+                    'description' => self::EXTRA_PARCELS[$key],
+                    // The hardware that goes with the fabric has no colour of
+                    // its own, which is why the sample slip writes a dash.
+                    'colour'      => null,
                     'bundles'     => 1,
                     'sort_order'  => $order++,
                     'pcs'         => $group['pcs'],
