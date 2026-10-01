@@ -91,6 +91,9 @@ class CourierBookingController extends Controller
             'cod_amount'      => $this->bookingService->outstandingFor($quotation),
             'cod_label'       => "COD 'Condition Tk",
             'lines'           => $this->bookingService->buildDraftLines($quotation),
+            // Form-only hint: how many pieces sit behind each line, so the
+            // packer can judge the bundle count. Never printed on the slip.
+            'piece_counts'    => $this->bookingService->pieceCountsByLine($quotation),
             // Every number we hold for this customer, so the form can offer
             // them as a dropdown — the parcel is often collected on the
             // company's second or third line rather than the main one.

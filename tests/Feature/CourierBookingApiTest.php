@@ -121,6 +121,22 @@ class CourierBookingApiTest extends TestCase
     }
 
     /** @test */
+    public function the_draft_reports_how_many_pieces_sit_behind_each_line(): void
+    {
+        $order = $this->makeOrder(['Vertical Blinds']);
+        $order->items()->update(['pcs' => 7]);
+
+        $counts = $this->actingAs($this->admin)
+            ->getJson("/api/courier-bookings/draft/{$order->id}")
+            ->json('data.piece_counts');
+
+        // Both halves of a split category report the category's own piece
+        // count - the fabric and its channels came off the same 7 windows.
+        $this->assertSame(7, $counts['vertical blinds fabric curtoon']);
+        $this->assertSame(7, $counts['Channels']);
+    }
+
+    /** @test */
     public function labour_only_lines_are_left_off_the_slip(): void
     {
         $order = $this->makeOrder(['Roller Blinds', 'Servicing & fitting']);

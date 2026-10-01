@@ -23,6 +23,9 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
   const [bookings, setBookings] = useState([]);
   const [activeId, setActiveId] = useState(null); // null = composing a new slip
   const [phoneOptions, setPhoneOptions] = useState([]);
+  // description -> pcs in the order behind it. A form-only hint for judging
+  // how many bundles a line splits into; never sent back or printed.
+  const [pieceCounts, setPieceCounts] = useState({});
   const [suggestedCod, setSuggestedCod] = useState(0);
 
   const [form, setForm] = useState(null);
@@ -69,6 +72,7 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
       const res = await api.get(`/courier-bookings/draft/${order.id}`);
       const draft = res.data?.data || {};
       setPhoneOptions(draft.phone_options || []);
+      setPieceCounts(draft.piece_counts || {});
       setSuggestedCod(parseFloat(draft.cod_amount) || 0);
       setActiveId(null);
       applyRecord(draft);
@@ -95,6 +99,7 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
 
         setBookings(existing);
         setPhoneOptions(draft.phone_options || []);
+        setPieceCounts(draft.piece_counts || {});
         setSuggestedCod(parseFloat(draft.cod_amount) || 0);
 
         // Open straight onto the newest existing slip if there is one, so
@@ -425,19 +430,36 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {lines.map((line, index) => (
+                {lines.map((line, index) => {
+                  // How many pieces of this product are in the order. Shown so
+                  // the packer can judge the bundle count against the real
+                  // quantity — a 12-piece line is rarely one bundle. Falls away
+                  // once a line is renamed, since the order no longer knows it.
+                  const pcs = pieceCounts[String(line.description).trim()];
+                  return (
                   <div key={index} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 130px 90px auto', gap: '8px', alignItems: 'center' }}>
                     <span style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', fontWeight: 700 }}>
                       {String(index + 1).padStart(2, '0')}
                     </span>
-                    <input
-                      type="text"
-                      value={line.description}
-                      onChange={(e) => updateLine(index, 'description', e.target.value)}
-                      disabled={saving}
-                      className="custom-form-input"
-                      placeholder="Description of goods"
-                    />
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        value={line.description}
+                        onChange={(e) => updateLine(index, 'description', e.target.value)}
+                        disabled={saving}
+                        className="custom-form-input"
+                        placeholder="Description of goods"
+                        style={pcs ? { paddingRight: '72px' } : undefined}
+                      />
+                      {pcs ? (
+                        <span
+                          title="Pieces in this order — not printed on the slip"
+                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', fontWeight: 700, color: '#94a3b8', pointerEvents: 'none', whiteSpace: 'nowrap' }}
+                        >
+                          {pcs} pcs
+                        </span>
+                      ) : null}
+                    </div>
                     <input
                       type="text"
                       value={line.colour}
@@ -462,7 +484,8 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
                       <button type="button" onClick={() => removeLine(index)} disabled={saving} title="Remove line" style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', cursor: 'pointer' }}>✕</button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

@@ -110,8 +110,13 @@ class CourierBookingService
             }
 
             if (!isset($groups[$key])) {
-                $groups[$key] = ['name' => $name, 'codes' => []];
+                $groups[$key] = ['name' => $name, 'codes' => [], 'pcs' => 0];
             }
+
+            // How many pieces of this category are going out. Not printed -
+            // it's shown beside the line in the form so whoever is packing can
+            // see what they're dividing into bundles.
+            $groups[$key]['pcs'] += (int) ($item->pcs ?: 0);
 
             $code = trim((string) ($product?->product_code ?? ''));
             if ($code !== '' && !in_array($code, $groups[$key]['codes'], true)) {
@@ -135,11 +140,34 @@ class CourierBookingService
                     'colour'      => $index === 0 ? ($colour ?: null) : null,
                     'bundles'     => 1,
                     'sort_order'  => $order++,
+                    'pcs'         => $group['pcs'],
                 ];
             }
         }
 
         return $lines;
+    }
+
+    /**
+     * Piece count per drafted line description, so the booking form can show
+     * "12 pcs" beside a line the packer is about to split into bundles.
+     *
+     * Keyed by description rather than carried on the line itself because the
+     * lines are freely edited and re-saved - this map is rebuilt from the
+     * order every time the form opens, so it stays right for a slip that was
+     * saved days ago, and simply falls away for a line that's been renamed.
+     *
+     * @return array<string, int>
+     */
+    public function pieceCountsByLine(Quotation $quotation): array
+    {
+        $counts = [];
+
+        foreach ($this->buildDraftLines($quotation) as $line) {
+            $counts[$line['description']] = $line['pcs'];
+        }
+
+        return $counts;
     }
 
     /**
