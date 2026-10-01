@@ -37,6 +37,7 @@ import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
 import AISizeScanModal from '../components/AISizeScanModal';
 import AdvancePaymentModal from '../components/AdvancePaymentModal';
+import CourierBookingModal from '../components/CourierBookingModal';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -140,6 +141,26 @@ const Orders = () => {
       setListAdvanceAlready(total);
     } catch (err) {
       console.warn('Failed to load existing advance payments for this order:', err);
+    }
+  };
+
+  // Courier booking slip for a confirmed order — the paper that travels with
+  // the goods to the courier counter. Opened straight from the list row, and
+  // edited in place there: the slip is a packing document, so it's filled in
+  // while the parcels are being counted, not while the order is being priced.
+  // The order is re-fetched first because the list rows carry no items, and
+  // the slip's draft bundle lines are built from them.
+  const [courierBookingOrder, setCourierBookingOrder] = useState(null);
+  const [showCourierBookingModal, setShowCourierBookingModal] = useState(false);
+
+  const openCourierBookingModal = async (o) => {
+    setCourierBookingOrder(o);
+    setShowCourierBookingModal(true);
+    try {
+      const res = await api.get(`/quotations/${o.id}`);
+      setCourierBookingOrder(res.data?.data || o);
+    } catch (err) {
+      console.warn('Failed to load full order for the courier booking slip:', err);
     }
   };
 
@@ -1445,6 +1466,22 @@ const Orders = () => {
                               💰
                             </button>
                           )}
+                          {/* Courier booking slip. Available from the moment
+                              the order is confirmed — goods often go to the
+                              courier before the invoice is cut — and still
+                              available after invoicing so a slip can be
+                              reprinted or a second shipment booked. */}
+                          {(o.status === 'approved' || o.status === 'invoiced') && (
+                            <button
+                              type="button"
+                              className="btn-action-circle"
+                              onClick={() => openCourierBookingModal(o)}
+                              title="Courier Booking Slip"
+                              style={{ marginRight: '4px', background: '#ccfbf1', border: '1px solid #5eead4' }}
+                            >
+                              📦
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn-action-circle"
@@ -1543,6 +1580,15 @@ const Orders = () => {
                           onClick={() => openListAdvanceModal(o)}
                         >
                           💰 Advance
+                        </button>
+                      )}
+                      {(o.status === 'approved' || o.status === 'invoiced') && (
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-cyan"
+                          onClick={() => openCourierBookingModal(o)}
+                        >
+                          📦 Courier Slip
                         </button>
                       )}
                     </div>
@@ -2986,6 +3032,14 @@ const Orders = () => {
           setShowListAdvanceModal(false);
           fetchOrders();
         }}
+      />
+
+      {/* Courier booking slip, created and edited in place from the list row
+          (📦 button). The printed sheet is its own route, not this modal. */}
+      <CourierBookingModal
+        isOpen={showCourierBookingModal}
+        onClose={() => setShowCourierBookingModal(false)}
+        order={courierBookingOrder}
       />
     </div>
   );

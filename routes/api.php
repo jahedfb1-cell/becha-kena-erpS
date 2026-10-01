@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\QuotationController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\MushakController;
 use App\Http\Controllers\Api\DeliveryChallanController;
+use App\Http\Controllers\Api\CourierBookingController;
 use App\Http\Controllers\Api\PriceListController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AuditLogController;
@@ -99,6 +100,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/approve', [DeliveryChallanController::class, 'approve']);
         Route::post('/{id}/send-email', [DeliveryChallanController::class, 'sendEmail']);
         Route::delete('/{id}', [DeliveryChallanController::class, 'destroy']);
+    });
+
+    // Courier booking slips. Raised from a confirmed Order rather than from an
+    // invoice, and fully hand editable: the packing rules only seed the first
+    // draft, the counter staff decide the final lines.
+    Route::prefix('courier-bookings')->group(function () {
+        Route::get('/', [CourierBookingController::class, 'index']);
+        Route::get('/draft/{quotationId}', [CourierBookingController::class, 'draft']);
+        Route::post('/', [CourierBookingController::class, 'store']);
+        Route::get('/{id}', [CourierBookingController::class, 'show']);
+        Route::put('/{id}', [CourierBookingController::class, 'update']);
+        Route::delete('/{id}', [CourierBookingController::class, 'destroy']);
     });
 
     // NBR Mushak 6.3 (VAT challans). Western Blinds Ltd only — the model's

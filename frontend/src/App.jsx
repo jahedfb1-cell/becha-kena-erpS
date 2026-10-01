@@ -56,6 +56,7 @@ const InvoicePrintPage = lazy(() => import('./pages/InvoicePrintPage'));
 const PvcInvoicePrintPage = lazy(() => import('./pages/PvcInvoicePrintPage'));
 const ChallanPrintPage = lazy(() => import('./pages/ChallanPrintPage'));
 const PvcChallanPrintPage = lazy(() => import('./pages/PvcChallanPrintPage'));
+const CourierBookingPrintPage = lazy(() => import('./pages/CourierBookingPrintPage'));
 const MoneyReceiptPage = lazy(() => import('./pages/MoneyReceiptPage'));
 const PriceListPrintPage = lazy(() => import('./pages/PriceListPrintPage'));
 const SalesDuePrintPage = lazy(() => import('./pages/SalesDuePrintPage'));
@@ -141,6 +142,16 @@ function App() {
             <ProtectedRoute>
               <Suspense fallback={null}>
                 <PvcChallanPrintPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/courier-bookings/print/:id"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={null}>
+                <CourierBookingPrintPage />
               </Suspense>
             </ProtectedRoute>
           }
