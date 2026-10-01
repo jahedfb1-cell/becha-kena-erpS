@@ -413,26 +413,43 @@ const CustomerDetailView = ({ customer, isAdmin, onBack, onEdit }) => {
 };
 
 /* ─── Customer Edit Form ─── */
+
+/**
+ * The record as the form holds it. Built in one place because the dirty
+ * indicator in the action bar compares the live form against this exact
+ * shape — derive it twice and the two drift apart.
+ */
+const buildCustomerForm = (customer) => ({
+  name:                   customer.name || '',
+  company_name:           customer.company_name || '',
+  phone:                  customer.phone || '',
+  second_contact_number:  customer.second_contact_number || '',
+  third_contact_number:   customer.third_contact_number || '',
+  email:                  customer.email || '',
+  address:                customer.address || '',
+  address_2:              customer.address_2 || '',
+  notes:                  customer.notes || '',
+  contact_show_status:    customer.contact_show_status || 'show_contact_number',
+  customer_category_id:   customer.customer_category_id || '',
+  opening_balance:        customer.opening_balance || 0,
+});
+
 const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
   const [categories, setCategories] = useState([]);
-  const [form, setForm] = useState({
-    name:                   customer.name || '',
-    company_name:           customer.company_name || '',
-    phone:                  customer.phone || '',
-    second_contact_number:  customer.second_contact_number || '',
-    email:                  customer.email || '',
-    address:                customer.address || '',
-    address_2:              customer.address_2 || '',
-    notes:                  customer.notes || '',
-    contact_show_status:    customer.contact_show_status || 'show_contact_number',
-    customer_category_id:   customer.customer_category_id || '',
-    opening_balance:        customer.opening_balance || 0,
-  });
+  const initialForm = useMemo(() => buildCustomerForm(customer), [customer]);
+  const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [duplicate, setDuplicate] = useState(null);
   const [phoneChecking, setPhoneChecking] = useState(false);
-  const [showAdditional, setShowAdditional] = useState(Boolean(customer.second_contact_number || customer.email || customer.opening_balance));
+
+  const isDirty = useMemo(
+    () => Object.keys(initialForm).some((key) => String(form[key] ?? '') !== String(initialForm[key] ?? '')),
+    [form, initialForm]
+  );
+
+  const ledgers = customer.ledgers || [];
+  const currentDue = ledgers.length ? parseFloat(ledgers[ledgers.length - 1].balance) || 0 : 0;
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -503,13 +520,48 @@ const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
     <div className="animate-fade-in">
       <div className="page-header-row">
         <div>
-          <h1>Edit Customer: {customer.customer_code}</h1>
+          <h1>Edit Customer</h1>
           <p>Update customer information and account settings</p>
         </div>
-        <button className="logout-btn" onClick={onBack}>Cancel</button>
+        <button className="logout-btn" onClick={onBack}>Back to Profile</button>
       </div>
 
-      <div className="welcome-banner" style={{ padding: '28px' }}>
+      {/* Who is being edited. A fifteen-field form scrolls far enough that
+          the page title alone stops answering that question. */}
+      <div className="entity-header">
+        <div className="entity-identity">
+          <div className="avatar-circle" style={{ width: '48px', height: '48px', fontSize: '18px', flexShrink: 0 }}>
+            {(customer.name || '?').charAt(0).toUpperCase()}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <h2 className="entity-name">{customer.name}</h2>
+            <div className="entity-sub">
+              <span className="badge badge-outline">{customer.customer_code}</span>
+              {customer.category?.name && <span className="badge badge-info">{customer.category.name}</span>}
+              {customer.company_name && customer.company_name !== customer.name && <span>🏢 {customer.company_name}</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="entity-metrics">
+          {isAdmin && (
+            <div>
+              <span className="entity-metric-label">Opening Balance</span>
+              <span className="entity-metric-value" style={{ color: 'var(--warning)' }}>
+                {formatCurrency(customer.opening_balance)}
+              </span>
+            </div>
+          )}
+          <div>
+            <span className="entity-metric-label">Current Due</span>
+            <span className="entity-metric-value" style={{ color: currentDue > 0 ? 'var(--danger)' : 'var(--success)' }}>
+              {formatCurrency(currentDue)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div>
         {error && <div className="alert alert-danger" style={{ marginBottom: '20px', whiteSpace: 'pre-line' }}>{error}</div>}
 
         {duplicate && (
@@ -537,172 +589,220 @@ const CustomerEditForm = ({ customer, isAdmin, onBack, onSaved }) => {
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-            <div className="form-group">
-              <label>Customer Name *</label>
-              <input type="text" value={form.name} onChange={(e) => handleChange('name', e.target.value)} required disabled={loading} />
-            </div>
 
-            <div className="form-group">
-              <label>Company Name</label>
-              <input type="text" value={form.company_name} onChange={(e) => handleChange('company_name', e.target.value)} disabled={loading} placeholder="Optional" />
-            </div>
-
-            <div className="form-group">
-              <label>Primary Phone</label>
-              <PhoneContactField
-                className=""
-                value={form.phone}
-                onChange={(e) => handleChange('phone', e.target.value)}
-                onBlur={() => checkPhoneDuplicate(form.phone)}
-                onPick={(contact) => {
-                  handleChange('phone', contact.phone);
-                  if (contact.name && !form.name) handleChange('name', contact.name);
-                  checkPhoneDuplicate(contact.phone);
-                }}
-                disabled={loading}
-              />
-              {phoneChecking && (
-                <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>🔍 Checking...</span>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label>Customer Category *</label>
-              <select value={form.customer_category_id} onChange={(e) => handleChange('customer_category_id', e.target.value)} required disabled={loading}
-                style={{ padding: '8px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: '#ffffff', color: '#000000', fontWeight: '500' }}>
-                <option value="" style={{ color: '#000000', backgroundColor: '#ffffff' }}>Select Category...</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id} style={{ color: '#000000', backgroundColor: '#ffffff' }}>{cat.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Additional Contacts & Details */}
-            <div style={{
-              gridColumn: '1 / -1',
-              margin: '10px 0',
-              background: 'var(--bg-card, rgba(255,255,255,0.02))',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              overflow: 'hidden'
-            }}>
-              <div
-                onClick={() => setShowAdditional(!showAdditional)}
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  color: 'var(--primary)',
-                  padding: '14px 18px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  background: showAdditional ? 'rgba(56, 189, 248, 0.08)' : 'transparent'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span>📞</span> Additional Contacts &amp; Details:
-                </div>
-                <span style={{ fontSize: '12px', color: 'var(--primary)' }}>
-                  {showAdditional ? '▲' : '▼'}
-                </span>
-              </div>
-
-              {showAdditional && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', padding: '18px', borderTop: '1px solid var(--border)' }}>
-                  <div className="form-group">
-                    <label>2nd Contact Number</label>
-                    <PhoneContactField
-                      className=""
-                      value={form.second_contact_number}
-                      onChange={(e) => handleChange('second_contact_number', e.target.value)}
-                      onPick={(contact) => handleChange('second_contact_number', contact.phone)}
-                      disabled={loading}
-                      placeholder="Alternate phone"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Email Address (Optional)</label>
-                    <input type="email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} disabled={loading} />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label>Address 1</label>
-              <textarea value={form.address} onChange={(e) => handleChange('address', e.target.value)} disabled={loading} rows="2" />
-            </div>
-
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label>Address 2</label>
-              <textarea value={form.address_2} onChange={(e) => handleChange('address_2', e.target.value)} disabled={loading} rows="2" placeholder="Secondary address / floor / unit" />
-            </div>
-
-            <div className="form-group" style={{ gridColumn: 'span 2' }}>
-              <label>Notes</label>
-              <textarea value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} disabled={loading} rows="3" placeholder="Internal notes about this customer" />
-            </div>
-
-            <div className="form-group">
-              <label>Customer Show Status *</label>
-              <div style={{ display: 'flex', gap: '20px', marginTop: '8px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 'normal' }}>
-                  <input
-                    type="radio"
-                    name="contact_show_status"
-                    value="show_contact_number"
-                    checked={form.contact_show_status === 'show_contact_number'}
-                    onChange={(e) => handleChange('contact_show_status', e.target.value)}
-                    style={{ width: 'auto' }}
-                    disabled={loading}
-                  />
-                  Show Contact Number
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: 'normal' }}>
-                  <input
-                    type="radio"
-                    name="contact_show_status"
-                    value="cannot_show_contact_number"
-                    checked={form.contact_show_status === 'cannot_show_contact_number'}
-                    onChange={(e) => handleChange('contact_show_status', e.target.value)}
-                    style={{ width: 'auto' }}
-                    disabled={loading}
-                  />
-                  Can't Show Contact Number
-                </label>
+          {/* ── Identity ── */}
+          <section className="form-section">
+            <div className="form-section-head">
+              <div className="form-section-title">
+                <span className="section-icon">🏢</span> Identity
               </div>
             </div>
+            <div className="form-section-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Customer Name <span className="required-mark">*</span></label>
+                  <input type="text" value={form.name} onChange={(e) => handleChange('name', e.target.value)} required disabled={loading} />
+                </div>
 
-            {/* Opening Balance - Admin Only */}
-            {isAdmin && (
+                <div className="form-group">
+                  <label>Company Name</label>
+                  <input type="text" value={form.company_name} onChange={(e) => handleChange('company_name', e.target.value)} disabled={loading} placeholder="Optional" />
+                </div>
+
+                <div className="form-group">
+                  <label>Customer Category <span className="required-mark">*</span></label>
+                  {/* The hardcoded white background and black text this select
+                      used to carry inline were a workaround for .form-group
+                      select having no styling at all; it is themed in
+                      index.css now, like every other field. */}
+                  <select value={form.customer_category_id} onChange={(e) => handleChange('customer_category_id', e.target.value)} required disabled={loading}>
+                    <option value="">Select Category...</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Contact ──
+              All three numbers are shown outright rather than folded behind a
+              "show more" toggle. This is the correction screen: a number that
+              is already on the record but hidden by default is a number
+              nobody can fix. The 3rd number used not to be here at all, so it
+              could be set when the account was opened and never changed. */}
+          <section className="form-section">
+            <div className="form-section-head">
+              <div className="form-section-title">
+                <span className="section-icon">📞</span> Contact
+              </div>
+              <span className="form-section-note">Up to three numbers</span>
+            </div>
+            <div className="form-section-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>1st Contact Number</label>
+                  <PhoneContactField
+                    className=""
+                    value={form.phone}
+                    onChange={(e) => handleChange('phone', e.target.value)}
+                    onBlur={() => checkPhoneDuplicate(form.phone)}
+                    onPick={(contact) => {
+                      handleChange('phone', contact.phone);
+                      if (contact.name && !form.name) handleChange('name', contact.name);
+                      checkPhoneDuplicate(contact.phone);
+                    }}
+                    disabled={loading}
+                  />
+                  {phoneChecking && <span className="field-hint">🔍 Checking for a duplicate…</span>}
+                </div>
+
+                <div className="form-group">
+                  <label>2nd Contact Number</label>
+                  <PhoneContactField
+                    className=""
+                    value={form.second_contact_number}
+                    onChange={(e) => handleChange('second_contact_number', e.target.value)}
+                    onPick={(contact) => handleChange('second_contact_number', contact.phone)}
+                    disabled={loading}
+                    placeholder="Alternate phone"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>3rd Contact Number</label>
+                  <PhoneContactField
+                    className=""
+                    value={form.third_contact_number}
+                    onChange={(e) => handleChange('third_contact_number', e.target.value)}
+                    onPick={(contact) => handleChange('third_contact_number', contact.phone)}
+                    disabled={loading}
+                    placeholder="Alternate phone"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Email Address</label>
+                  <input type="email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} disabled={loading} placeholder="client@example.com" />
+                </div>
+
+                <div className="form-group span-full">
+                  <label>Show this customer's number on printed documents <span className="required-mark">*</span></label>
+                  <div className="segmented-toggle" style={{ marginTop: '6px' }}>
+                    {[
+                      { value: 'show_contact_number', icon: '👁', text: 'Show number', tone: 'tone-success' },
+                      { value: 'cannot_show_contact_number', icon: '🙈', text: "Don't show", tone: 'tone-warning' },
+                    ].map((option) => (
+                      <label
+                        key={option.value}
+                        className={`${form.contact_show_status === option.value ? 'is-active ' + option.tone : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="contact_show_status"
+                          value={option.value}
+                          checked={form.contact_show_status === option.value}
+                          onChange={(e) => handleChange('contact_show_status', e.target.value)}
+                          disabled={loading}
+                        />
+                        <span className="segment-label">{option.icon} {option.text}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <span className="field-hint">
+                    Some customers ask that their phone number not appear on challans and invoices.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Address ── */}
+          <section className="form-section">
+            <div className="form-section-head">
+              <div className="form-section-title">
+                <span className="section-icon">📍</span> Address
+              </div>
+            </div>
+            <div className="form-section-body">
+              <div className="form-grid">
+                {/* span-full, not "span 2": on a phone this grid collapses to
+                    one column, and "span 2" would conjure a second column
+                    back and push the form off the right edge of the screen. */}
+                <div className="form-group span-full">
+                  <label>Address Line 1</label>
+                  <textarea value={form.address} onChange={(e) => handleChange('address', e.target.value)} disabled={loading} rows="2" placeholder="Primary address" />
+                </div>
+
+                <div className="form-group span-full">
+                  <label>Address Line 2</label>
+                  <textarea value={form.address_2} onChange={(e) => handleChange('address_2', e.target.value)} disabled={loading} rows="2" placeholder="Secondary address / floor / unit" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Internal notes ── */}
+          <section className="form-section">
+            <div className="form-section-head">
+              <div className="form-section-title">
+                <span className="section-icon">📝</span> Internal Notes
+              </div>
+              <span className="form-section-note">Never printed</span>
+            </div>
+            <div className="form-section-body">
               <div className="form-group">
-                <label style={{ color: 'var(--warning)' }}>Opening Balance (Admin Only)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.opening_balance}
-                  onChange={(e) => handleChange('opening_balance', e.target.value)}
-                  disabled={loading}
-                  style={{ borderColor: 'var(--warning)' }}
-                />
-                <small style={{ color: 'var(--text-main)', fontSize: '11px' }}>
-                  Old receivable before ERP. Updates the first ledger entry automatically.
-                </small>
+                <textarea value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} disabled={loading} rows="3" placeholder="Anything the team should know about this customer" />
               </div>
-            )}
-          </div>
+            </div>
+          </section>
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '28px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-            <button type="submit" className="primary-btn" disabled={loading} style={{ padding: '12px 28px' }}>
-              {loading ? 'Saving...' : 'Save Changes'}
-            </button>
-            <button type="button" className="logout-btn" onClick={onBack} disabled={loading} style={{ padding: '10px 20px' }}>
+          {/* ── Opening balance (admin only) ── */}
+          {isAdmin && (
+            <section className="form-section" style={{ borderColor: 'var(--warning)' }}>
+              <div className="form-section-head" style={{ background: 'var(--warning-bg)' }}>
+                <div className="form-section-title">
+                  <span className="section-icon" style={{ background: 'var(--warning-bg)', borderColor: 'var(--warning)' }}>💰</span>
+                  Opening Balance
+                </div>
+                <span className="form-section-note">Admin only</span>
+              </div>
+              <div className="form-section-body">
+                <div className="form-grid">
+                  <div className="form-group field-narrow">
+                    <label>Opening Balance (৳)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.opening_balance}
+                      onChange={(e) => handleChange('opening_balance', e.target.value)}
+                      disabled={loading}
+                    />
+                    <span className="field-hint">
+                      What this customer already owed before the ERP. Saving rewrites the first ledger entry, so it moves their Current Due.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Sticky, so Save stays reachable from anywhere in a form this long. */}
+          <div className="form-actions-bar">
+            <span className="actions-status">
+              {isDirty ? (
+                <><span className="unsaved-dot" /> Unsaved changes</>
+              ) : (
+                <>✓ All changes saved</>
+              )}
+            </span>
+            <button type="button" className="logout-btn" onClick={onBack} disabled={loading}>
               Cancel
+            </button>
+            <button type="submit" className="primary-btn" disabled={loading || !isDirty} style={{ padding: '10px 24px' }}>
+              {loading ? 'Saving…' : '💾 Save Changes'}
             </button>
           </div>
         </form>
