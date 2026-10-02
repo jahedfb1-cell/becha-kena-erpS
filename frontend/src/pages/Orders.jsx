@@ -1971,7 +1971,8 @@ const Orders = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => { e.preventDefault(); openPrintPage(`/payments/${p.id}/receipt`); }}
-                                style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}
+                                className="primary-btn"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxSizing: 'border-box', width: '100%', marginTop: '12px', padding: '11px 16px', fontSize: '15px', textDecoration: 'none' }}
                               >
                                 🧾 Money Receipt
                               </a>
