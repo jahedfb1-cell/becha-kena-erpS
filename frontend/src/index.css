@@ -4691,3 +4691,40 @@ a, button, select, input, textarea, .nav-item {
     flex: 1;
   }
 }
+
+/* ===========================================================================
+   COURIER SLIP — one bundle line in the booking form
+   ---------------------------------------------------------------------------
+   Five fixed tracks (number, description, colour, bundles, buttons) is right
+   on a desktop modal, but at phone width 28 + 130 + 90 + ~100px of fixed
+   columns leave the description input about 26px wide: it cannot be typed
+   into, the "38 pcs" hint lands on top of it, and the row pushes the whole
+   form sideways. Below 640px each line therefore stacks into three rows —
+   description on its own full-width row, colour and bundles side by side
+   under it, the buttons last.
+   ========================================================================= */
+.courier-line-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 130px 90px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.courier-line-row .line-actions {
+  display: flex;
+  gap: 4px;
+}
+
+@media (max-width: 640px) {
+  .courier-line-row {
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
+    padding-bottom: 10px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.12);
+  }
+
+  .courier-line-row .line-no      { grid-column: 1; grid-row: 1; }
+  .courier-line-row .line-desc    { grid-column: 2 / -1; grid-row: 1; }
+  .courier-line-row .line-colour  { grid-column: 2; grid-row: 2; }
+  .courier-line-row .line-bundles { grid-column: 3; grid-row: 2; }
+  .courier-line-row .line-actions { grid-column: 2 / -1; grid-row: 3; justify-self: end; }
+}

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Brand;
 use App\Models\CourierBooking;
+use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Quotation;
 
@@ -50,18 +51,62 @@ class CourierBookingService
         $brandId = $brandId ?: Brand::resolveIdFor(auth()->user());
         $prefix  = now()->format('y') . '-';
 
-        $last = CourierBooking::withoutGlobalScope('brand')
+        // Highest serial among numbers that actually follow the "YY-NN" shape.
+        // The numbers are read in PHP rather than ordered in SQL: the field is
+        // hand-editable, and a typed "26-09A" sorts highest by its leading
+        // digits yet cannot be parsed, which used to send the counter back to
+        // 01 — onto a number already taken. A year holds a few hundred slips
+        // at most, so reading them is cheap, and archived slips are included
+        // because they still occupy their number in the unique index.
+        $highest = 0;
+        $numbers = CourierBooking::withoutGlobalScope('brand')
             ->where('brand_id', $brandId)
             ->where('booking_number', 'LIKE', "{$prefix}%")
-            ->orderByRaw('CAST(SUBSTRING(booking_number, ' . (strlen($prefix) + 1) . ') AS UNSIGNED) DESC')
-            ->first();
+            ->pluck('booking_number');
 
-        $next = 1;
-        if ($last && preg_match('/^\d{2}-(\d+)$/', (string) $last->booking_number, $m)) {
-            $next = (int) $m[1] + 1;
+        foreach ($numbers as $number) {
+            if (preg_match('/^' . preg_quote($prefix, '/') . '(\d+)$/', (string) $number, $m)) {
+                $highest = max($highest, (int) $m[1]);
+            }
         }
 
-        return $prefix . str_pad((string) $next, 2, '0', STR_PAD_LEFT);
+        return $prefix . str_pad((string) ($highest + 1), 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Whether a slip number is already taken within a brand's series.
+     *
+     * The unique index would refuse a duplicate anyway, but as a raw database
+     * exception; checking first lets the form say what is wrong. Archived
+     * slips count — they still hold their number.
+     */
+    public function numberIsTaken(?int $brandId, string $number, ?int $ignoreId = null): bool
+    {
+        return CourierBooking::withoutGlobalScope('brand')
+            ->where('brand_id', $brandId)
+            ->where('booking_number', $number)
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+            ->exists();
+    }
+
+    /**
+     * Why an order cannot be booked to the courier, or null when it can.
+     *
+     * Only a confirmed order (approved) or one already invoiced has goods that
+     * are ready to ship. The older check refused just "quotation" and
+     * "rejected", which let an order still waiting for approval through.
+     */
+    public function whyNotBookable(Quotation $quotation): ?string
+    {
+        if ($quotation->is_archived) {
+            return 'This order is archived — a courier booking cannot be raised for it.';
+        }
+
+        if (!in_array($quotation->status, ['approved', 'invoiced'], true)) {
+            return 'This order has not been confirmed yet — a courier booking can only be raised for a confirmed order.';
+        }
+
+        return null;
     }
 
     /**
@@ -71,6 +116,20 @@ class CourierBookingService
      */
     public function outstandingFor(Quotation $quotation): float
     {
+        // Once the order has been invoiced, the invoice is the source of truth
+        // for what is still owed. Payments taken AFTER invoicing are recorded
+        // against the invoice and carry no quotation_id, so the advance sum
+        // below never sees them — and the slip would send the courier to
+        // collect money the customer has already paid.
+        $invoices = Invoice::withoutGlobalScope('brand')
+            ->where('quotation_id', $quotation->id)
+            ->where('is_archived', false)
+            ->get(['due_amount']);
+
+        if ($invoices->isNotEmpty()) {
+            return round(max((float) $invoices->sum('due_amount'), 0), 2);
+        }
+
         $advances = Payment::withoutGlobalScope('brand')
             ->where('quotation_id', $quotation->id)
             ->where('is_archived', false)

@@ -443,11 +443,11 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
                   // once a line is renamed, since the order no longer knows it.
                   const pcs = pieceCounts[String(line.description).trim()];
                   return (
-                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 130px 90px auto', gap: '8px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', fontWeight: 700 }}>
+                  <div key={index} className="courier-line-row">
+                    <span className="line-no" style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', fontWeight: 700 }}>
                       {String(index + 1).padStart(2, '0')}
                     </span>
-                    <div style={{ position: 'relative' }}>
+                    <div className="line-desc" style={{ position: 'relative' }}>
                       <input
                         type="text"
                         value={line.description}
@@ -471,7 +471,7 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
                       value={line.colour}
                       onChange={(e) => updateLine(index, 'colour', e.target.value)}
                       disabled={saving}
-                      className="custom-form-input"
+                      className="custom-form-input line-colour"
                       placeholder="Colour"
                     />
                     <input
@@ -481,10 +481,10 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
                       value={line.bundles}
                       onChange={(e) => updateLine(index, 'bundles', e.target.value)}
                       disabled={saving}
-                      className="custom-form-input"
+                      className="custom-form-input line-bundles"
                       placeholder="Bundles"
                     />
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div className="line-actions">
                       <button type="button" onClick={() => moveLine(index, -1)} disabled={saving || index === 0} title="Move up" style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', cursor: 'pointer' }}>↑</button>
                       <button type="button" onClick={() => moveLine(index, 1)} disabled={saving || index === lines.length - 1} title="Move down" style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', cursor: 'pointer' }}>↓</button>
                       <button type="button" onClick={() => removeLine(index)} disabled={saving} title="Remove line" style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', cursor: 'pointer' }}>✕</button>

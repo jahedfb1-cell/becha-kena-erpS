@@ -1534,8 +1534,11 @@ const Orders = () => {
                               the order is confirmed — goods often go to the
                               courier before the invoice is cut — and still
                               available after invoicing so a slip can be
-                              reprinted or a second shipment booked. */}
-                          {(o.status === 'approved' || o.status === 'invoiced') && (
+                              reprinted or a second shipment booked. Hidden
+                              from a role whose courier permission has been
+                              withdrawn in Access Setup, rather than shown
+                              and answering 403 on click. */}
+                          {(o.status === 'approved' || o.status === 'invoiced') && can('courier_bookings:view') && (
                             <button
                               type="button"
                               className="btn-action-circle"
@@ -1646,7 +1649,7 @@ const Orders = () => {
                           💰 {o.status === 'invoiced' ? formatCurrency(advanceTotalOf(o)) : 'Advance'}
                         </button>
                       )}
-                      {(o.status === 'approved' || o.status === 'invoiced') && (
+                      {(o.status === 'approved' || o.status === 'invoiced') && can('courier_bookings:view') && (
                         <button
                           type="button"
                           className="mobile-action-pill pill-cyan"

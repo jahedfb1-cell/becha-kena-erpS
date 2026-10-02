@@ -314,6 +314,172 @@ class CourierBookingApiTest extends TestCase
         }
     }
 
+    /**
+     * The order enum has six states. Only the quoting stage and a rejection
+     * used to be refused, so an order still waiting for approval — not yet
+     * confirmed, nothing to ship — could be booked to the courier.
+     *
+     * @test
+     */
+    public function only_a_confirmed_or_invoiced_order_can_be_booked(): void
+    {
+        foreach (['quotation', 'pending_approval', 'rejected'] as $status) {
+            $order = $this->makeOrder(['Roller Blinds'], $status);
+
+            $this->actingAs($this->admin)->postJson('/api/courier-bookings', [
+                'quotation_id'  => $order->id,
+                'booking_date'  => now()->toDateString(),
+                'receiver_name' => 'Receiver',
+                'lines'         => [['description' => 'Roller blinds', 'bundles' => 1]],
+            ])->assertStatus(422, "a '{$status}' order must not be bookable");
+        }
+
+        foreach (['approved', 'invoiced'] as $status) {
+            $order = $this->makeOrder(['Roller Blinds'], $status);
+
+            $this->actingAs($this->admin)->postJson('/api/courier-bookings', [
+                'quotation_id'  => $order->id,
+                'booking_date'  => now()->toDateString(),
+                'receiver_name' => 'Receiver',
+                'lines'         => [['description' => 'Roller blinds', 'bundles' => 1]],
+            ])->assertStatus(201, "a '{$status}' order must be bookable");
+        }
+    }
+
+    /**
+     * The slip number is read aloud at the courier counter, so it is editable
+     * — which means it can collide. That used to surface as a raw database
+     * error (HTTP 500) from the unique index rather than a message the person
+     * at the keyboard could act on.
+     *
+     * @test
+     */
+    public function a_slip_number_already_in_use_is_refused_with_a_clear_message(): void
+    {
+        $order = $this->makeOrder(['Roller Blinds']);
+
+        $payload = fn (string $number) => [
+            'quotation_id'   => $order->id,
+            'booking_number' => $number,
+            'booking_date'   => now()->toDateString(),
+            'receiver_name'  => 'Receiver',
+            'lines'          => [['description' => 'Roller blinds', 'bundles' => 1]],
+        ];
+
+        $first = $this->actingAs($this->admin)->postJson('/api/courier-bookings', $payload('26-77'));
+        $first->assertStatus(201);
+
+        // A second slip claiming the same number: create...
+        $this->actingAs($this->admin)->postJson('/api/courier-bookings', $payload('26-77'))
+            ->assertStatus(422)
+            ->assertJsonFragment(['message' => 'Slip number 26-77 is already used. Pick a different number.']);
+
+        // ...and renumbering an existing slip onto it.
+        $other = $this->actingAs($this->admin)->postJson('/api/courier-bookings', $payload('26-78'))->json('data.id');
+
+        $this->actingAs($this->admin)->putJson("/api/courier-bookings/{$other}", [
+            'booking_number' => '26-77',
+            'booking_date'   => now()->toDateString(),
+            'receiver_name'  => 'Receiver',
+        ])->assertStatus(422);
+
+        // Saving a slip under its own current number is not a collision.
+        $this->actingAs($this->admin)->putJson("/api/courier-bookings/{$other}", [
+            'booking_number' => '26-78',
+            'booking_date'   => now()->toDateString(),
+            'receiver_name'  => 'Receiver',
+        ])->assertStatus(200);
+    }
+
+    /**
+     * Auto-numbering took the highest row by its leading digits, then parsed
+     * that row's number strictly. A hand-typed number such as "26-09A" sorted
+     * highest, failed the parse, and sent the counter back to 01 — straight
+     * onto a number that was already taken.
+     *
+     * @test
+     */
+    public function a_hand_typed_number_does_not_reset_the_series(): void
+    {
+        $order = $this->makeOrder(['Roller Blinds']);
+        $prefix = now()->format('y');
+
+        foreach (["{$prefix}-01", "{$prefix}-02", "{$prefix}-09A"] as $number) {
+            $this->actingAs($this->admin)->postJson('/api/courier-bookings', [
+                'quotation_id'   => $order->id,
+                'booking_number' => $number,
+                'booking_date'   => now()->toDateString(),
+                'receiver_name'  => 'Receiver',
+                'lines'          => [['description' => 'Roller blinds', 'bundles' => 1]],
+            ])->assertStatus(201);
+        }
+
+        $this->actingAs($this->admin)
+            ->getJson("/api/courier-bookings/draft/{$order->id}")
+            ->assertJsonPath('data.booking_number', "{$prefix}-03");
+    }
+
+    /**
+     * Once an order is invoiced, later payments are recorded against the
+     * invoice and carry no quotation_id, so the advance-only sum never sees
+     * them. The suggested COD would then ask the courier to collect money the
+     * customer has already paid.
+     *
+     * @test
+     */
+    public function the_suggested_cod_follows_the_invoice_once_one_exists(): void
+    {
+        $order = $this->makeOrder(['Roller Blinds'], 'invoiced', 10000);
+
+        \App\Models\Invoice::create([
+            'invoice_number' => 'INV-TEST-0001',
+            'quotation_id'   => $order->id,
+            'customer_id'    => $this->customer->id,
+            'subtotal'       => 10000,
+            'grand_total'    => 10000,
+            'paid_amount'    => 6500,   // 2,000 advance + 4,500 paid since invoicing
+            'due_amount'     => 3500,
+            'invoice_date'   => now()->toDateString(),
+            'created_by'     => $this->admin->id,
+        ]);
+
+        $this->assertEquals(
+            3500,
+            $this->actingAs($this->admin)
+                ->getJson("/api/courier-bookings/draft/{$order->id}")
+                ->json('data.cod_amount')
+        );
+    }
+
+    /** @test */
+    public function an_archived_order_cannot_be_booked(): void
+    {
+        $order = $this->makeOrder(['Roller Blinds']);
+        $order->update(['is_archived' => true]);
+
+        $this->actingAs($this->admin)->postJson('/api/courier-bookings', [
+            'quotation_id'  => $order->id,
+            'booking_date'  => now()->toDateString(),
+            'receiver_name' => 'Receiver',
+            'lines'         => [['description' => 'Roller blinds', 'bundles' => 1]],
+        ])->assertStatus(422);
+    }
+
+    /** @test */
+    public function an_explicit_null_cod_amount_is_stored_as_zero_not_a_database_error(): void
+    {
+        $order = $this->makeOrder(['Roller Blinds']);
+
+        $this->actingAs($this->admin)->postJson('/api/courier-bookings', [
+            'quotation_id'  => $order->id,
+            'booking_date'  => now()->toDateString(),
+            'receiver_name' => 'Receiver',
+            'cod_enabled'   => false,
+            'cod_amount'    => null,
+            'lines'         => [['description' => 'Roller blinds', 'bundles' => 1]],
+        ])->assertStatus(201)->assertJsonPath('data.cod_amount', '0.00');
+    }
+
     /** @test */
     public function an_archived_slip_drops_off_the_order(): void
     {

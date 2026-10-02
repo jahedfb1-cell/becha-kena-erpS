@@ -146,18 +146,29 @@ class CourierBookingController extends Controller
         }
 
         // Booking is for goods that are on their way out, so the order has to
-        // be past the quoting stage. Approved, confirmed or already invoiced
-        // are all fine — a slip is often raised before the invoice is cut.
-        if (in_array($quotation->status, ['quotation', 'rejected'], true)) {
-            return $this->errorResponse('This order has not been approved yet — a courier booking can only be raised for a confirmed order.', 422);
+        // be confirmed (approved) or already invoiced — a slip is often raised
+        // before the invoice is cut. Anything earlier is refused.
+        if ($problem = $this->bookingService->whyNotBookable($quotation)) {
+            return $this->errorResponse($problem, 422);
+        }
+
+        $number = trim((string) ($data['booking_number'] ?? ''));
+
+        if ($number !== '' && $this->bookingService->numberIsTaken($quotation->brand_id, $number)) {
+            return $this->errorResponse("Slip number {$number} is already used. Pick a different number.", 422);
         }
 
         $user = $request->user();
 
-        return DB::transaction(function () use ($data, $quotation, $user) {
-            $lines  = $data['lines'] ?? [];
-            $number = trim((string) ($data['booking_number'] ?? ''));
+        return DB::transaction(function () use ($data, $quotation, $user, $number) {
+            $lines = $data['lines'] ?? [];
             unset($data['lines'], $data['booking_number']);
+
+            // An explicit null would reach a NOT NULL column and surface as a
+            // database error; "no COD" is stored as zero.
+            if (array_key_exists('cod_amount', $data)) {
+                $data['cod_amount'] = (float) ($data['cod_amount'] ?? 0);
+            }
 
             $booking = CourierBooking::create($data + [
                 'customer_id'    => $quotation->customer_id,
@@ -202,6 +213,14 @@ class CourierBookingController extends Controller
 
         $data = $this->validatePayload($request, $booking);
 
+        // Renumbering onto a number another slip holds is refused up front;
+        // keeping the slip's own current number is not a collision.
+        $newNumber = trim((string) ($data['booking_number'] ?? ''));
+        if ($newNumber !== '' && $newNumber !== $booking->booking_number
+            && $this->bookingService->numberIsTaken($booking->brand_id, $newNumber, $booking->id)) {
+            return $this->errorResponse("Slip number {$newNumber} is already used. Pick a different number.", 422);
+        }
+
         $user = $request->user();
 
         return DB::transaction(function () use ($booking, $data, $user) {
@@ -209,6 +228,10 @@ class CourierBookingController extends Controller
 
             $lines = $data['lines'] ?? null;
             unset($data['lines'], $data['quotation_id']);
+
+            if (array_key_exists('cod_amount', $data)) {
+                $data['cod_amount'] = (float) ($data['cod_amount'] ?? 0);
+            }
 
             // Blanking the number field on the form must not blank the slip's
             // number — the courier's book already has it written down.

@@ -141,7 +141,7 @@ const CourierBookingPrintPage = () => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif', gap: '16px' }}>
         <h2>{error || 'Courier booking not found'}</h2>
-        <button onClick={() => navigate('/orders')} style={{ padding: '8px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+        <button onClick={() => navigate('/orders?tab=confirmed')} style={{ padding: '8px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
           ⬅️ Back to Orders
         </button>
       </div>
@@ -181,7 +181,7 @@ const CourierBookingPrintPage = () => {
             <span>⬇️</span> {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
           <button
-            onClick={() => navigate('/orders')}
+            onClick={() => navigate('/orders?tab=confirmed')}
             style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <span>⬅️</span> Back
@@ -366,7 +366,7 @@ const CourierBookingPrintPage = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate('/orders')}
+            onClick={() => navigate('/orders?tab=confirmed')}
             style={{ background: '#dc2626', color: '#ffffff', border: 'none', padding: '10px 28px', borderRadius: '6px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)' }}
           >
             <span>⬅️</span> Back
