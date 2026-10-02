@@ -72,31 +72,6 @@ const MyDues = () => {
     }
   };
 
-  // Local-time YYYY-MM-DD (toISOString would shift the day for UTC+6).
-  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-  // Quick ranges. 'week' is the last 7 days including today; 'all' clears
-  // the range, i.e. every due up to today.
-  const applyQuickRange = (kind) => {
-    const today = new Date();
-    setDuesMonth('');
-    setDuesYear('');
-    if (kind === 'week') {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 6);
-      setFromDate(ymd(start));
-      setToDate(ymd(today));
-    } else if (kind === 'month') {
-      setFromDate(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
-      setToDate(ymd(today));
-    } else if (kind === 'year') {
-      setFromDate(`${today.getFullYear()}-01-01`);
-      setToDate(ymd(today));
-    } else {
-      setFromDate('');
-      setToDate('');
-    }
-  };
 
   const handlePrint = () => {
     const params = new URLSearchParams();
@@ -204,17 +179,6 @@ const MyDues = () => {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-        </div>
-        <div style={{ flex: '0 0 auto' }}>
-          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '2px' }}>Quick Range</label>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            {[['week', 'Last 7 Days'], ['month', 'This Month'], ['year', 'This Year'], ['all', 'All to Date']].map(([k, label]) => (
-              <button key={k} type="button" onClick={() => applyQuickRange(k)}
-                style={{ background: '#fff', color: '#334155', border: '1px solid #cbd5e1', padding: '6px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
         <div style={{ flex: '0 0 auto', minWidth: '140px' }}>
           <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '2px' }}>From</label>
