@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
@@ -96,17 +96,26 @@ const CourierBookingPrintPage = () => {
     window.print();
   };
 
-  // Auto-trigger browser print dialog once booking details are loaded
+  // Open the browser's print dialog by itself once the slip is on screen, so
+  // "Print Slip" actually prints instead of only showing a preview.
+  //
+  // Guarded by a ref rather than the dependency list alone: companyProfile
+  // arrives after the booking does, so this effect runs more than once per
+  // visit, and without the guard a second dialog was queued behind the first.
+  // Waiting for the profile too means the letterhead is on the sheet before
+  // the dialog captures it.
+  const hasAutoPrinted = useRef(false);
   useEffect(() => {
-    if (!loading && booking && !error) {
-      const timer = setTimeout(() => {
-        document.title = getCustomTitle();
-        window.print();
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [loading, booking, error, companyProfile]);
+    if (loading || error || !booking || !companyProfile || hasAutoPrinted.current) return undefined;
+
+    hasAutoPrinted.current = true;
+    const timer = setTimeout(() => {
+      document.title = getCustomTitle();
+      window.print();
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, error, booking, companyProfile]);
 
   const handleDownloadPdf = async () => {
     setDownloadingPdf(true);
