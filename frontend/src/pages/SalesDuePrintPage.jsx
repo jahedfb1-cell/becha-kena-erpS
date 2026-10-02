@@ -24,6 +24,10 @@ const SalesDuePrintPage = () => {
   const toDate = searchParams.get('to_date') || '';
   const customerId = searchParams.get('customer_id') || '';
   const salesmanId = searchParams.get('salesman_id') || '';
+  // Where Back returns to: the page that opened this one (My Dues for
+  // non-admin roles, who cannot open Reports at all). Same-origin paths only.
+  const rawBack = searchParams.get('back') || '';
+  const backPath = rawBack.startsWith('/') && !rawBack.startsWith('//') ? rawBack : '/reports?type=sales-due-report';
 
   const [invoices, setInvoices] = useState([]);
   const [totalDue, setTotalDue] = useState(0);
@@ -71,7 +75,7 @@ const SalesDuePrintPage = () => {
   // range, or "All Time" when neither is set — mirrors how the Month/Year
   // quick-picker on Reports.jsx builds that range in the first place.
   const periodLabel = () => {
-    if (!fromDate && !toDate) return 'All Time';
+    if (!fromDate && !toDate) return `All dues up to ${formatDate(new Date())}`;
     if (fromDate && toDate) {
       const [fy, fm, fd] = fromDate.split('-').map(Number);
       const [ty, tm, td] = toDate.split('-').map(Number);
@@ -136,8 +140,8 @@ const SalesDuePrintPage = () => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#fff', color: '#111', fontFamily: 'sans-serif', gap: '16px' }}>
         <h2>{error}</h2>
-        <button onClick={() => navigate('/reports?type=sales-due-report')} style={{ padding: '8px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-          ⬅️ Back to Reports
+        <button onClick={() => navigate(backPath)} style={{ padding: '8px 20px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+          ⬅️ Back
         </button>
       </div>
     );
@@ -166,7 +170,7 @@ const SalesDuePrintPage = () => {
             ⬇️ {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
           <button
-            onClick={() => navigate('/reports?type=sales-due-report')}
+            onClick={() => navigate(backPath)}
             style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 600, borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#334155', color: '#fff' }}
           >
             ⬅️ Back

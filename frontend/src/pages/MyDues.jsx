@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { formatCurrency, formatDate } from '../utils/format';
 import { myDuesTitle } from '../utils/myDuesTitle';
+import openPrintPage from '../utils/openPrintPage';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const YEAR_OPTIONS = ['2024', '2025', '2026', '2027', '2028'];
@@ -71,6 +72,41 @@ const MyDues = () => {
     }
   };
 
+  // Local-time YYYY-MM-DD (toISOString would shift the day for UTC+6).
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  // Quick ranges. 'week' is the last 7 days including today; 'all' clears
+  // the range, i.e. every due up to today.
+  const applyQuickRange = (kind) => {
+    const today = new Date();
+    setDuesMonth('');
+    setDuesYear('');
+    if (kind === 'week') {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 6);
+      setFromDate(ymd(start));
+      setToDate(ymd(today));
+    } else if (kind === 'month') {
+      setFromDate(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
+      setToDate(ymd(today));
+    } else if (kind === 'year') {
+      setFromDate(`${today.getFullYear()}-01-01`);
+      setToDate(ymd(today));
+    } else {
+      setFromDate('');
+      setToDate('');
+    }
+  };
+
+  const handlePrint = () => {
+    const params = new URLSearchParams();
+    if (fromDate) params.set('from_date', fromDate);
+    if (toDate) params.set('to_date', toDate);
+    if (canFilterBySalesman && salesmanId) params.set('salesman_id', salesmanId);
+    params.set('back', '/my-dues');
+    openPrintPage(`/reports/sales-due/print?${params.toString()}`);
+  };
+
   const fetchDues = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -126,6 +162,9 @@ const MyDues = () => {
           <h1>{pageTitle}</h1>
           <p>Outstanding balances for every customer with at least one unpaid or partially paid invoice</p>
         </div>
+        <button type="button" className="primary-btn" onClick={handlePrint} disabled={loading || customerDues.length === 0}>
+          🖨️ Print Due List
+        </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
@@ -165,6 +204,29 @@ const MyDues = () => {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+        </div>
+        <div style={{ flex: '0 0 auto' }}>
+          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '2px' }}>Quick Range</label>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {[['week', 'Last 7 Days'], ['month', 'This Month'], ['year', 'This Year'], ['all', 'All to Date']].map(([k, label]) => (
+              <button key={k} type="button" onClick={() => applyQuickRange(k)}
+                style={{ background: '#fff', color: '#334155', border: '1px solid #cbd5e1', padding: '6px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ flex: '0 0 auto', minWidth: '140px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '2px' }}>From</label>
+          <input type="date" value={fromDate} max={toDate || undefined}
+            onChange={(e) => { setDuesMonth(''); setDuesYear(''); setFromDate(e.target.value); }}
+            style={{ width: '100%', padding: '5px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+        </div>
+        <div style={{ flex: '0 0 auto', minWidth: '140px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '2px' }}>To</label>
+          <input type="date" value={toDate} min={fromDate || undefined}
+            onChange={(e) => { setDuesMonth(''); setDuesYear(''); setToDate(e.target.value); }}
+            style={{ width: '100%', padding: '5px', fontSize: '13px', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
         </div>
         {canFilterBySalesman && (
           <div style={{ flex: '0 0 auto', minWidth: '180px' }}>
