@@ -193,7 +193,7 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
     };
 
     if (payload.lines.length === 0) {
-      setError('Add at least one bundle line before saving the slip.');
+      setError('Add at least one lot before saving the slip.');
       return;
     }
 
@@ -424,7 +424,7 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
                 edited freely — the counter staff decide the final line-up. */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc' }}>Bundles ({totalBundles.toFixed(2)} total)</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc' }}>Lots ({totalBundles.toFixed(2)} total)</span>
                 <button
                   type="button"
                   onClick={addLine}
@@ -482,7 +482,7 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
                       onChange={(e) => updateLine(index, 'bundles', e.target.value)}
                       disabled={saving}
                       className="custom-form-input line-bundles"
-                      placeholder="Bundles"
+                      placeholder="Lots"
                     />
                     <div className="line-actions">
                       <button type="button" onClick={() => moveLine(index, -1)} disabled={saving || index === 0} title="Move up" style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#cbd5e1', cursor: 'pointer' }}>↑</button>

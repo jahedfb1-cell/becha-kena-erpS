@@ -273,12 +273,12 @@ const CourierBookingPrintPage = () => {
               <th style={{ ...headCell, width: '55px' }}>SL NO.</th>
               <th style={{ ...headCell, textAlign: 'left', paddingLeft: '12px' }}>Description of Goods</th>
               <th style={{ ...headCell, width: '110px' }}>Colour</th>
-              <th style={{ ...headCell, width: '90px' }}>Bundles</th>
+              <th style={{ ...headCell, width: '90px' }}>Lots</th>
             </tr>
 
             {lines.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ ...bodyCell, padding: '20px', textAlign: 'center', color: '#64748b' }}>No bundle lines added.</td>
+                <td colSpan={4} style={{ ...bodyCell, padding: '20px', textAlign: 'center', color: '#64748b' }}>No lots added.</td>
               </tr>
             ) : (
               lines.map((line, idx) => (
@@ -295,7 +295,7 @@ const CourierBookingPrintPage = () => {
                 parcels against before accepting the consignment. */}
             {lines.length > 0 && (
               <tr>
-                <td colSpan={3} style={{ ...bodyCell, textAlign: 'right', fontWeight: 700, paddingRight: '12px' }}>Total Bundles</td>
+                <td colSpan={3} style={{ ...bodyCell, textAlign: 'right', fontWeight: 700, paddingRight: '12px' }}>Total Lots</td>
                 <td style={{ ...bodyCell, textAlign: 'center', fontWeight: 700 }}>{totalBundles.toFixed(2)}</td>
               </tr>
             )}
