@@ -275,6 +275,45 @@ class CourierBookingApiTest extends TestCase
         $this->assertEquals(4, $booking->lines->first()->bundles);
     }
 
+    /**
+     * The slip is a packing document — whoever packs the order fills it in —
+     * so every role can open and raise one. It originally borrowed the
+     * delivery-challan permissions, which a salesman does not hold, and the
+     * whole feature answered 403 for them.
+     *
+     * @test
+     */
+    public function every_role_can_open_and_raise_a_courier_booking(): void
+    {
+        $order = $this->makeOrder(['Roller Blinds']);
+
+        foreach (['admin', 'manager', 'salesman', 'staff'] as $roleName) {
+            $user = User::factory()->create(['role' => $roleName]);
+            $user->assignRole($roleName);
+
+            $this->actingAs($user)
+                ->getJson("/api/courier-bookings/draft/{$order->id}")
+                ->assertStatus(200, "{$roleName} could not load a draft");
+
+            $id = $this->actingAs($user)->postJson('/api/courier-bookings', [
+                'quotation_id'  => $order->id,
+                'booking_date'  => now()->toDateString(),
+                'receiver_name' => "Receiver for {$roleName}",
+                'lines'         => [['description' => 'Roller blinds', 'bundles' => 1]],
+            ])->assertStatus(201, "{$roleName} could not create a slip")->json('data.id');
+
+            $this->actingAs($user)
+                ->getJson("/api/courier-bookings/{$id}")
+                ->assertStatus(200, "{$roleName} could not open the slip it just made");
+
+            $this->actingAs($user)->putJson("/api/courier-bookings/{$id}", [
+                'booking_date'  => now()->toDateString(),
+                'receiver_name' => 'Edited',
+                'lines'         => [['description' => 'Roller blinds', 'bundles' => 2]],
+            ])->assertStatus(200, "{$roleName} could not edit the slip");
+        }
+    }
+
     /** @test */
     public function an_archived_slip_drops_off_the_order(): void
     {

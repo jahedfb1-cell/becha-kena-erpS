@@ -35,7 +35,7 @@ class CourierBookingController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        if (!$request->user()->can('challans:view')) {
+        if (!$request->user()->can('courier_bookings:view')) {
             return $this->errorResponse('Unauthorized action.', 403);
         }
 
@@ -71,7 +71,7 @@ class CourierBookingController extends Controller
      */
     public function draft(Request $request, int $quotationId): JsonResponse
     {
-        if (!$request->user()->can('challans:view')) {
+        if (!$request->user()->can('courier_bookings:view')) {
             return $this->errorResponse('Unauthorized action.', 403);
         }
 
@@ -107,7 +107,7 @@ class CourierBookingController extends Controller
 
     public function show(Request $request, int $id): JsonResponse
     {
-        if (!$request->user()->can('challans:view')) {
+        if (!$request->user()->can('courier_bookings:view')) {
             return $this->errorResponse('Unauthorized action.', 403);
         }
 
@@ -133,7 +133,7 @@ class CourierBookingController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        if (!$request->user()->can('challans:generate')) {
+        if (!$request->user()->can('courier_bookings:generate')) {
             return $this->errorResponse('Unauthorized action.', 403);
         }
 
@@ -190,7 +190,7 @@ class CourierBookingController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
-        if (!$request->user()->can('challans:generate')) {
+        if (!$request->user()->can('courier_bookings:generate')) {
             return $this->errorResponse('Unauthorized action.', 403);
         }
 
@@ -242,7 +242,7 @@ class CourierBookingController extends Controller
 
     public function destroy(Request $request, int $id): JsonResponse
     {
-        if (!$request->user()->can('challans:generate')) {
+        if (!$request->user()->can('courier_bookings:generate')) {
             return $this->errorResponse('Unauthorized action.', 403);
         }
 

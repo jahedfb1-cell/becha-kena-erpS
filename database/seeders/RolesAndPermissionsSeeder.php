@@ -63,6 +63,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'challans:generate',
             'challans:view',
 
+            // Courier booking slips. Separate from the challan permissions
+            // above on purpose: the slip is a packing document that whoever
+            // packs the order fills in, so every role holds these, while
+            // delivery challans keep their own narrower policy.
+            'courier_bookings:view',
+            'courier_bookings:generate',
+
             // Mushak 6.3 (VAT challan)
             'mushak:view',
             'mushak:issue',
@@ -161,6 +168,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'reports:view-ledger',
             'challans:view',
             'challans:generate',
+            'courier_bookings:view',
+            'courier_bookings:generate',
             'vouchers:view',
             'vouchers:create',
             'expenses:view',
@@ -180,6 +189,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'price_lists:archive',
             'complaints:create',
             'payments:create',
+            'courier_bookings:view',
+            'courier_bookings:generate',
         ];
         $salesmanRole->syncPermissions($salesmanPermissions);
 
@@ -189,6 +200,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'products:edit',
             'challans:view',
             'challans:generate',
+            'courier_bookings:view',
+            'courier_bookings:generate',
             'vouchers:view',
             'vouchers:create',
             'expenses:view',

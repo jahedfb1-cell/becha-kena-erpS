@@ -92,6 +92,8 @@ class AccessSetupController extends Controller
                     ['key' => 'invoices:archive', 'label' => 'Archive Invoice'],
                     ['key' => 'challans:view', 'label' => 'View Delivery Challans'],
                     ['key' => 'challans:generate', 'label' => 'Generate Delivery Challan'],
+                    ['key' => 'courier_bookings:view', 'label' => 'View Courier Booking Slips'],
+                    ['key' => 'courier_bookings:generate', 'label' => 'Create / Edit Courier Booking Slip'],
                 ],
             ],
             [
