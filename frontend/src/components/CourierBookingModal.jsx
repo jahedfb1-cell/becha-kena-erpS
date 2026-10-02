@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { formatCurrency } from '../utils/format';
+import openPrintPage from '../utils/openPrintPage';
 
 /**
  * Creates and edits a courier booking slip for a confirmed order.
@@ -320,7 +321,12 @@ const CourierBookingModal = ({ isOpen, onClose, order, onSaved }) => {
               href={`/courier-bookings/print/${activeId}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ marginLeft: 'auto', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: 'rgba(37,99,235,0.25)', border: '1px solid rgba(96,165,250,0.45)', color: '#bfdbfe', textDecoration: 'none' }}
+              // The href stays real so middle-click and "open in new tab" keep
+              // working, but the click is handled explicitly: a popup blocker
+              // or the installed PWA can swallow target="_blank" outright, and
+              // then this button appears to do nothing at all.
+              onClick={(e) => { e.preventDefault(); openPrintPage(`/courier-bookings/print/${activeId}`); }}
+              style={{ marginLeft: 'auto', padding: '4px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, background: 'rgba(37,99,235,0.25)', border: '1px solid rgba(96,165,250,0.45)', color: '#bfdbfe', textDecoration: 'none', cursor: 'pointer' }}
             >
               🖨️ Print Slip
             </a>

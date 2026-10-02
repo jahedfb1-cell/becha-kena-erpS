@@ -96,6 +96,18 @@ const CourierBookingPrintPage = () => {
     window.print();
   };
 
+  // Auto-trigger browser print dialog once booking details are loaded
+  useEffect(() => {
+    if (!loading && booking && !error) {
+      const timer = setTimeout(() => {
+        document.title = getCustomTitle();
+        window.print();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [loading, booking, error, companyProfile]);
+
   const handleDownloadPdf = async () => {
     setDownloadingPdf(true);
     try {

@@ -38,6 +38,7 @@ import QuotationPrintModal from '../components/QuotationPrintModal';
 import AISizeScanModal from '../components/AISizeScanModal';
 import AdvancePaymentModal from '../components/AdvancePaymentModal';
 import CourierBookingModal from '../components/CourierBookingModal';
+import openPrintPage from '../utils/openPrintPage';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -1416,6 +1417,7 @@ const Orders = () => {
                                   href={`/payments/${p.id}/receipt`}
                                   target="_blank"
                                   rel="noopener noreferrer"
+                                  onClick={(e) => { e.preventDefault(); openPrintPage(`/payments/${p.id}/receipt`); }}
                                   title={`${p.payment_number} · ${formatCurrency(p.amount)} · ${formatDate(p.payment_date || p.created_at)} — open money receipt`}
                                   style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--primary)', textDecoration: 'none', marginTop: '2px' }}
                                 >
@@ -1695,6 +1697,7 @@ const Orders = () => {
                               href={`/payments/${p.id}/receipt`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={(e) => { e.preventDefault(); openPrintPage(`/payments/${p.id}/receipt`); }}
                               style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}
                             >
                               🧾 {p.payment_number}
@@ -1964,6 +1967,7 @@ const Orders = () => {
                                 href={`/payments/${p.id}/receipt`}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={(e) => { e.preventDefault(); openPrintPage(`/payments/${p.id}/receipt`); }}
                                 style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}
                               >
                                 🧾 Money Receipt
