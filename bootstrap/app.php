@@ -29,6 +29,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
         ]);
         $middleware->append(\App\Http\Middleware\NoRobotsHeader::class);
+        $middleware->append(\App\Http\Middleware\SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
@@ -38,6 +39,18 @@ $app = Application::configure(basePath: dirname(__DIR__))
                     'message' => 'Unauthenticated.',
                     'data'    => null,
                 ], 401);
+            }
+        });
+
+        $exceptions->render(function (\Illuminate\Http\Exceptions\ThrottleRequestsException $e, Request $request) {
+            if ($request->is('api/*')) {
+                $wait = (int) ($e->getHeaders()['Retry-After'] ?? 60);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Too many attempts. Please wait '.max(1, (int) ceil($wait / 60)).' minute(s) and try again.',
+                    'data'    => null,
+                ], 429, $e->getHeaders());
             }
         });
 

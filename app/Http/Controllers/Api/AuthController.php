@@ -130,6 +130,10 @@ class AuthController extends Controller
                     'password' => Hash::make($password),
                 ])->save();
 
+                // A reset means the old password may have been compromised, so
+                // every session signed in with it must end.
+                $user->tokens()->delete();
+
                 event(new PasswordReset($user));
 
                 AuditLog::create([
@@ -220,6 +224,10 @@ class AuthController extends Controller
         $user->update([
             'password' => Hash::make($request->new_password)
         ]);
+
+        // Sign every other device out; this one stays logged in.
+        $currentTokenId = $user->currentAccessToken()->id ?? null;
+        $user->tokens()->when($currentTokenId, fn ($q) => $q->where('id', '!=', $currentTokenId))->delete();
 
         // Log the password change audit event
         AuditLog::create([
