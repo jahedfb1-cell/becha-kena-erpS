@@ -1617,20 +1617,6 @@ const Orders = () => {
                           🧾 Invoice
                         </button>
                       )}
-                      {/* Status shortcut, not a step to perform here — see the
-                          desktop button's comment above for why. */}
-                      {(o.status === 'approved' || o.status === 'invoiced') && (() => {
-                        const { allReceived } = purchaseStatusOf(o);
-                        return (
-                          <button
-                            type="button"
-                            className={`mobile-action-pill ${allReceived ? 'pill-green' : 'pill-amber'}`}
-                            onClick={() => navigate(`/purchases?search=${encodeURIComponent(o.quotation_number)}`)}
-                          >
-                            🛒 Purchase: {allReceived ? 'Received' : 'Pending'}
-                          </button>
-                        );
-                      })()}
                       {(user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && o.status !== 'invoiced' && (
                         <button
                           type="button"
@@ -1640,15 +1626,13 @@ const Orders = () => {
                           ✏️ Edit
                         </button>
                       )}
-                      {(o.status !== 'invoiced' || advanceTotalOf(o) > 0) && (
-                        <button
-                          type="button"
-                          className="mobile-action-pill pill-orange"
-                          onClick={() => (o.status === 'invoiced' ? loadOrderDetails(o.id) : openListAdvanceModal(o))}
-                        >
-                          💰 {o.status === 'invoiced' ? formatCurrency(advanceTotalOf(o)) : 'Advance'}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="mobile-action-pill pill-orange"
+                        onClick={() => (o.status === 'invoiced' ? loadOrderDetails(o.id) : openListAdvanceModal(o))}
+                      >
+                        💰 {o.status === 'invoiced' ? formatCurrency(advanceTotalOf(o)) : 'Advance'}
+                      </button>
                       {(o.status === 'approved' || o.status === 'invoiced') && can('courier_bookings:view') && (
                         <button
                           type="button"
