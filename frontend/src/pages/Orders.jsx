@@ -1583,7 +1583,7 @@ const Orders = () => {
                 filteredOrders.map((o, idx) => (
                   <div className="order-mobile-card" key={o.id}>
                     {/* Horizontal Action Pills Bar matching reference screenshot */}
-                    <div className="mobile-card-actions-scroll">
+                    <div className="mobile-card-actions-scroll is-wrapped">
                       <button
                         type="button"
                         className="mobile-action-pill pill-purple"

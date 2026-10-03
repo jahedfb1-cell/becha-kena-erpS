@@ -3734,6 +3734,16 @@ a, button, select, input, textarea, .nav-item {
   display: none;
 }
 
+/* Orders carries more actions per card (View, Print, Invoice, Purchase, Edit,
+   Advance, Courier Slip) than fit one screen width. As a sideways strip the
+   last ones - Courier Slip - sat off-screen and looked missing, so here the
+   pills wrap onto a second line and every action is visible at once. */
+.mobile-card-actions-scroll.is-wrapped {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  row-gap: 6px;
+}
+
 .mobile-action-pill {
   display: inline-flex;
   align-items: center;
