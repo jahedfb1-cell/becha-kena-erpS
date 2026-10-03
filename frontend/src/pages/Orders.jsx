@@ -1589,7 +1589,7 @@ const Orders = () => {
                         className="mobile-action-pill pill-purple"
                         onClick={() => loadOrderDetails(o.id)}
                       >
-                        👁 View Details
+                        👁 View
                       </button>
                       <button
                         type="button"
@@ -1639,7 +1639,7 @@ const Orders = () => {
                           className="mobile-action-pill pill-cyan"
                           onClick={() => openCourierBookingModal(o)}
                         >
-                          📦 Courier Slip
+                          📦 Courier
                         </button>
                       )}
                     </div>
