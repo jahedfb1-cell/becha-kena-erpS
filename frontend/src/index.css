@@ -2124,10 +2124,12 @@ body {
 @media (max-width: 1024px) {
   .sidebar {
     transform: translateX(-100%);
-    box-shadow: 10px 0 30px rgba(0,0,0,0.5);
   }
+  /* The shadow belongs to the open state only: on the closed, off-screen
+     sidebar it still bled 40px of grey onto the left edge of every page. */
   .sidebar.open {
     transform: translateX(0);
+    box-shadow: 10px 0 30px rgba(0,0,0,0.5);
   }
   .mobile-close-btn {
     display: block;
@@ -4737,4 +4739,15 @@ a, button, select, input, textarea, .nav-item {
   .courier-line-row .line-colour  { grid-column: 2; grid-row: 2; }
   .courier-line-row .line-bundles { grid-column: 3; grid-row: 2; }
   .courier-line-row .line-actions { grid-column: 2 / -1; grid-row: 3; justify-self: end; }
+}
+
+/* Order cards on a phone: the page's 24px side padding left them looking
+   narrow with wide empty margins either side. Pull the cards out toward the
+   screen edge (about 12px margin left) while headings and filters keep the
+   normal alignment. */
+@media (max-width: 768px) {
+  .orders-page .order-mobile-card {
+    margin-left: -18px;
+    margin-right: -18px;
+  }
 }

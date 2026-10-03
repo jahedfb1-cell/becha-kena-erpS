@@ -1242,7 +1242,7 @@ const Orders = () => {
   };
 
   return (
-    <div className="content-container animate-fade-in">
+    <div className="content-container orders-page animate-fade-in">
       {view === 'list' ? (
         <>
           <div className="page-header-row no-print">
