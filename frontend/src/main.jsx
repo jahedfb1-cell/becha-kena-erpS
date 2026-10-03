@@ -8,7 +8,28 @@ import App from './App.jsx'
 import { registerSW } from 'virtual:pwa-register'
 
 // Register PWA service worker
-registerSW({ immediate: true })
+//
+// A service worker is only checked for a newer version when the page loads
+// (plus the browser's own once-a-day check). The installed app and the APK's
+// WebView are rarely reloaded - they are just put in the background and
+// brought back - so they could keep running a build from days ago, missing
+// every feature shipped since. Asking again whenever the app comes back to
+// the foreground, and every half hour while it stays open, makes a deploy
+// reach them within minutes; when a newer worker is found, autoUpdate
+// activates it and reloads the page.
+registerSW({
+  immediate: true,
+  onRegisteredSW(_swUrl, registration) {
+    if (!registration) return;
+    const checkForUpdate = () => {
+      if (navigator.onLine) registration.update().catch(() => {});
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) checkForUpdate();
+    });
+    setInterval(checkForUpdate, 30 * 60 * 1000);
+  },
+})
 
 // Every deploy ships content-hashed JS chunk filenames and deletes the
 // previous build's files from the server, so a tab (or the APK's WebView,
