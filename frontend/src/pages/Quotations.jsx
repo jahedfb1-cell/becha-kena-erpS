@@ -36,6 +36,7 @@ import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
 import AISizeScanModal from '../components/AISizeScanModal';
 import SearchableSelect from '../components/SearchableSelect';
+import { copySizesToClipboard } from '../utils/copySizes';
 
 const Quotations = () => {
   const navigate = useNavigate();
@@ -158,6 +159,18 @@ const Quotations = () => {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [excelPasteTargetBlock, setExcelPasteTargetBlock] = useState(null);
   const [excelPasteText, setExcelPasteText] = useState('');
+  // Which block's "Copy Width / Height / Pcs" button is showing "Copied".
+  const [copiedBlockId, setCopiedBlockId] = useState(null);
+
+  const handleCopySizes = async (block) => {
+    const ok = await copySizesToClipboard(block.sizes || []);
+    if (!ok) {
+      alert('Could not copy. Please select the sizes and copy them manually.');
+      return;
+    }
+    setCopiedBlockId(block.id);
+    setTimeout(() => setCopiedBlockId((cur) => (cur === block.id ? null : cur)), 2000);
+  };
   const [aiScanTargetBlock, setAiScanTargetBlock] = useState(null);
 
   // Load basic list data fast
@@ -2426,6 +2439,16 @@ const Quotations = () => {
                               </tr>
                         </tbody>
                       </table>
+                      <div className="size-copy-bar">
+                        <button
+                          type="button"
+                          className={`size-copy-btn ${copiedBlockId === block.id ? 'is-copied' : ''}`}
+                          onClick={() => handleCopySizes(block)}
+                          title="Copy the Width, Height and Pcs columns - pastes into Excel as three columns"
+                        >
+                          {copiedBlockId === block.id ? '✓ Copied' : '📋 Copy Width / Height / Pcs'}
+                        </button>
+                      </div>
                     </div>
                   );
                 };
