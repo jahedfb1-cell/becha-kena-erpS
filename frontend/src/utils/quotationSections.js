@@ -277,3 +277,100 @@ export const appendMeasuredRows = (sections, sectionId, blockId, rows) =>
 
     return { ...block, sizes: [...measured, ...priced] };
   });
+
+// ---------------------------------------------------------------------------
+// Quotation-level options (Option 1 / Option 2 / ...)
+//
+// A quotation can offer the customer two or three whole alternatives - each
+// its own set of rooms (sections) and products - of which they pick one.
+// Every section carries `option_no` (1 when options are not in use); the
+// sections of one option sit next to each other in the list. On save each
+// line of option N is sent with option_group_id "pkg:N" and is_selected set
+// for the chosen option only, so the server's totals count just that one.
+// With a single option nothing is tagged and the quotation is an ordinary one.
+// ---------------------------------------------------------------------------
+
+export const OPTION_PREFIX = 'pkg:';
+
+export const optionNoOf = (sec) => sec.option_no || 1;
+
+/** Option numbers in use, in the order the options appear. */
+export const optionNumbers = (sections) => {
+  const seen = [];
+  sections.forEach((sec) => {
+    const n = optionNoOf(sec);
+    if (!seen.includes(n)) seen.push(n);
+  });
+  return seen;
+};
+
+export const hasMultipleOptions = (sections) => optionNumbers(sections).length > 1;
+
+/** Legacy per-product option groups ("Add Option Group") inside a section. */
+export const hasLegacyOptionGroups = (sections) =>
+  sections.some((sec) => sec.blocks.some((b) => b.option_group_id));
+
+/** Renumbers options to 1..k in their current order. */
+const renumberOptions = (sections) => {
+  const order = optionNumbers(sections);
+  return sections.map((sec) => ({ ...sec, option_no: order.indexOf(optionNoOf(sec)) + 1 }));
+};
+
+/** A new, empty section inside option `optionNo`, placed after that option's last section. */
+export const addSectionToOption = (sections, optionNo) => {
+  const inOption = sections.filter((s) => optionNoOf(s) === optionNo);
+  const newSec = { ...createSection(inOption.length), option_no: optionNo };
+  let lastIdx = -1;
+  sections.forEach((s, i) => { if (optionNoOf(s) === optionNo) lastIdx = i; });
+  if (lastIdx === -1) return [...sections, newSec];
+  return [...sections.slice(0, lastIdx + 1), newSec, ...sections.slice(lastIdx + 1)];
+};
+
+/** A new blank option with one empty section. */
+export const addBlankOption = (sections) => {
+  const next = Math.max(0, ...optionNumbers(sections)) + 1;
+  return [...sections, { ...createSection(0), name: 'Section A: Main Items', option_no: next }];
+};
+
+/**
+ * A new option that starts as an exact copy of option `optionNo` - same rooms,
+ * products, sizes and prices, new ids - so offering "the same windows in a
+ * different product" only means changing the product, not retyping sizes.
+ */
+export const copyOptionAsNew = (sections, optionNo) => {
+  const next = Math.max(0, ...optionNumbers(sections)) + 1;
+  const copies = sections
+    .filter((s) => optionNoOf(s) === optionNo)
+    .map((sec) => {
+      const secId = 'sec_' + newId();
+      return {
+        ...sec,
+        id: secId,
+        option_no: next,
+        blocks: sec.blocks.map((b) => ({
+          ...b,
+          id: newId(),
+          section_id: secId,
+          sizes: b.sizes.map((s) => ({ ...s, id: newId() })),
+        })),
+      };
+    });
+  return [...sections, ...copies];
+};
+
+/** Removes a whole option and renumbers the rest. */
+export const removeOption = (sections, optionNo) =>
+  renumberOptions(sections.filter((s) => optionNoOf(s) !== optionNo));
+
+/**
+ * After removing a section an option may have no sections left; renumber so
+ * the labels stay Option 1..k with no gaps.
+ */
+export const normalizeOptions = (sections) => renumberOptions(sections);
+
+/** Whether a block's amount counts toward the quotation total. */
+export const isBlockBilled = (sections, sec, block, selectedOptionNo) => {
+  if (block.is_enabled_for_print === false) return false;
+  if (hasMultipleOptions(sections)) return optionNoOf(sec) === selectedOptionNo;
+  return block.is_selected !== false;
+};

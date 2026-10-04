@@ -4874,3 +4874,123 @@ a, button, select, input, textarea, .nav-item {
   .size-copy-bar { justify-content: stretch; }
   .size-copy-btn { width: 100%; justify-content: center; padding: 8px 12px; }
 }
+
+/* ── Quotation options (Option 1 / Option 2 ...) ─────────────────────────── */
+.builder-add-option-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+.builder-add-option-btn:hover { box-shadow: 0 6px 16px rgba(109, 40, 217, 0.42); }
+.builder-add-option-btn:active { transform: scale(0.98); }
+.builder-add-option-btn.is-secondary {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1.5px solid #c4b5fd;
+  box-shadow: none;
+}
+.builder-add-option-btn.is-secondary:hover { background: #ede9fe; }
+
+.quote-option-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+}
+.quote-option-header.is-chosen {
+  background: #f5f3ff;
+  border-color: #8b5cf6;
+}
+.quote-option-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.quote-option-title input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #6d28d9;
+  margin: 0;
+}
+.quote-option-badge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #6d28d9;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+.quote-option-header:not(.is-chosen) .quote-option-badge { background: #64748b; }
+.quote-option-state { font-size: 13px; color: #475569; }
+.quote-option-header.is-chosen .quote-option-state { color: #6d28d9; }
+.quote-option-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.form-card-section.is-in-option { border-left: 4px solid #cbd5e1 !important; }
+.form-card-section.is-chosen-option { border-left-color: #8b5cf6 !important; }
+
+.quote-option-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 28px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 13px;
+}
+.quote-option-footer strong { font-size: 16px; color: #0f172a; }
+.quote-option-footer small { color: #64748b; }
+.quote-option-footer.is-chosen { background: #ede9fe; }
+.quote-option-footer.is-chosen strong { color: #6d28d9; }
+
+@media (max-width: 768px) {
+  .quote-option-actions { width: 100%; }
+  .quote-option-actions .section-tool-btn { flex: 1 1 auto; justify-content: center; }
+  .builder-add-option-btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* Convert Quotation to Order: pick the option the customer accepted. */
+.convert-option-picker {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.convert-option-question { font-size: 14px; font-weight: 700; color: inherit; }
+.convert-option-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #fff;
+}
+.convert-option-row input { width: 18px; height: 18px; accent-color: #6d28d9; margin: 0; }
+.convert-option-row strong { margin-left: auto; color: #0f172a; }
+.convert-option-row:not(.is-chosen) .quote-option-badge { background: #64748b; }
+.convert-option-row.is-chosen { border-color: #8b5cf6; background: #f5f3ff; }
+.convert-option-note { font-size: 12px; color: #94a3b8; }

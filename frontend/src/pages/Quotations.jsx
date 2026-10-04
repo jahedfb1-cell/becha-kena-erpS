@@ -21,6 +21,17 @@ import {
   createProductBlock,
   appendBlock,
   fallbackSpecification,
+  OPTION_PREFIX,
+  optionNoOf,
+  optionNumbers,
+  hasMultipleOptions,
+  hasLegacyOptionGroups,
+  addSectionToOption,
+  addBlankOption,
+  copyOptionAsNew,
+  removeOption,
+  normalizeOptions,
+  isBlockBilled,
 } from '../utils/quotationSections';
 import { describeSaveError } from '../utils/apiError';
 import NotApplicableCell from '../components/NotApplicableCell';
@@ -90,6 +101,11 @@ const Quotations = () => {
 
   // Confirmation Modals
   const [convertConfirmTarget, setConvertConfirmTarget] = useState(null);
+  // Options offered on the quotation being converted ([{ no, total }]) and
+  // the one the customer accepted. Empty for an ordinary quotation.
+  const [convertOptions, setConvertOptions] = useState([]);
+  const [convertChosenOption, setConvertChosenOption] = useState(null);
+  const [convertLoading, setConvertLoading] = useState(false);
   const [approveConfirmTarget, setApproveConfirmTarget] = useState(null);
   
   const [quotationNo, setQuotationNo] = useState('[Auto Generated]');
@@ -112,6 +128,13 @@ const Quotations = () => {
       blocks: []
     }
   ]);
+
+  // Quotation-level options (Option 1 / Option 2 ...): which one is the
+  // customer's choice. Only that option counts toward the total, and only it
+  // becomes the order. See the option helpers in quotationSections.js.
+  const [selectedOptionNo, setSelectedOptionNo] = useState(1);
+  const multiOption = hasMultipleOptions(sections);
+  const optionList = optionNumbers(sections);
 
   const [convenienceCharge, setConvenienceCharge] = useState(0);
   const [otherCharge, setOtherCharge] = useState(0);
@@ -350,9 +373,11 @@ const Quotations = () => {
   // Dynamic Section & Option Helper Methods
   // ----------------------------------------------------
 
-  const addSection = () => {
-    const newSec = createSection(sections.length);
-    setSections(prev => [...prev, newSec]);
+  // Adds a room/section to the given option (the last option when called
+  // from the top "Add Section" button).
+  const addSection = (optionNo = null) => {
+    const target = optionNo || optionList[optionList.length - 1] || 1;
+    setSections(prev => addSectionToOption(prev, target));
   };
 
   const removeSection = (sectionId) => {
@@ -360,7 +385,34 @@ const Quotations = () => {
       alert('At least 1 section must remain.');
       return;
     }
-    setSections(prev => removeSectionById(prev, sectionId));
+    setSections(prev => normalizeOptions(removeSectionById(prev, sectionId)));
+    setSelectedOptionNo(1);
+  };
+
+  // The old per-product "Add Option Group" alternatives and these
+  // quotation-level options cannot be mixed in one quotation.
+  const guardLegacyOptions = () => {
+    if (hasLegacyOptionGroups(sections)) {
+      alert('This quotation still uses the old per-product option groups. Remove those first, then add options.');
+      return false;
+    }
+    return true;
+  };
+
+  const addOption = () => {
+    if (!guardLegacyOptions()) return;
+    setSections(prev => addBlankOption(prev));
+  };
+
+  const copyOption = (optionNo) => {
+    if (!guardLegacyOptions()) return;
+    setSections(prev => copyOptionAsNew(prev, optionNo));
+  };
+
+  const deleteOption = (optionNo) => {
+    if (!window.confirm(`Delete Option ${optionNo} and every product in it?`)) return;
+    setSections(prev => removeOption(prev, optionNo));
+    setSelectedOptionNo(1);
   };
 
   const updateSectionName = (sectionId, newName) => {
@@ -412,7 +464,7 @@ const Quotations = () => {
     }
   };
 
-  // Both start the new option on whatever products[0] happens to be, the
+  // Starts the new variant on whatever products[0] happens to be, the
   // same placeholder "+ Add Item" uses — but unlike a normal line, an option
   // sitting there pre-filled with an arbitrary product is easy to miss
   // entirely (nothing marks it as unset), so instead of leaving it as-is
@@ -420,16 +472,6 @@ const Quotations = () => {
   // "+ Add Item" already does, so the salesman is prompted to pick their
   // actual product right away rather than silently keeping whatever
   // products[0] happened to be.
-  const addOptionGroupToSection = (sectionId) => {
-    const optGrpId = 'opt_' + Date.now() + Math.random();
-    if (products.length > 0) {
-      const newBlockId = addProductBlockToSection(sectionId, products[0].id, true, optGrpId, true);
-      if (newBlockId) setProductChangeBlockId(newBlockId);
-    } else {
-      alert('Please add products to system first.');
-    }
-  };
-
   const addOptionVariantToGroup = (sectionId, optionGroupId) => {
     if (products.length > 0) {
       const newBlockId = addProductBlockToSection(sectionId, products[0].id, true, optionGroupId, false);
@@ -696,7 +738,7 @@ const Quotations = () => {
 
     sections.forEach(sec => {
       sec.blocks.forEach(block => {
-        if (block.is_enabled_for_print !== false && block.is_selected !== false) {
+        if (isBlockBilled(sections, sec, block, selectedOptionNo)) {
           block.sizes.forEach(size => {
             subtotal += parseFloat(size.line_total) || 0;
           });
@@ -723,7 +765,7 @@ const Quotations = () => {
       discountAmount: discAmt,
       netAmount: net,
     };
-  }, [sections, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
+  }, [sections, selectedOptionNo, convenienceCharge, otherCharge, vatPercentage, discountType, discountValue]);
 
   // Save Quotation
   const saveQuotation = async (statusOverride = null) => {
@@ -742,9 +784,21 @@ const Quotations = () => {
       return;
     }
 
+    // Saving straight as an order: an order is for one option only, so only
+    // the customer's chosen option is sent, as ordinary lines.
+    let sectionsToSave = sections;
+    let tagOptions = multiOption;
+    if (multiOption && statusOverride && statusOverride !== 'quotation') {
+      if (!window.confirm(`Only Option ${selectedOptionNo} (the selected option) will be placed as the order. The other options will be removed. Continue?`)) {
+        return;
+      }
+      sectionsToSave = sections.filter(sec => optionNoOf(sec) === selectedOptionNo);
+      tagOptions = false;
+    }
+
     const items = [];
-    for (let sIdx = 0; sIdx < sections.length; sIdx++) {
-      const sec = sections[sIdx];
+    for (let sIdx = 0; sIdx < sectionsToSave.length; sIdx++) {
+      const sec = sectionsToSave[sIdx];
       for (let i = 0; i < sec.blocks.length; i++) {
         const block = sec.blocks[i];
         if (!block.product_id) {
@@ -770,9 +824,9 @@ const Quotations = () => {
             validSizeCount++;
             items.push({
               section_name: sec.name,
-              option_group_id: block.option_group_id || null,
-              is_optional: block.is_optional || false,
-              is_selected: block.is_selected !== false,
+              option_group_id: tagOptions ? `${OPTION_PREFIX}${optionNoOf(sec)}` : (block.option_group_id || null),
+              is_optional: tagOptions ? true : (block.is_optional || false),
+              is_selected: tagOptions ? optionNoOf(sec) === selectedOptionNo : (block.is_selected !== false),
               is_enabled_for_print: block.is_enabled_for_print !== false,
               product_id: block.product_id,
               product_variant_id: block.product_variant_id || null,
@@ -885,15 +939,24 @@ const Quotations = () => {
       const loadedProducts = await queryClient.ensureQueryData(productsQueryOptions()).catch(() => products || []);
 
       // Group items by section_name -> option_group_id / product_id / unit_price / notes
+      // Keyed by option + room, so "Bedroom" in Option 1 and "Bedroom" in
+      // Option 2 stay two separate sections.
       const sectionMap = new Map();
+      let loadedSelectedOption = 1;
 
       (fullQ.items || []).forEach(item => {
         const secName = item.section_name || 'Section A: Main Items';
-        if (!sectionMap.has(secName)) {
-          sectionMap.set(secName, new Map());
+        const isPkg = typeof item.option_group_id === 'string' && item.option_group_id.startsWith(OPTION_PREFIX);
+        const optionNo = isPkg ? (parseInt(item.option_group_id.slice(OPTION_PREFIX.length), 10) || 1) : 1;
+        if (isPkg && item.is_selected !== false) loadedSelectedOption = optionNo;
+        const secKey = `${optionNo}||${secName}`;
+        if (!sectionMap.has(secKey)) {
+          sectionMap.set(secKey, { optionNo, secName, blocks: new Map() });
         }
-        const blockMap = sectionMap.get(secName);
-        const optGrpId = item.option_group_id || null;
+        const blockMap = sectionMap.get(secKey).blocks;
+        // An option's lines are ordinary lines inside their option section;
+        // only legacy per-product option groups keep their group id.
+        const optGrpId = isPkg ? null : (item.option_group_id || null);
         const key = `${optGrpId}_${item.product_id}_${item.unit_price}_${item.notes || ''}`;
 
         const prod = loadedProducts.find(p => p.id === item.product_id) || item.product;
@@ -953,8 +1016,8 @@ const Quotations = () => {
           blockMap.set(key, {
             id: Date.now() + Math.random(),
             option_group_id: optGrpId,
-            is_optional: item.is_optional || false,
-            is_selected: item.is_selected !== false,
+            is_optional: isPkg ? false : (item.is_optional || false),
+            is_selected: isPkg ? true : (item.is_selected !== false),
             is_enabled_for_print: item.is_enabled_for_print !== false,
             product_id: item.product_id,
             product_code: prod?.product_code || item.product?.product_code || '',
@@ -975,15 +1038,19 @@ const Quotations = () => {
 
       const loadedSections = [];
       let sCounter = 1;
-      sectionMap.forEach((blockMap, secName) => {
-        const sId = 'sec_' + sCounter++;
-        const blocks = Array.from(blockMap.values()).map(b => ({ ...b, section_id: sId }));
-        loadedSections.push({
-          id: sId,
-          name: secName,
-          blocks: blocks
+      // Options in number order; rooms keep the order they were saved in.
+      Array.from(sectionMap.values())
+        .sort((a, b) => a.optionNo - b.optionNo)
+        .forEach(({ optionNo, secName, blocks: blockMap }) => {
+          const sId = 'sec_' + sCounter++;
+          const blocks = Array.from(blockMap.values()).map(b => ({ ...b, section_id: sId }));
+          loadedSections.push({
+            id: sId,
+            name: secName,
+            option_no: optionNo,
+            blocks: blocks
+          });
         });
-      });
 
       if (loadedSections.length === 0) {
         loadedSections.push({
@@ -993,7 +1060,11 @@ const Quotations = () => {
         });
       }
 
-      setSections(loadedSections);
+      const normalized = normalizeOptions(loadedSections);
+      setSections(normalized);
+      // normalizeOptions renumbers 1..k in order, so map the saved choice too.
+      const savedOrder = optionNumbers(loadedSections);
+      setSelectedOptionNo(Math.max(1, savedOrder.indexOf(loadedSelectedOption) + 1));
       setView('form');
     } catch (err) {
       console.error('Error opening quotation edit form:', err);
@@ -1023,9 +1094,11 @@ const Quotations = () => {
       {
         id: 'sec_default',
         name: 'Section A: Main Items',
+        option_no: 1,
         blocks: []
       }
     ]);
+    setSelectedOptionNo(1);
     setConvenienceCharge(0);
     setOtherCharge(0);
     setVatPercentage(0);
@@ -1078,10 +1151,42 @@ const Quotations = () => {
     }
   };
 
+  const openConvertConfirm = async (q) => {
+    setConvertConfirmTarget(q);
+    setConvertOptions([]);
+    setConvertChosenOption(null);
+    setConvertLoading(true);
+    try {
+      const res = await api.get(`/quotations/${q.id}`);
+      const items = res.data?.data?.items || [];
+      const byOption = new Map();
+      let selected = null;
+      items.forEach((it) => {
+        const id = it.option_group_id || '';
+        if (!id.startsWith(OPTION_PREFIX)) return;
+        const no = parseInt(id.slice(OPTION_PREFIX.length), 10);
+        if (!no) return;
+        byOption.set(no, (byOption.get(no) || 0) + (parseFloat(it.line_total) || 0));
+        if (it.is_selected !== false) selected = no;
+      });
+      const list = Array.from(byOption.entries()).sort((a, b) => a[0] - b[0]).map(([no, total]) => ({ no, total }));
+      setConvertOptions(list);
+      setConvertChosenOption(list.length ? (selected || list[0].no) : null);
+    } catch (err) {
+      // Without the lines the server still refuses an options quotation
+      // that names no option, so converting stays safe.
+    } finally {
+      setConvertLoading(false);
+    }
+  };
+
   const handleConfirmConvert = async () => {
     if (!convertConfirmTarget) return;
     try {
-      await api.post(`/quotations/${convertConfirmTarget.id}/convert-to-order`, {});
+      await api.post(
+        `/quotations/${convertConfirmTarget.id}/convert-to-order`,
+        convertOptions.length ? { selected_option: convertChosenOption } : {}
+      );
       setConvertConfirmTarget(null);
       // Must run before navigating, otherwise the Orders page renders a
       // cached list that doesn't contain the order just created.
@@ -1499,7 +1604,7 @@ const Quotations = () => {
                           </button>
                           
                           {q.status === 'quotation' && (
-                            <button className="text-btn" onClick={() => setConvertConfirmTarget(q)} style={{ marginLeft: '8px', color: '#000000', fontWeight: 700 }}>
+                            <button className="text-btn" onClick={() => openConvertConfirm(q)} style={{ marginLeft: '8px', color: '#000000', fontWeight: 700 }}>
                               🛒 Convert to Order
                             </button>
                           )}
@@ -1563,7 +1668,7 @@ const Quotations = () => {
                           <button
                             type="button"
                             className="mobile-action-pill pill-green"
-                            onClick={() => setConvertConfirmTarget(q)}
+                            onClick={() => openConvertConfirm(q)}
                           >
                             🛒 Convert to Order
                           </button>
@@ -1706,13 +1811,33 @@ const Quotations = () => {
               <p className="hide-mobile-text">Organize items into dynamic sections, options variations, and print toggles</p>
             </div>
             <div className="form-btn-row" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {!multiOption && (
+                <button
+                  type="button"
+                  className="builder-add-section-btn"
+                  onClick={() => addSection()}
+                >
+                  ➕ Add Section
+                </button>
+              )}
               <button
                 type="button"
-                className="builder-add-section-btn"
-                onClick={addSection}
+                className="builder-add-option-btn"
+                onClick={addOption}
+                title="Offer the customer another whole alternative. The customer picks one option; only that one counts and becomes the order."
               >
-                ➕ Add Section
+                🔀 Add Option
               </button>
+              {!multiOption && sections.some(sec => sec.blocks.length > 0) && (
+                <button
+                  type="button"
+                  className="builder-add-option-btn is-secondary"
+                  onClick={() => copyOption(1)}
+                  title="Same rooms, products and sizes as Option 1 - then just change the products"
+                >
+                  📄 Copy as Option 2
+                </button>
+              )}
               <button className="btn-outline-back desktop-only-btn" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
             </div>
           </div>
@@ -2448,8 +2573,40 @@ const Quotations = () => {
                   );
                 };
 
+                const optNo = optionNoOf(sec);
+                const isFirstOfOption = multiOption && (secIdx === 0 || optionNoOf(sections[secIdx - 1]) !== optNo);
+                const isLastOfOption = multiOption && (secIdx === sections.length - 1 || optionNoOf(sections[secIdx + 1]) !== optNo);
+                const isChosenOption = optNo === selectedOptionNo;
+                const optionTotal = isLastOfOption
+                  ? sections
+                      .filter(x => optionNoOf(x) === optNo)
+                      .reduce((sum, x) => sum + x.blocks.reduce((bs, b) => (
+                        b.is_enabled_for_print === false ? bs : bs + b.sizes.reduce((ss, z) => ss + (parseFloat(z.line_total) || 0), 0)
+                      ), 0), 0)
+                  : 0;
+
                 return (
-                  <div key={sec.id} className="form-card-section mobile-simple-section" style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '8px', padding: '6px', marginBottom: '24px', position: 'relative' }}>
+                  <React.Fragment key={sec.id}>
+                  {isFirstOfOption && (
+                    <div className={`quote-option-header ${isChosenOption ? 'is-chosen' : ''}`}>
+                      <label className="quote-option-title">
+                        <input
+                          type="radio"
+                          name="quote-selected-option"
+                          checked={isChosenOption}
+                          onChange={() => setSelectedOptionNo(optNo)}
+                        />
+                        <span className="quote-option-badge">Option {optNo}</span>
+                        <span className="quote-option-state">{isChosenOption ? '✓ Selected - counts in total' : '◯ Alternative'}</span>
+                      </label>
+                      <div className="quote-option-actions">
+                        <button type="button" className="section-tool-btn section-tool-btn--item" onClick={() => addSection(optNo)}>➕ Add Section</button>
+                        <button type="button" className="section-tool-btn section-tool-btn--item" onClick={() => copyOption(optNo)}>📄 Copy as new option</button>
+                        <button type="button" className="section-tool-btn section-tool-btn--danger" onClick={() => deleteOption(optNo)}>🗑️ Delete Option</button>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`form-card-section mobile-simple-section ${multiOption ? 'is-in-option' : ''} ${multiOption && isChosenOption ? 'is-chosen-option' : ''}`} style={{ border: '2px solid var(--border, #e2e8f0)', borderRadius: '8px', padding: '6px', marginBottom: isLastOfOption ? '8px' : '24px', position: 'relative' }}>
                     {/* Section Card Header */}
                     <div className="section-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', background: 'var(--bg-subtle, #f8fafc)', padding: '12px 16px', borderRadius: '8px', borderLeft: '4px solid #0284c7' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
@@ -2472,15 +2629,6 @@ const Quotations = () => {
                           className="section-tool-btn section-tool-btn--item"
                         >
                           ➕ Add Item
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addOptionGroupToSection(sec.id)}
-                          title="Offer the customer a choice: Option 1, Option 2... Only the selected option counts in the total."
-                          className="section-tool-btn section-tool-btn--option"
-                        >
-                          <span>🔀 Add Option Group</span>
-                          <small>Option 1, Option 2… customer picks one</small>
                         </button>
                         {sections.length > 1 && (
                           <button
@@ -2591,6 +2739,14 @@ const Quotations = () => {
                       </div>
                     )}
                   </div>
+                  {isLastOfOption && (
+                    <div className={`quote-option-footer ${isChosenOption ? 'is-chosen' : ''}`}>
+                      <span>Option {optNo} total</span>
+                      <strong>{formatCurrency(optionTotal)}</strong>
+                      <small>{isChosenOption ? 'counts in the quotation total' : 'alternative - not in the total'}</small>
+                    </div>
+                  )}
+                  </React.Fragment>
                 );
               })}
 
@@ -2874,11 +3030,30 @@ const Quotations = () => {
               <div style={{ fontSize: '14px', color: '#475569', lineHeight: '1.5', maxWidth: '320px' }}>
                 You are about to convert the quotation for <strong style={{ color: '#0ea5e9', fontWeight: '700' }}>{convertConfirmTarget.customer?.company_name || convertConfirmTarget.customer?.name || `Quotation #${convertConfirmTarget.quotation_number}`}</strong> into a Confirmed Direct Order.
               </div>
+              {convertLoading && <div style={{ fontSize: '13px', color: '#64748b' }}>Checking options…</div>}
+              {convertOptions.length > 0 && (
+                <div className="convert-option-picker">
+                  <div className="convert-option-question">Which option did the customer choose?</div>
+                  {convertOptions.map(({ no, total }) => (
+                    <label key={no} className={`convert-option-row ${convertChosenOption === no ? 'is-chosen' : ''}`}>
+                      <input
+                        type="radio"
+                        name="convert-option"
+                        checked={convertChosenOption === no}
+                        onChange={() => setConvertChosenOption(no)}
+                      />
+                      <span className="quote-option-badge">Option {no}</span>
+                      <strong>{formatCurrency(total)}</strong>
+                    </label>
+                  ))}
+                  <div className="convert-option-note">Only this option goes into the order. The other options stay on record in the history.</div>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '24px', width: '100%' }}>
                 <button type="button" onClick={() => setConvertConfirmTarget(null)} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#ffffff', color: '#64748b', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
                   Cancel
                 </button>
-                <button type="button" onClick={handleConfirmConvert} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: '#ffffff', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px rgba(14, 165, 233, 0.2)', transition: 'all 0.2s' }}>
+                <button type="button" onClick={handleConfirmConvert} disabled={convertLoading} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: '#ffffff', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px rgba(14, 165, 233, 0.2)', transition: 'all 0.2s' }}>
                   Confirm & Convert
                 </button>
               </div>

@@ -16,6 +16,74 @@ class QuotationService
     use GeneratesDocumentNumbers;
 
     /**
+     * Quotation-level options ("Option 1 / Option 2 ..."): the customer is
+     * offered two or three whole alternatives and picks one. Every line of
+     * option N carries option_group_id "pkg:N"; the chosen option's lines
+     * are is_selected = true, the others false, so totals and purchase
+     * routing already count only the chosen one.
+     *
+     * Options exist only while the record is a quotation. Converting it to
+     * an order keeps the chosen option's lines as ordinary lines and drops
+     * the rest (the full pre-conversion record stays in the audit log).
+     */
+    public const OPTION_PREFIX = 'pkg:';
+
+    public static function optionNumberOf(?string $optionGroupId): ?int
+    {
+        if (!$optionGroupId || !str_starts_with($optionGroupId, self::OPTION_PREFIX)) {
+            return null;
+        }
+        $n = (int) substr($optionGroupId, strlen(self::OPTION_PREFIX));
+
+        return $n > 0 ? $n : null;
+    }
+
+    /** @param iterable<array|QuotationItem> $items */
+    public static function hasQuotationOptions(iterable $items): bool
+    {
+        foreach ($items as $item) {
+            $id = is_array($item) ? ($item['option_group_id'] ?? null) : $item->option_group_id;
+            if (self::optionNumberOf($id) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Keeps only option $chosen on $quotation: its lines become ordinary
+     * lines, every other option's lines are deleted. Returns the new
+     * subtotal (selected + print-enabled lines, the same rule as
+     * processAndSaveItems()).
+     */
+    public function resolveQuotationOption(Quotation $quotation, int $chosen): float
+    {
+        $quotation->loadMissing('items');
+
+        foreach ($quotation->items as $item) {
+            $n = self::optionNumberOf($item->option_group_id);
+            if ($n === null) {
+                continue;
+            }
+            if ($n !== $chosen) {
+                $item->delete();
+                continue;
+            }
+            $item->update([
+                'option_group_id' => null,
+                'is_optional'     => false,
+                'is_selected'     => true,
+            ]);
+        }
+
+        return (float) $quotation->items()
+            ->where('is_selected', true)
+            ->where('is_enabled_for_print', true)
+            ->sum('line_total');
+    }
+
+    /**
      * Generate next quotation number: QT-2025-0001
      */
     public function generateQuotationNumber(): string

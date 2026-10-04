@@ -5,6 +5,8 @@ import { formatDate } from '../utils/format';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, pvcBillingWidth, isPvcItem } from '../utils/billing';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
+import { buildPrintGroups } from '../utils/printGroups';
+import { OptionHeadingRow, RoomHeadingRow, OptionTotalRow } from '../components/PrintOptionRows';
 import renderRichText from '../utils/renderRichText';
 import { downloadPrintPdf } from '../utils/pdfDownload';
 
@@ -183,44 +185,8 @@ const PvcQuotationPrintPage = () => {
   const items = quotation.items || [];
   const pvcItems = items.filter(i => i.is_selected !== false && isPvcItem(i));
 
-  const buildGroups = (rawItems) => {
-    const map = new Map();
-    const unGroupedMap = new Map();
-    let groupSeqCounter = 1;
-
-    rawItems.forEach(item => {
-      const optGrpId = item.option_group_id || item.group_id;
-      const isSel = item.is_selected !== false ? 'sel' : 'alt';
-      const prodId = item.product_id || item.product?.id || 'noprod';
-      const unitPrice = parseFloat(item.unit_price) || 0;
-      const notes = specificationKey(item);
-      const sectionName = (item.section_name || item.section_title || '').trim();
-
-      if (optGrpId) {
-        const optionKey = `${sectionName}___${optGrpId}___${isSel}___${prodId}___${unitPrice}___${notes}`;
-        if (!map.has(optionKey)) {
-          const displayLabel = `Option ${groupSeqCounter++}`;
-          map.set(optionKey, {
-            optionLabel: displayLabel,
-            rows: []
-          });
-        }
-        map.get(optionKey).rows.push({ item, idx: item.id });
-      } else {
-        const variantName = item.variant?.name || item.product?.product_code || '';
-        const groupKey = `${sectionName}___${prodId}-${variantName}___${unitPrice}___${notes}`;
-        if (!unGroupedMap.has(groupKey)) {
-          unGroupedMap.set(groupKey, { optionLabel: null, rows: [] });
-        }
-        unGroupedMap.get(groupKey).rows.push({ item, idx: item.id });
-      }
-    });
-
-    const result = [];
-    map.forEach(val => result.push(val));
-    unGroupedMap.forEach(val => result.push(val));
-    return result;
-  };
+  // Entered order, quotation options and room headings: see printGroups.js.
+  const buildGroups = (rawItems) => buildPrintGroups(rawItems, { specificationKey, displayWidth: getDisplayWidth });
 
   const calculatedNetTotal = items.reduce((sum, item) => {
     if (item.is_selected === false) return sum;
@@ -424,6 +390,8 @@ const PvcQuotationPrintPage = () => {
 
               return (
                 <React.Fragment key={`grp_${groupIdx}`}>
+                  {group.optionHeader && <OptionHeadingRow colSpan={6} {...group.optionHeader} />}
+                  {group.sectionHeader && <RoomHeadingRow colSpan={6} name={group.sectionHeader} />}
                   {optionLabel && (
                     <tr className="option-header-row">
                       <td colSpan={6} style={{ textAlign: 'center', padding: '8px 12px', fontSize: '14px', fontWeight: '700', color: isSelectedChoice ? '#111827' : '#475569', border: '1px solid #cbd5e1', background: isSelectedChoice ? '#ffffff' : '#f8fafc' }}>
@@ -477,6 +445,7 @@ const PvcQuotationPrintPage = () => {
                       </tr>
                     );
                   })}
+                  {group.optionFooter && <OptionTotalRow labelSpan={5} {...group.optionFooter} />}
                 </React.Fragment>
               );
             })}

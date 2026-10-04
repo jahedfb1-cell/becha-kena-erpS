@@ -153,6 +153,10 @@ class QuotationController extends Controller
         $user = $request->user();
         $status = $request->get('status', 'quotation');
 
+        if ($status !== 'quotation' && QuotationService::hasQuotationOptions($request->items ?? [])) {
+            return $this->errorResponse('An order cannot carry Option 1 / Option 2 alternatives. Save it as a quotation, then convert it and pick the customer\'s option.', 422);
+        }
+
         try {
             return DB::transaction(function () use ($request, $user, $status) {
                 $quotationNumber = $this->quotationService->generateQuotationNumber();
@@ -327,6 +331,11 @@ class QuotationController extends Controller
             return $this->errorResponse('Invoiced quotations cannot be edited.', 422);
         }
 
+        $effectiveStatus = $request->get('status', $quotation->status);
+        if ($effectiveStatus !== 'quotation' && QuotationService::hasQuotationOptions($request->items ?? [])) {
+            return $this->errorResponse('An order cannot carry Option 1 / Option 2 alternatives. Keep only the option the customer chose.', 422);
+        }
+
         $user = $request->user();
         $oldSnapshot = $quotation->toArray();
 
@@ -434,19 +443,41 @@ class QuotationController extends Controller
         }
 
         $request->validate([
-            'discount_type'  => 'nullable|in:percentage,flat',
-            'discount_value' => 'nullable|numeric|min:0',
+            'discount_type'   => 'nullable|in:percentage,flat',
+            'discount_value'  => 'nullable|numeric|min:0',
+            'selected_option' => 'nullable|integer|min:1',
         ]);
 
+        // A quotation offering Option 1 / Option 2 ... becomes an order for
+        // exactly one of them, so the caller has to say which.
+        $optionNumbers = $quotation->items
+            ->map(fn ($item) => QuotationService::optionNumberOf($item->option_group_id))
+            ->filter()
+            ->unique()
+            ->values();
+        $chosenOption = null;
+        if ($optionNumbers->isNotEmpty()) {
+            $chosenOption = (int) $request->input('selected_option');
+            if (!$optionNumbers->contains($chosenOption)) {
+                return $this->errorResponse('Choose which option the customer accepted before converting this quotation to an order.', 422);
+            }
+        }
+
         $user = $request->user();
+        // With items, so the alternatives that are about to be dropped stay
+        // on record in the audit log.
         $oldSnapshot = $quotation->toArray();
 
-        return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot) {
+        return DB::transaction(function () use ($request, $quotation, $user, $oldSnapshot, $chosenOption) {
             $discountType = $request->get('discount_type', $quotation->discount_type);
             $discountValue = (float) $request->get('discount_value', $quotation->discount_value);
 
+            $subtotal = $chosenOption !== null
+                ? round($this->quotationService->resolveQuotationOption($quotation, $chosenOption), 2)
+                : (float) $quotation->subtotal;
+
             $summary = $this->quotationService->calculateSummary(
-                (float) $quotation->subtotal,
+                $subtotal,
                 (float) $quotation->convenience_charge,
                 (float) $quotation->other_charge,
                 (float) $quotation->vat_percentage,

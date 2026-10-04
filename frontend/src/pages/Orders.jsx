@@ -622,7 +622,7 @@ const Orders = () => {
     }
   };
 
-  // Both start the new option on whatever products[0] happens to be, the
+  // Starts the new variant on whatever products[0] happens to be, the
   // same placeholder "+ Add Item" uses — but unlike a normal line, an option
   // sitting there pre-filled with an arbitrary product is easy to miss
   // entirely (nothing marks it as unset), so instead of leaving it as-is
@@ -630,19 +630,6 @@ const Orders = () => {
   // "+ Add Item" already does, so the salesman is prompted to pick their
   // actual product right away rather than silently keeping whatever
   // products[0] happened to be.
-  const addOptionGroupToSection = (sectionId) => {
-    const optGrpId = 'opt_' + Date.now() + Math.random();
-    if (products.length > 0) {
-      const newBlockId = addProductBlockToSection(sectionId, products[0].id, true, optGrpId, true);
-      if (newBlockId) {
-        setProductChangeBlockId(newBlockId);
-        setProductChangeQuery('');
-      }
-    } else {
-      alert('Please add products to system first.');
-    }
-  };
-
   const addOptionVariantToGroup = (sectionId, optionGroupId) => {
     if (products.length > 0) {
       const newBlockId = addProductBlockToSection(sectionId, products[0].id, true, optionGroupId, false);
@@ -2216,15 +2203,6 @@ const Orders = () => {
                           className="section-tool-btn section-tool-btn--item"
                         >
                           ➕ Add Item
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addOptionGroupToSection(sec.id)}
-                          title="Offer the customer a choice: Option 1, Option 2... Only the selected option counts in the total."
-                          className="section-tool-btn section-tool-btn--option"
-                        >
-                          <span>🔀 Add Option Group</span>
-                          <small>Option 1, Option 2… customer picks one</small>
                         </button>
                         {sections.length > 1 && (
                           <button
