@@ -1690,11 +1690,10 @@ const Quotations = () => {
             <div className="form-btn-row" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                className="primary-btn"
+                className="builder-add-section-btn"
                 onClick={addSection}
-                style={{ background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: '#fff', fontWeight: 'bold' }}
               >
-                ➕ Add Section / Group
+                ➕ Add Section
               </button>
               <button className="btn-outline-back desktop-only-btn" onClick={() => { setView('list'); resetForm(); }}>⬅️ Back to List</button>
             </div>
@@ -2448,26 +2447,28 @@ const Quotations = () => {
                         />
                       </div>
 
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <div className="section-toolbar">
                         <button
                           type="button"
                           onClick={() => addItemToSectionAndPick(sec.id)}
-                          style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                          className="section-tool-btn section-tool-btn--item"
                         >
                           ➕ Add Item
                         </button>
                         <button
                           type="button"
                           onClick={() => addOptionGroupToSection(sec.id)}
-                          style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                          title="Offer the customer a choice: Option 1, Option 2... Only the selected option counts in the total."
+                          className="section-tool-btn section-tool-btn--option"
                         >
-                          🔀 Add Option Group
+                          <span>🔀 Add Option Group</span>
+                          <small>Option 1, Option 2… customer picks one</small>
                         </button>
                         {sections.length > 1 && (
                           <button
                             type="button"
                             onClick={() => removeSection(sec.id)}
-                            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', padding: '7px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                            className="section-tool-btn section-tool-btn--danger"
                           >
                             🗑️ Delete Section
                           </button>

@@ -2183,19 +2183,9 @@ const Orders = () => {
                   <button
                     type="button"
                     onClick={addSection}
-                    style={{
-                      background: 'linear-gradient(135deg, #1e293b, #0f172a)',
-                      color: '#ffffff',
-                      border: 'none',
-                      padding: '10px 18px',
-                      borderRadius: '8px',
-                      fontWeight: 'bold',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 6px rgba(15,23,42,0.2)'
-                    }}
+                    className="builder-add-section-btn"
                   >
-                    ➕ Add Section / Group
+                    ➕ Add Section
                   </button>
                 </div>
 
@@ -2219,28 +2209,30 @@ const Orders = () => {
                           width: '320px'
                         }}
                       />
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div className="section-toolbar">
                         <button
                           type="button"
                           onClick={() => addItemToSectionAndPick(sec.id)}
-                          style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                          className="section-tool-btn section-tool-btn--item"
                         >
                           ➕ Add Item
                         </button>
                         <button
                           type="button"
                           onClick={() => addOptionGroupToSection(sec.id)}
-                          style={{ background: '#7c3aed', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                          title="Offer the customer a choice: Option 1, Option 2... Only the selected option counts in the total."
+                          className="section-tool-btn section-tool-btn--option"
                         >
-                          🔀 Add Option Group
+                          <span>🔀 Add Option Group</span>
+                          <small>Option 1, Option 2… customer picks one</small>
                         </button>
                         {sections.length > 1 && (
                           <button
                             type="button"
                             onClick={() => removeSection(sec.id)}
-                            style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+                            className="section-tool-btn section-tool-btn--danger"
                           >
-                            🗑️ Section
+                            🗑️ Delete Section
                           </button>
                         )}
                       </div>

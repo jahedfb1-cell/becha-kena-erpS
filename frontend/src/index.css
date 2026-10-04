@@ -3103,7 +3103,7 @@ select.custom-form-input {
   /* Page title + Back-to-List button share one row on mobile; the
      duplicate Back-to-List button in the .form-btn-row (desktop layout)
      is hidden so it doesn't also appear a second time below
-     "Add Section / Group". */
+     "Add Section". */
   .page-header-title-row {
     display: flex !important;
     align-items: center;
@@ -4750,4 +4750,95 @@ a, button, select, input, textarea, .nav-item {
     margin-left: -18px;
     margin-right: -18px;
   }
+}
+
+/* ── Quotation / Order builder: section toolbar ──────────────────────────
+   One set of buttons for both builders (Quotations.jsx, Orders.jsx).
+   "Add Option Group" is deliberately the loudest of the three: it is the
+   only way to make Option 1 / Option 2 choices, and a plain "Add Item"
+   in a new section was being used by mistake instead. */
+.builder-add-section-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1.5px dashed #0284c7;
+  background: #f0f9ff;
+  color: #0369a1;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.builder-add-section-btn:hover {
+  background: #e0f2fe;
+  border-style: solid;
+}
+.builder-add-section-btn:active { transform: scale(0.98); }
+
+.section-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.section-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.section-tool-btn:active { transform: scale(0.97); }
+.section-tool-btn:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+
+.section-tool-btn--item {
+  background: #fff;
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+.section-tool-btn--item:hover { background: #f0f9ff; border-color: #7dd3fc; }
+
+.section-tool-btn--option {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 16px;
+  background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
+}
+.section-tool-btn--option:hover { box-shadow: 0 6px 16px rgba(109, 40, 217, 0.42); }
+.section-tool-btn--option small {
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.section-tool-btn--danger {
+  background: #fff;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.section-tool-btn--danger:hover { background: #fef2f2; }
+
+/* The section name input is a fixed 320px, so on a laptop-width form the
+   toolbar was squeezed into ~300px and its three buttons stacked. Let the
+   header wrap instead: when both don't fit, the whole toolbar drops onto
+   its own line under the name, buttons still side by side. */
+.section-header-row {
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.section-header-row > .section-toolbar {
+  flex-shrink: 0;
 }
