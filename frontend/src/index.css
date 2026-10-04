@@ -4843,8 +4843,8 @@ a, button, select, input, textarea, .nav-item {
   flex-shrink: 0;
 }
 
-/* "Copy Width / Height / Pcs" under every product block in the quotation
-   builder (normal lines and option-group variants alike). */
+/* "Copy all sizes" at the foot of every section in the quotation builder:
+   Width / Height / Pcs of all its products and option variants at once. */
 .size-copy-bar {
   display: flex;
   justify-content: flex-end;

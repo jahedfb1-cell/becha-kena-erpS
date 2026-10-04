@@ -159,17 +159,22 @@ const Quotations = () => {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [excelPasteTargetBlock, setExcelPasteTargetBlock] = useState(null);
   const [excelPasteText, setExcelPasteText] = useState('');
-  // Which block's "Copy Width / Height / Pcs" button is showing "Copied".
-  const [copiedBlockId, setCopiedBlockId] = useState(null);
+  // Which section's "Copy all sizes" button is showing "Copied".
+  const [copiedSectionId, setCopiedSectionId] = useState(null);
 
-  const handleCopySizes = async (block) => {
-    const ok = await copySizesToClipboard(block.sizes || []);
+  // Copies Width / Height / Pcs of every product block in a section -
+  // normal lines first, then option groups, the same order they are shown.
+  const handleCopySizes = async (sec) => {
+    const normal = sec.blocks.filter((b) => !b.option_group_id);
+    const options = sec.blocks.filter((b) => b.option_group_id);
+    const sizes = [...normal, ...options].flatMap((b) => b.sizes || []);
+    const ok = await copySizesToClipboard(sizes);
     if (!ok) {
       alert('Could not copy. Please select the sizes and copy them manually.');
       return;
     }
-    setCopiedBlockId(block.id);
-    setTimeout(() => setCopiedBlockId((cur) => (cur === block.id ? null : cur)), 2000);
+    setCopiedSectionId(sec.id);
+    setTimeout(() => setCopiedSectionId((cur) => (cur === sec.id ? null : cur)), 2000);
   };
   const [aiScanTargetBlock, setAiScanTargetBlock] = useState(null);
 
@@ -2439,16 +2444,6 @@ const Quotations = () => {
                               </tr>
                         </tbody>
                       </table>
-                      <div className="size-copy-bar">
-                        <button
-                          type="button"
-                          className={`size-copy-btn ${copiedBlockId === block.id ? 'is-copied' : ''}`}
-                          onClick={() => handleCopySizes(block)}
-                          title="Copy the Width, Height and Pcs columns - pastes into Excel as three columns"
-                        >
-                          {copiedBlockId === block.id ? '✓ Copied' : '📋 Copy Width / Height / Pcs'}
-                        </button>
-                      </div>
                     </div>
                   );
                 };
@@ -2581,6 +2576,18 @@ const Quotations = () => {
                           );
                         })}
 
+                      </div>
+                    )}
+                    {sec.blocks.length > 0 && (
+                      <div className="size-copy-bar">
+                        <button
+                          type="button"
+                          className={`size-copy-btn ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
+                          onClick={() => handleCopySizes(sec)}
+                          title="Copy Width, Height and Pcs of every product and option in this section - pastes into Excel as three columns"
+                        >
+                          {copiedSectionId === sec.id ? '✓ Copied' : `📋 Copy all sizes - ${sec.name}`}
+                        </button>
                       </div>
                     )}
                   </div>
