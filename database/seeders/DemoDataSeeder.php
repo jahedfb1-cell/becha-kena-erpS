@@ -66,6 +66,14 @@ class DemoDataSeeder extends Seeder
 
     public function run(): void
     {
+        // Fake customers, orders and payments would go straight into the real
+        // ledgers and books, so never on anything but a local/testing database.
+        if (!app()->environment(['local', 'testing'])) {
+            $this->command?->error('DemoDataSeeder refused: environment is "' . app()->environment() . '". Demo data is for local/testing databases only.');
+
+            return;
+        }
+
         DB::transaction(function () {
             $this->seedUsers();
             $this->seedSuppliers();

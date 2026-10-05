@@ -145,8 +145,15 @@ class RolesAndPermissionsSeeder extends Seeder
         $salesmanRole = Role::firstOrCreate(['name' => 'salesman', 'guard_name' => 'web']);
         $staffRole    = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
 
-        // 3. Assign Permissions to Admin (All)
-        $adminRole->syncPermissions(Permission::all());
+        // Default permission sets are applied to a role only when it is being
+        // created right now, or on a local/testing database. On a live
+        // database an existing role keeps exactly what the admin has set in
+        // Admin Access - re-running this seeder must not undo that.
+        $resetDefaults = app()->environment(['local', 'testing']);
+        $applyDefaults = fn (Role $role) => $resetDefaults || $role->wasRecentlyCreated;
+
+        // 3. Admin always has every permission (only ever added, never removed)
+        $adminRole->givePermissionTo(Permission::all());
 
         // 4. Assign Permissions to Manager
         $managerPermissions = [
@@ -175,7 +182,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'expenses:view',
             'expenses:create',
         ];
-        $managerRole->syncPermissions($managerPermissions);
+        if ($applyDefaults($managerRole)) {
+            $managerRole->syncPermissions($managerPermissions);
+        }
 
         // 5. Assign Permissions to Salesman
         $salesmanPermissions = [
@@ -192,7 +201,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'courier_bookings:view',
             'courier_bookings:generate',
         ];
-        $salesmanRole->syncPermissions($salesmanPermissions);
+        if ($applyDefaults($salesmanRole)) {
+            $salesmanRole->syncPermissions($salesmanPermissions);
+        }
 
         // 6. Assign Permissions to Staff
         $staffPermissions = [
@@ -208,6 +219,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'expenses:create',
             'complaints:create',
         ];
-        $staffRole->syncPermissions($staffPermissions);
+        if ($applyDefaults($staffRole)) {
+            $staffRole->syncPermissions($staffPermissions);
+        }
     }
 }

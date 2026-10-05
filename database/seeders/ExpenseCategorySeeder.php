@@ -13,7 +13,8 @@ class ExpenseCategorySeeder extends Seeder
      */
     public function run(): void
     {
-        $admin = User::where('email', 'admin@bechakenarp.com')->first();
+        // The first admin account, whatever its email - "created by" for the defaults.
+        $admin = User::withoutGlobalScopes()->where('role', 'admin')->orderBy('id')->first();
         $adminId = $admin ? $admin->id : 1;
 
         $categories = [
