@@ -2644,7 +2644,7 @@ const Quotations = () => {
 
                     {sec.blocks.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic', background: 'var(--bg-base)', borderRadius: '8px' }}>
-                        No items in this section yet. Click <strong>"+ Add Item"</strong> or <strong>"+ Add Option Group"</strong> above.
+                        No items in this section yet. Click <strong>"+ Add Item"</strong> above, or pick a product from <strong>Select Product</strong>.
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

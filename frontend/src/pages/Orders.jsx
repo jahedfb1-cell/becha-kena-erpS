@@ -2218,7 +2218,7 @@ const Orders = () => {
 
                     {sec.blocks.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '24px', background: '#f8fafc', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
-                        No items in this section. Click <strong>"+ Add Item"</strong> or <strong>"+ Add Option Group"</strong> above.
+                        No items in this section. Click <strong>"+ Add Item"</strong> above.
                       </div>
                     ) : (
                       sec.blocks.map((block) => {
