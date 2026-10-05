@@ -42,6 +42,18 @@ $app = Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        // A route guarded by `can:<permission>` the user does not hold. Same
+        // shape and wording as the controllers' own permission refusals.
+        $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized action.',
+                    'data'    => null,
+                ], 403);
+            }
+        });
+
         $exceptions->render(function (\Illuminate\Http\Exceptions\ThrottleRequestsException $e, Request $request) {
             if ($request->is('api/*')) {
                 $wait = (int) ($e->getHeaders()['Retry-After'] ?? 60);

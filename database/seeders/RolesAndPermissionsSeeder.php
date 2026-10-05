@@ -85,6 +85,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'vouchers:approve',
             'expenses:create',
             'expenses:view',
+            'expenses:archive',
 
             // Salary
             'salary:view',
@@ -181,6 +182,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'vouchers:create',
             'expenses:view',
             'expenses:create',
+            'expenses:archive',
+            'purchase_entries:view',
+            'purchase_entries:create',
         ];
         if ($applyDefaults($managerRole)) {
             $managerRole->syncPermissions($managerPermissions);
@@ -217,6 +221,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'vouchers:create',
             'expenses:view',
             'expenses:create',
+            'expenses:archive',
             'complaints:create',
         ];
         if ($applyDefaults($staffRole)) {

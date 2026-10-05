@@ -449,14 +449,16 @@ const VouchersExpenses = () => {
                           {formatCurrency(exp.amount)}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="text-btn"
-                            onClick={() => handleArchiveExpense(exp.id, exp.expense_number)}
-                            style={{ color: '#dc2626', fontSize: '12px' }}
-                          >
-                            Archive
-                          </button>
+                          {can('expenses:archive') && (
+                            <button
+                              type="button"
+                              className="text-btn"
+                              onClick={() => handleArchiveExpense(exp.id, exp.expense_number)}
+                              style={{ color: '#dc2626', fontSize: '12px' }}
+                            >
+                              Archive
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))

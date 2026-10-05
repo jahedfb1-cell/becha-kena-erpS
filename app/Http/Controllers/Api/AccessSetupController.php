@@ -119,6 +119,7 @@ class AccessSetupController extends Controller
                     ['key' => 'vouchers:approve', 'label' => 'Approve Voucher'],
                     ['key' => 'expenses:create', 'label' => 'New Expense Entry'],
                     ['key' => 'expenses:view', 'label' => 'View Expenses List'],
+                    ['key' => 'expenses:archive', 'label' => 'Archive (Delete) Expense'],
                 ],
             ],
             [

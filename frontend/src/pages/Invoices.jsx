@@ -996,7 +996,7 @@ const Invoices = () => {
                             </span>
                           </td>
                           <td style={{ textAlign: 'center' }}>
-                            {ch.status !== 'delivered' ? (
+                            {ch.status !== 'delivered' ? (can('challans:generate') && (
                               <button
                                 type="button"
                                 className="primary-btn"
@@ -1005,6 +1005,7 @@ const Invoices = () => {
                               >
                                 ✅ Approve Challan
                               </button>
+                            )
                             ) : (
                               <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                                 <button
@@ -1015,6 +1016,7 @@ const Invoices = () => {
                                 >
                                   🖨️ Print
                                 </button>
+                                {can('challans:generate') && (
                                 <button
                                   type="button"
                                   className="text-btn"
@@ -1023,6 +1025,7 @@ const Invoices = () => {
                                 >
                                   📧 Send Mail
                                 </button>
+                                )}
                               </div>
                             )}
                           </td>

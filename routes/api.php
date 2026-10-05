@@ -95,11 +95,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Delivery Challans
     Route::prefix('challans')->group(function () {
-        Route::post('/generate/{invoiceId}', [DeliveryChallanController::class, 'generate']);
         Route::get('/{id}', [DeliveryChallanController::class, 'show']);
-        Route::post('/{id}/approve', [DeliveryChallanController::class, 'approve']);
-        Route::post('/{id}/send-email', [DeliveryChallanController::class, 'sendEmail']);
-        Route::delete('/{id}', [DeliveryChallanController::class, 'destroy']);
+        Route::middleware('can:challans:generate')->group(function () {
+            Route::post('/generate/{invoiceId}', [DeliveryChallanController::class, 'generate']);
+            Route::post('/{id}/approve', [DeliveryChallanController::class, 'approve']);
+            Route::post('/{id}/send-email', [DeliveryChallanController::class, 'sendEmail']);
+            Route::delete('/{id}', [DeliveryChallanController::class, 'destroy']);
+        });
     });
 
     // Courier booking slips. Raised from a confirmed Order rather than from an
@@ -171,47 +173,61 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Central Settings Hub
     Route::prefix('settings')->group(function () {
-        Route::get('/summary', [SettingController::class, 'summary']);
+        Route::get('/summary', [SettingController::class, 'summary'])->middleware('can:settings:manage');
         
         // Units
         Route::get('/units', [SettingController::class, 'getUnits']);
-        Route::post('/units', [SettingController::class, 'storeUnit']);
-        Route::put('/units/{id}', [SettingController::class, 'updateUnit']);
-        Route::delete('/units/{id}', [SettingController::class, 'deleteUnit']);
+        Route::middleware('can:settings:unit')->group(function () {
+            Route::post('/units', [SettingController::class, 'storeUnit']);
+            Route::put('/units/{id}', [SettingController::class, 'updateUnit']);
+            Route::delete('/units/{id}', [SettingController::class, 'deleteUnit']);
+        });
         
         // Bank Accounts
         Route::get('/bank-accounts', [SettingController::class, 'getBankAccounts']);
-        Route::post('/bank-accounts', [SettingController::class, 'storeBankAccount']);
-        Route::delete('/bank-accounts/{id}', [SettingController::class, 'deleteBankAccount']);
+        Route::middleware('can:settings:bank_account')->group(function () {
+            Route::post('/bank-accounts', [SettingController::class, 'storeBankAccount']);
+            Route::delete('/bank-accounts/{id}', [SettingController::class, 'deleteBankAccount']);
+        });
         
         // Mobile Accounts
         Route::get('/mobile-accounts', [SettingController::class, 'getMobileAccounts']);
-        Route::post('/mobile-accounts', [SettingController::class, 'storeMobileAccount']);
-        Route::delete('/mobile-accounts/{id}', [SettingController::class, 'deleteMobileAccount']);
+        Route::middleware('can:settings:mobile_account')->group(function () {
+            Route::post('/mobile-accounts', [SettingController::class, 'storeMobileAccount']);
+            Route::delete('/mobile-accounts/{id}', [SettingController::class, 'deleteMobileAccount']);
+        });
         
         // Balance Transfers
-        Route::get('/balance-transfers', [SettingController::class, 'getBalanceTransfers']);
-        Route::post('/balance-transfers', [SettingController::class, 'storeBalanceTransfer']);
+        Route::middleware('can:settings:balance_transfer')->group(function () {
+            Route::get('/balance-transfers', [SettingController::class, 'getBalanceTransfers']);
+            Route::post('/balance-transfers', [SettingController::class, 'storeBalanceTransfer']);
+        });
 
         // Departments
         Route::get('/departments', [SettingController::class, 'getDepartments']);
-        Route::post('/departments', [SettingController::class, 'storeDepartment']);
-        Route::delete('/departments/{id}', [SettingController::class, 'deleteDepartment']);
+        Route::middleware('can:settings:department')->group(function () {
+            Route::post('/departments', [SettingController::class, 'storeDepartment']);
+            Route::delete('/departments/{id}', [SettingController::class, 'deleteDepartment']);
+        });
     });
 
     // Purchases & Supplier Ledger
     Route::prefix('purchases')->group(function () {
-        Route::get('/', [PurchaseController::class, 'index']);
-        Route::get('/{id}', [PurchaseController::class, 'show']);
-        Route::post('/supplier-payment', [PurchaseController::class, 'recordSupplierPayment']);
-        Route::post('/mark-received', [PurchaseController::class, 'markReceived']);
+        Route::middleware('can:purchase_entries:view')->group(function () {
+            Route::get('/', [PurchaseController::class, 'index']);
+            Route::get('/{id}', [PurchaseController::class, 'show']);
+        });
+        Route::middleware('can:purchase_entries:create')->group(function () {
+            Route::post('/supplier-payment', [PurchaseController::class, 'recordSupplierPayment']);
+            Route::post('/mark-received', [PurchaseController::class, 'markReceived']);
+        });
     });
 
     // Expenses & Expense Categories
     Route::prefix('expenses')->group(function () {
-        Route::get('/', [ExpenseController::class, 'index']);
-        Route::post('/', [ExpenseController::class, 'store']);
-        Route::delete('/{id}', [ExpenseController::class, 'destroy']);
+        Route::get('/', [ExpenseController::class, 'index'])->middleware('can:expenses:view');
+        Route::post('/', [ExpenseController::class, 'store'])->middleware('can:expenses:create');
+        Route::delete('/{id}', [ExpenseController::class, 'destroy'])->middleware('can:expenses:archive');
     });
     Route::prefix('master/expense-categories')->group(function () {
         Route::get('/', [ExpenseCategoryController::class, 'index']);
@@ -291,9 +307,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // 7. Product Categories
     Route::prefix('master/product-categories')->group(function () {
         Route::get('/', [ProductCategoryController::class, 'index']);
-        Route::post('/', [ProductCategoryController::class, 'store']);
-        Route::put('/{id}', [ProductCategoryController::class, 'update']);
-        Route::delete('/{id}', [ProductCategoryController::class, 'destroy']);
+        Route::middleware('can:settings:category')->group(function () {
+            Route::post('/', [ProductCategoryController::class, 'store']);
+            Route::put('/{id}', [ProductCategoryController::class, 'update']);
+            Route::delete('/{id}', [ProductCategoryController::class, 'destroy']);
+        });
     });
 
     // Company Profile & Pipeline Mode Settings
@@ -304,7 +322,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/company-profile', [CompanyProfileController::class, 'update']);
     Route::get('/company-profile/logo/{filename}', [CompanyProfileController::class, 'getLogoFile']);
     Route::get('/settings/pipeline-mode', [SettingController::class, 'getPipelineMode']);
-    Route::post('/settings/pipeline-mode', [SettingController::class, 'updatePipelineMode']);
+    Route::post('/settings/pipeline-mode', [SettingController::class, 'updatePipelineMode'])->middleware('can:settings:manage');
 
     // Master Reports API Endpoints (Section 13.13)
     Route::prefix('reports')->group(function () {
