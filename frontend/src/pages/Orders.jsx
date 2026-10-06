@@ -2221,6 +2221,16 @@ const Orders = () => {
                         >
                           ➕ Add Item
                         </button>
+                        {sec.blocks.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopySizes(sec)}
+                            className={`section-tool-btn section-tool-btn--item ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
+                            title="Copy Width, Height and Pcs of every product in this section - pastes into Excel as three columns"
+                          >
+                            {copiedSectionId === sec.id ? '✓ Copied' : '📋 Copy sizes'}
+                          </button>
+                        )}
                         {sections.length > 1 && (
                           <button
                             type="button"
@@ -2717,18 +2727,6 @@ const Orders = () => {
                           </div>
                         );
                       })
-                    )}
-                    {sec.blocks.length > 0 && (
-                      <div className="size-copy-bar">
-                        <button
-                          type="button"
-                          className={`size-copy-btn ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
-                          onClick={() => handleCopySizes(sec)}
-                          title="Copy Width, Height and Pcs of every product in this section - pastes into Excel as three columns"
-                        >
-                          {copiedSectionId === sec.id ? '✓ Copied' : `📋 Copy all sizes - ${sec.name}`}
-                        </button>
-                      </div>
                     )}
                   </div>
                 ))}

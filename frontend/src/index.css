@@ -4843,36 +4843,11 @@ a, button, select, input, textarea, .nav-item {
   flex-shrink: 0;
 }
 
-/* "Copy all sizes" at the foot of every section in the quotation builder:
-   Width / Height / Pcs of all its products and option variants at once. */
-.size-copy-bar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 6px 4px 2px;
-}
-.size-copy-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.size-copy-btn:hover { background: #f1f5f9; border-color: #94a3b8; }
-.size-copy-btn.is-copied {
+/* "Copy sizes" in a section's toolbar: briefly green after it has copied. */
+.section-tool-btn.is-copied {
   background: #ecfdf5;
   border-color: #6ee7b7;
   color: #047857;
-}
-@media (max-width: 768px) {
-  .size-copy-bar { justify-content: stretch; }
-  .size-copy-btn { width: 100%; justify-content: center; padding: 8px 12px; }
 }
 
 /* ── Quotation options (Option 1 / Option 2 ...) ─────────────────────────── */
