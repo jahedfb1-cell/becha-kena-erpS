@@ -4843,7 +4843,15 @@ a, button, select, input, textarea, .nav-item {
   flex-shrink: 0;
 }
 
-/* "Copy sizes" in a section's toolbar: briefly green after it has copied. */
+/* The "Copy sizes" row under a section's last Width / Height / Pcs row. */
+.size-copy-row td {
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-top: 1px dashed #cbd5e1;
+  text-align: right;
+}
+
+/* "Copy sizes": briefly green after it has copied. */
 .section-tool-btn.is-copied {
   background: #ecfdf5;
   border-color: #6ee7b7;

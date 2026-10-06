@@ -2221,16 +2221,6 @@ const Orders = () => {
                         >
                           ➕ Add Item
                         </button>
-                        {sec.blocks.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopySizes(sec)}
-                            className={`section-tool-btn section-tool-btn--item ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
-                            title="Copy Width, Height and Pcs of every product in this section - pastes into Excel as three columns"
-                          >
-                            {copiedSectionId === sec.id ? '✓ Copied' : '📋 Copy sizes'}
-                          </button>
-                        )}
                         {sections.length > 1 && (
                           <button
                             type="button"
@@ -2696,6 +2686,23 @@ const Orders = () => {
                                        </td>
                                     </tr>
                                   ))}
+
+                                  {/* The section's "Copy sizes" button: right under the last product's
+                                      Width / Height / Pcs rows, i.e. at the end of all the sizes it copies. */}
+                                  {block.id === sec.blocks[sec.blocks.length - 1].id && (
+                                    <tr className="size-copy-row">
+                                      <td colSpan={columnTitles.length}>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCopySizes(sec)}
+                                          className={`section-tool-btn section-tool-btn--item ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
+                                          title="Copy Width, Height and Pcs of every product in this section - pastes into Excel as three columns"
+                                        >
+                                          {copiedSectionId === sec.id ? '✓ Copied' : '📋 Copy sizes'}
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  )}
 
                                   {/* This is the "Description of Goods" text that prints under
                                       the line's product name (see lineSpecification.js); the

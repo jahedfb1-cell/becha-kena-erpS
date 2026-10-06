@@ -2047,6 +2047,10 @@ const Quotations = () => {
                   optionGroups[b.option_group_id].push(b);
                 });
 
+                // The last product block the section shows (plain lines first, then any
+                // old per-product option groups): the one the Copy sizes row sits under.
+                const lastBlockId = [...normalBlocks, ...Object.values(optionGroups).flat()].slice(-1)[0]?.id;
+
                 // The full item-builder table for one product block: unit
                 // price, the PVC-aware size columns (Approx Pcs/Slats/T.Width
                 // only appear when this block's own product is PVC), the
@@ -2541,6 +2545,23 @@ const Quotations = () => {
                                 </tr>
                               )}
 
+                              {/* The section's "Copy sizes" button: right under the last product's
+                                  Width / Height / Pcs rows, i.e. at the end of all the sizes it copies. */}
+                              {block.id === lastBlockId && (
+                                <tr className="size-copy-row">
+                                  <td colSpan={columnTitles.length}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopySizes(sec)}
+                                      className={`section-tool-btn section-tool-btn--item ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
+                                      title="Copy Width, Height and Pcs of every product and option in this section - pastes into Excel as three columns"
+                                    >
+                                      {copiedSectionId === sec.id ? '✓ Copied' : '📋 Copy sizes'}
+                                    </button>
+                                  </td>
+                                </tr>
+                              )}
+
                               {/* Product Specification Box - this is the "Description of
                                   Goods" text that prints under the line's product name
                                   (see lineSpecification.js); the print side already
@@ -2630,16 +2651,6 @@ const Quotations = () => {
                         >
                           ➕ Add Item
                         </button>
-                        {sec.blocks.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleCopySizes(sec)}
-                            className={`section-tool-btn section-tool-btn--item ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
-                            title="Copy Width, Height and Pcs of every product and option in this section - pastes into Excel as three columns"
-                          >
-                            {copiedSectionId === sec.id ? '✓ Copied' : '📋 Copy sizes'}
-                          </button>
-                        )}
                         {sections.length > 1 && (
                           <button
                             type="button"
