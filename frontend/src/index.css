@@ -4994,3 +4994,14 @@ a, button, select, input, textarea, .nav-item {
 .convert-option-row:not(.is-chosen) .quote-option-badge { background: #64748b; }
 .convert-option-row.is-chosen { border-color: #8b5cf6; background: #f5f3ff; }
 .convert-option-note { font-size: 12px; color: #94a3b8; }
+
+/* AccountPicker when no bank / mobile account is registered yet. */
+.account-picker-empty {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12.5px;
+  line-height: 1.45;
+}

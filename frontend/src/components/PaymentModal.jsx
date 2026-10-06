@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { formatCurrency } from '../utils/format';
+import AccountPicker from './AccountPicker';
 
 const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
   const [amount, setAmount] = useState('');
@@ -11,14 +12,13 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
   // doesn't carry a reason line.
   const [discountNote, setDiscountNote] = useState('');
 
-  // Bank details
-  const [bankName, setBankName] = useState('');
+  // Bank details: the registered account the money went into
+  // (Settings → Bank Accounts), so that account's balance stays right.
+  const [bankAccountId, setBankAccountId] = useState('');
   const [chequeNumber, setChequeNumber] = useState('');
-  const [bankAccounts, setBankAccounts] = useState(null); // null = not fetched yet
-  const [useCustomBank, setUseCustomBank] = useState(false);
-  
-  // Mobile details
-  const [mobileProvider, setMobileProvider] = useState('bKash');
+
+  // Mobile details: the registered wallet (Settings → Mobile Accounts).
+  const [mobileAccountId, setMobileAccountId] = useState('');
   const [transactionId, setTransactionId] = useState('');
 
   const [notes, setNotes] = useState('');
@@ -33,26 +33,10 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
       setDiscountNote('');
       setPaymentMethod('cash');
       setPaymentDate(new Date().toISOString().substring(0, 10));
-      setBankName('');
-      setUseCustomBank(false);
+      setBankAccountId('');
+      setMobileAccountId('');
     }
   }, [isOpen, invoice]);
-
-  // Fetch the registered bank accounts once, the first time the modal opens,
-  // so "Bank Name" is a dropdown of real accounts instead of free text —
-  // BankBookEntry keys its running balance off this exact string, so a typo
-  // or inconsistent spelling here would silently fragment one bank's book
-  // into two. Falls back to a free-text field if none are registered yet or
-  // the fetch fails, so recording a payment is never blocked by it.
-  useEffect(() => {
-    if (isOpen && bankAccounts === null) {
-      api.get('/settings/bank-accounts')
-        .then((res) => setBankAccounts(res.data?.data || []))
-        .catch(() => setBankAccounts([]));
-    }
-  }, [isOpen, bankAccounts]);
-
-  const bankNameOptions = Array.from(new Set((bankAccounts || []).map((b) => b.bank_name).filter(Boolean)));
 
   if (!isOpen || !invoice) return null;
 
@@ -103,10 +87,18 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
       };
 
       if (paymentMethod === 'bank') {
-        payload.bank_name = bankName;
+        if (!bankAccountId) {
+          setError('Choose the bank account the money went into.');
+          return;
+        }
+        payload.bank_account_id = Number(bankAccountId);
         payload.cheque_number = chequeNumber;
       } else if (paymentMethod === 'mobile') {
-        payload.mobile_provider = mobileProvider;
+        if (!mobileAccountId) {
+          setError('Choose the mobile account the money went into.');
+          return;
+        }
+        payload.mobile_account_id = Number(mobileAccountId);
         payload.transaction_id = transactionId;
       }
 
@@ -133,9 +125,9 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
     setPaymentDate(new Date().toISOString().substring(0, 10));
     setDiscountAmount('');
     setDiscountNote('');
-    setBankName('');
+    setBankAccountId('');
     setChequeNumber('');
-    setMobileProvider('bKash');
+    setMobileAccountId('');
     setTransactionId('');
     setNotes('');
     setError('');
@@ -352,50 +344,8 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
           {paymentMethod === 'bank' && (
             <div className="custom-form-grid" style={{ padding: '16px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
               <div className="custom-form-group">
-                <label className="custom-form-label" style={{ color: '#60a5fa' }}>Bank Name *</label>
-                {bankNameOptions.length > 0 && !useCustomBank ? (
-                  <select
-                    value={bankName}
-                    onChange={(e) => {
-                      if (e.target.value === '__other__') {
-                        setUseCustomBank(true);
-                        setBankName('');
-                      } else {
-                        setBankName(e.target.value);
-                      }
-                    }}
-                    disabled={loading}
-                    required
-                    className="custom-form-input"
-                  >
-                    <option value="" disabled>Select bank...</option>
-                    {bankNameOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                    <option value="__other__">+ Other (not listed)</option>
-                  </select>
-                ) : (
-                  <>
-                    <input
-                      type="text"
-                      placeholder="e.g. Dutch-Bangla Bank"
-                      value={bankName}
-                      onChange={(e) => setBankName(e.target.value)}
-                      disabled={loading}
-                      required
-                      className="custom-form-input"
-                    />
-                    {bankNameOptions.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => { setUseCustomBank(false); setBankName(''); }}
-                        style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '12px', cursor: 'pointer', padding: '4px 0', textAlign: 'left' }}
-                      >
-                        ‹ Choose from registered banks
-                      </button>
-                    )}
-                  </>
-                )}
+                <label className="custom-form-label" style={{ color: '#60a5fa' }}>Bank Account *</label>
+                <AccountPicker kind="bank" value={bankAccountId} onChange={setBankAccountId} disabled={loading} />
               </div>
               <div className="custom-form-group">
                 <label className="custom-form-label" style={{ color: '#60a5fa' }}>Cheque / Ref Number *</label>
@@ -415,19 +365,8 @@ const PaymentModal = ({ isOpen, onClose, invoice, onPaymentRecorded }) => {
           {paymentMethod === 'mobile' && (
             <div className="custom-form-grid" style={{ padding: '16px', background: 'rgba(168, 85, 247, 0.1)', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
               <div className="custom-form-group">
-                <label className="custom-form-label" style={{ color: '#c084fc' }}>Mobile Provider *</label>
-                <select
-                  value={mobileProvider}
-                  onChange={(e) => setMobileProvider(e.target.value)}
-                  disabled={loading}
-                  required
-                  className="custom-form-input"
-                >
-                  <option value="bKash">bKash</option>
-                  <option value="Nagad">Nagad</option>
-                  <option value="Rocket">Rocket</option>
-                  <option value="Upay">Upay</option>
-                </select>
+                <label className="custom-form-label" style={{ color: '#c084fc' }}>Mobile Account *</label>
+                <AccountPicker kind="mobile" value={mobileAccountId} onChange={setMobileAccountId} disabled={loading} />
               </div>
               <div className="custom-form-group">
                 <label className="custom-form-label" style={{ color: '#c084fc' }}>Transaction ID (TxnID) *</label>

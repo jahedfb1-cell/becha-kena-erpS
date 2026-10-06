@@ -29,6 +29,7 @@ class PaymentService
      */
     public function processPayment(array $data, Invoice $invoice, int $userId): Payment
     {
+        [$bank, $mobile] = $this->resolveAccounts($data);
         $paymentNumber = $this->generatePaymentNumber();
         $amount = (float) $data['amount'];
         $discountAmount = (float) ($data['discount_amount'] ?? 0);
@@ -45,8 +46,10 @@ class PaymentService
             'discount_amount'  => $discountAmount,
             'discount_note'    => $discountAmount > 0 ? ($data['discount_note'] ?? null) : null,
             'payment_method'   => $data['payment_method'],
-            'bank_name'        => $data['bank_name'] ?? null,
-            'mobile_provider'  => $data['mobile_provider'] ?? null,
+            'bank_name'        => $bank?->bank_name ?? ($data['bank_name'] ?? null),
+            'bank_account_id'  => $bank?->id,
+            'mobile_provider'  => $mobile?->provider ?? ($data['mobile_provider'] ?? null),
+            'mobile_account_id' => $mobile?->id,
             'transaction_id'   => $data['transaction_id'] ?? null,
             'cheque_number'    => $data['cheque_number'] ?? null,
             'payment_date'     => $data['payment_date'],
@@ -92,6 +95,7 @@ class PaymentService
      */
     public function processAdvancePayment(array $data, Quotation $quotation, int $userId): Payment
     {
+        [$bank, $mobile] = $this->resolveAccounts($data);
         $paymentNumber = $this->generatePaymentNumber();
         $amount = (float) $data['amount'];
 
@@ -102,8 +106,10 @@ class PaymentService
             'customer_id'     => $quotation->customer_id,
             'amount'          => $amount,
             'payment_method'  => $data['payment_method'],
-            'bank_name'       => $data['bank_name'] ?? null,
-            'mobile_provider' => $data['mobile_provider'] ?? null,
+            'bank_name'         => $bank?->bank_name ?? ($data['bank_name'] ?? null),
+            'bank_account_id'   => $bank?->id,
+            'mobile_provider'   => $mobile?->provider ?? ($data['mobile_provider'] ?? null),
+            'mobile_account_id' => $mobile?->id,
             'transaction_id'  => $data['transaction_id'] ?? null,
             'cheque_number'   => $data['cheque_number'] ?? null,
             'payment_date'    => $data['payment_date'],
@@ -220,8 +226,10 @@ class PaymentService
             'invoice_id'      => $newInvoice->id,
             'amount'          => (float) $oldPayment->amount,
             'payment_method'  => $oldPayment->payment_method,
-            'bank_name'       => $oldPayment->bank_name,
-            'mobile_provider' => $oldPayment->mobile_provider,
+            'bank_name'         => $oldPayment->bank_name,
+            'bank_account_id'   => $oldPayment->bank_account_id,
+            'mobile_provider'   => $oldPayment->mobile_provider,
+            'mobile_account_id' => $oldPayment->mobile_account_id,
             'transaction_id'  => $oldPayment->transaction_id,
             'cheque_number'   => $oldPayment->cheque_number,
             'payment_date'    => $oldPayment->payment_date,
@@ -323,64 +331,54 @@ class PaymentService
         }
     }
 
+    /**
+     * The registered bank / mobile account a payment goes through: the id the
+     * form sends, or for an older client the single account matching the
+     * typed bank name / provider.
+     *
+     * @return array{0: ?\App\Models\BankAccount, 1: ?\App\Models\MobileAccount}
+     */
+    private function resolveAccounts(array $data): array
+    {
+        $method = $data['payment_method'] ?? null;
+        $books = app(AccountBookService::class);
+
+        return [
+            $method === 'bank' ? $books->resolveBank(isset($data['bank_account_id']) ? (int) $data['bank_account_id'] : null, $data['bank_name'] ?? null) : null,
+            $method === 'mobile' ? $books->resolveMobile(isset($data['mobile_account_id']) ? (int) $data['mobile_account_id'] : null, $data['mobile_provider'] ?? null) : null,
+        ];
+    }
+
     private function recordBookEntry(Payment $payment, string $entryType, float $amount, int $userId, string $prefix = 'Payment')
     {
-        $desc = "{$prefix} {$payment->payment_number}";
-        
+        $books = app(AccountBookService::class);
+        $common = [
+            'entry_type'     => $entryType,
+            'reference_type' => Payment::class,
+            'reference_id'   => $payment->id,
+            'description'    => "{$prefix} {$payment->payment_number}",
+            'amount'         => $amount,
+            'entry_date'     => $payment->payment_date,
+            'created_by'     => $userId,
+        ];
+
         switch ($payment->payment_method) {
             case 'cash':
-                $last = CashBookEntry::orderBy('id', 'desc')->first();
-                $bal = $last ? (float) $last->balance : 0;
-                $bal = $entryType === 'in' ? $bal + $amount : $bal - $amount;
-                
-                CashBookEntry::create([
-                    'entry_type'     => $entryType,
-                    'reference_type' => Payment::class,
-                    'reference_id'   => $payment->id,
-                    'description'    => $desc,
-                    'amount'         => $amount,
-                    'balance'        => $bal,
-                    'entry_date'     => $payment->payment_date,
-                    'created_by'     => $userId,
-                ]);
+                $books->cashEntry($common);
                 break;
-                
+
             case 'bank':
-                $last = BankBookEntry::where('bank_name', $payment->bank_name)->orderBy('id', 'desc')->first();
-                $bal = $last ? (float) $last->balance : 0;
-                $bal = $entryType === 'in' ? $bal + $amount : $bal - $amount;
-                
-                BankBookEntry::create([
-                    'bank_name'      => $payment->bank_name,
-                    'entry_type'     => $entryType,
-                    'reference_type' => Payment::class,
-                    'reference_id'   => $payment->id,
-                    'description'    => $desc,
-                    'cheque_number'  => $payment->cheque_number,
-                    'amount'         => $amount,
-                    'balance'        => $bal,
-                    'entry_date'     => $payment->payment_date,
-                    'created_by'     => $userId,
-                ]);
+                $books->bankEntry($common + [
+                    'bank_name'     => $payment->bank_name,
+                    'cheque_number' => $payment->cheque_number,
+                ], $payment->bank_account_id ? \App\Models\BankAccount::withoutGlobalScopes()->find($payment->bank_account_id) : null);
                 break;
-                
+
             case 'mobile':
-                $last = MobileBookEntry::where('provider', $payment->mobile_provider)->orderBy('id', 'desc')->first();
-                $bal = $last ? (float) $last->balance : 0;
-                $bal = $entryType === 'in' ? $bal + $amount : $bal - $amount;
-                
-                MobileBookEntry::create([
+                $books->mobileEntry($common + [
                     'provider'       => $payment->mobile_provider,
-                    'entry_type'     => $entryType,
-                    'reference_type' => Payment::class,
-                    'reference_id'   => $payment->id,
-                    'description'    => $desc,
                     'transaction_id' => $payment->transaction_id,
-                    'amount'         => $amount,
-                    'balance'        => $bal,
-                    'entry_date'     => $payment->payment_date,
-                    'created_by'     => $userId,
-                ]);
+                ], $payment->mobile_account_id ? \App\Models\MobileAccount::withoutGlobalScopes()->find($payment->mobile_account_id) : null);
                 break;
         }
     }

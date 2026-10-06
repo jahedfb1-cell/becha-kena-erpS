@@ -4,15 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
-use App\Models\BankBookEntry;
-use App\Models\CashBookEntry;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
-use App\Models\MobileBookEntry;
+use App\Services\AccountBookService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ExpenseController extends Controller
 {
@@ -125,15 +124,31 @@ class ExpenseController extends Controller
             'amount'              => 'required|numeric|min:0.01',
             'payment_method'      => 'required|in:cash,bank,mobile',
             'expense_date'        => 'required|date',
+            'bank_account_id'     => 'nullable|integer',
             'bank_name'           => 'nullable|string',
+            'mobile_account_id'   => 'nullable|integer',
             'mobile_provider'     => 'nullable|string',
             'reference_number'    => 'nullable|string',
             'description'         => 'nullable|string',
         ]);
 
+        // The registered account this money moves through (the id the form
+        // sends, or the one account matching an older client's typed name).
+        $books = app(AccountBookService::class);
+        $bank = $request->payment_method === 'bank'
+            ? $books->resolveBank($request->integer('bank_account_id') ?: null, $request->bank_name) : null;
+        $mobile = $request->payment_method === 'mobile'
+            ? $books->resolveMobile($request->integer('mobile_account_id') ?: null, $request->mobile_provider) : null;
+        if ($request->payment_method === 'bank' && !$bank && !$request->filled('bank_name')) {
+            throw ValidationException::withMessages(['bank_account_id' => ['Choose the bank account this was paid from.']]);
+        }
+        if ($request->payment_method === 'mobile' && !$mobile && !$request->filled('mobile_provider')) {
+            throw ValidationException::withMessages(['mobile_account_id' => ['Choose the mobile account this was paid from.']]);
+        }
+
         $user = $request->user();
 
-        return DB::transaction(function () use ($request, $user) {
+        return DB::transaction(function () use ($request, $user, $books, $bank, $mobile) {
             $expNumber = $this->generateExpenseNumber();
             $amount = (float) $request->amount;
 
@@ -142,8 +157,10 @@ class ExpenseController extends Controller
                 'expense_category_id' => $request->expense_category_id,
                 'amount'              => $amount,
                 'payment_method'      => $request->payment_method,
-                'bank_name'           => $request->bank_name,
-                'mobile_provider'     => $request->mobile_provider,
+                'bank_name'           => $bank?->bank_name ?? $request->bank_name,
+                'bank_account_id'     => $bank?->id,
+                'mobile_provider'     => $mobile?->provider ?? $request->mobile_provider,
+                'mobile_account_id'   => $mobile?->id,
                 'reference_number'    => $request->reference_number,
                 'description'         => $request->description,
                 'expense_date'        => $request->expense_date,
@@ -154,52 +171,21 @@ class ExpenseController extends Controller
             $desc = "Expense [{$expNumber}] - {$category->name}: " . ($request->description ?: 'Company expense payout');
 
             // Post OUT transaction to corresponding Book
+            $line = [
+                'entry_type'     => 'out',
+                'reference_type' => Expense::class,
+                'reference_id'   => $expense->id,
+                'description'    => $desc,
+                'amount'         => $amount,
+                'entry_date'     => $request->expense_date,
+                'created_by'     => $user->id,
+            ];
             if ($request->payment_method === 'cash') {
-                $lastCash = CashBookEntry::orderBy('id', 'desc')->first();
-                $prevBal = $lastCash ? (float) $lastCash->balance : 0;
-
-                CashBookEntry::create([
-                    'entry_type'     => 'out',
-                    'reference_type' => Expense::class,
-                    'reference_id'   => $expense->id,
-                    'description'    => $desc,
-                    'amount'         => $amount,
-                    'balance'        => $prevBal - $amount,
-                    'entry_date'     => $request->expense_date,
-                    'created_by'     => $user->id,
-                ]);
+                $books->cashEntry($line);
             } elseif ($request->payment_method === 'bank') {
-                $lastBank = BankBookEntry::orderBy('id', 'desc')->first();
-                $prevBal = $lastBank ? (float) $lastBank->balance : 0;
-
-                BankBookEntry::create([
-                    'bank_name'      => $request->bank_name ?: 'City Bank',
-                    'entry_type'     => 'out',
-                    'reference_type' => Expense::class,
-                    'reference_id'   => $expense->id,
-                    'description'    => $desc,
-                    'cheque_number'  => $request->reference_number,
-                    'amount'         => $amount,
-                    'balance'        => $prevBal - $amount,
-                    'entry_date'     => $request->expense_date,
-                    'created_by'     => $user->id,
-                ]);
+                $books->bankEntry($line + ['bank_name' => $request->bank_name, 'cheque_number' => $request->reference_number], $bank);
             } elseif ($request->payment_method === 'mobile') {
-                $lastMob = MobileBookEntry::orderBy('id', 'desc')->first();
-                $prevBal = $lastMob ? (float) $lastMob->balance : 0;
-
-                MobileBookEntry::create([
-                    'provider'       => $request->mobile_provider ?: 'bKash',
-                    'entry_type'     => 'out',
-                    'reference_type' => Expense::class,
-                    'reference_id'   => $expense->id,
-                    'description'    => $desc,
-                    'transaction_id' => $request->reference_number,
-                    'amount'         => $amount,
-                    'balance'        => $prevBal - $amount,
-                    'entry_date'     => $request->expense_date,
-                    'created_by'     => $user->id,
-                ]);
+                $books->mobileEntry($line + ['provider' => $request->mobile_provider, 'transaction_id' => $request->reference_number], $mobile);
             }
 
             AuditLog::record(
@@ -237,6 +223,8 @@ class ExpenseController extends Controller
         return DB::transaction(function () use ($expense, $user, $reason) {
             $oldSnapshot = $expense->toArray();
             $expense->archive($user->id, $reason);
+            // Put the money back in the book it was paid from.
+            app(AccountBookService::class)->reverseEntriesFor(Expense::class, $expense->id, now()->toDateString(), $user->id, "expense {$expense->expense_number} archived");
 
             AuditLog::record(
                 $user->id,

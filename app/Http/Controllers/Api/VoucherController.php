@@ -4,14 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
-use App\Models\BankBookEntry;
-use App\Models\CashBookEntry;
-use App\Models\MobileBookEntry;
 use App\Models\Voucher;
+use App\Services\AccountBookService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class VoucherController extends Controller
 {
@@ -119,10 +118,12 @@ class VoucherController extends Controller
             'date'             => 'required|date',
             'total_amount'     => 'required|numeric|min:0.01',
             'payment_method'   => 'required|in:cash,bank,mobile',
-            'bank_name'        => 'nullable|string',
-            'mobile_provider'  => 'nullable|string',
-            'reference_number' => 'nullable|string',
-            'description'      => 'nullable|string',
+            'bank_account_id'   => 'nullable|integer',
+            'bank_name'         => 'nullable|string',
+            'mobile_account_id' => 'nullable|integer',
+            'mobile_provider'   => 'nullable|string',
+            'reference_number'  => 'nullable|string',
+            'description'      => 'required|string|max:1000',
             'note'             => 'nullable|string',
         ]);
 
@@ -133,7 +134,22 @@ class VoucherController extends Controller
             return $this->forbiddenResponse('Only system administrators can create manual accounting vouchers.');
         }
 
-        return DB::transaction(function () use ($request, $user) {
+        // The registered account this money moves through (the id the form
+        // sends, or the one account matching an older client's typed name).
+        $books = app(AccountBookService::class);
+        $bank = $request->payment_method === 'bank'
+            ? $books->resolveBank($request->integer('bank_account_id') ?: null, $request->bank_name) : null;
+        $mobile = $request->payment_method === 'mobile'
+            ? $books->resolveMobile($request->integer('mobile_account_id') ?: null, $request->mobile_provider) : null;
+        $movesMoney = $request->voucher_type !== 'journal';
+        if ($movesMoney && $request->payment_method === 'bank' && !$bank && !$request->filled('bank_name')) {
+            throw ValidationException::withMessages(['bank_account_id' => ['Choose the bank account for this voucher.']]);
+        }
+        if ($movesMoney && $request->payment_method === 'mobile' && !$mobile && !$request->filled('mobile_provider')) {
+            throw ValidationException::withMessages(['mobile_account_id' => ['Choose the mobile account for this voucher.']]);
+        }
+
+        return DB::transaction(function () use ($request, $user, $books, $bank, $mobile, $movesMoney) {
             $voucherNumber = $this->generateVoucherNumber();
             $amount = (float) $request->total_amount;
 
@@ -144,66 +160,38 @@ class VoucherController extends Controller
                 'description'      => $request->description,
                 'total_amount'     => $amount,
                 'payment_method'   => $request->payment_method,
-                'bank_name'        => $request->bank_name,
-                'mobile_provider'  => $request->mobile_provider,
+                'bank_name'         => $bank?->bank_name ?? $request->bank_name,
+                'bank_account_id'   => $bank?->id,
+                'mobile_provider'   => $mobile?->provider ?? $request->mobile_provider,
+                'mobile_account_id' => $mobile?->id,
                 'reference_number' => $request->reference_number,
                 'note'             => $request->note,
                 'created_by'       => $user->id,
             ]);
 
-            $entryType = ($request->voucher_type === 'credit') ? 'in' : (($request->voucher_type === 'debit') ? 'out' : 'adjustment');
             $desc = "Voucher [{$voucherNumber}] (" . strtoupper($request->voucher_type) . "): " . ($request->description ?: 'Accounting Adjustment');
 
-            // Post transaction to corresponding Book
-            if ($request->payment_method === 'cash') {
-                $lastCash = CashBookEntry::orderBy('id', 'desc')->first();
-                $prevBal = $lastCash ? (float) $lastCash->balance : 0;
-                $newBal = ($entryType === 'in') ? ($prevBal + $amount) : ($prevBal - $amount);
-
-                CashBookEntry::create([
-                    'entry_type'     => $entryType,
+            // A credit voucher brings money in, a debit voucher pays it out. A
+            // journal voucher only re-classifies and moves no money, so it
+            // posts nothing to the cash / bank / mobile books (the books only
+            // know "in" and "out"; the old "adjustment" line could not be saved).
+            if ($movesMoney) {
+                $line = [
+                    'entry_type'     => $request->voucher_type === 'credit' ? 'in' : 'out',
                     'reference_type' => Voucher::class,
                     'reference_id'   => $voucher->id,
                     'description'    => $desc,
                     'amount'         => $amount,
-                    'balance'        => $newBal,
                     'entry_date'     => $request->date,
                     'created_by'     => $user->id,
-                ]);
-            } elseif ($request->payment_method === 'bank') {
-                $lastBank = BankBookEntry::orderBy('id', 'desc')->first();
-                $prevBal = $lastBank ? (float) $lastBank->balance : 0;
-                $newBal = ($entryType === 'in') ? ($prevBal + $amount) : ($prevBal - $amount);
-
-                BankBookEntry::create([
-                    'bank_name'      => $request->bank_name ?: 'City Bank',
-                    'entry_type'     => $entryType,
-                    'reference_type' => Voucher::class,
-                    'reference_id'   => $voucher->id,
-                    'description'    => $desc,
-                    'cheque_number'  => $request->reference_number,
-                    'amount'         => $amount,
-                    'balance'        => $newBal,
-                    'entry_date'     => $request->date,
-                    'created_by'     => $user->id,
-                ]);
-            } elseif ($request->payment_method === 'mobile') {
-                $lastMob = MobileBookEntry::orderBy('id', 'desc')->first();
-                $prevBal = $lastMob ? (float) $lastMob->balance : 0;
-                $newBal = ($entryType === 'in') ? ($prevBal + $amount) : ($prevBal - $amount);
-
-                MobileBookEntry::create([
-                    'provider'       => $request->mobile_provider ?: 'bKash',
-                    'entry_type'     => $entryType,
-                    'reference_type' => Voucher::class,
-                    'reference_id'   => $voucher->id,
-                    'description'    => $desc,
-                    'transaction_id' => $request->reference_number,
-                    'amount'         => $amount,
-                    'balance'        => $newBal,
-                    'entry_date'     => $request->date,
-                    'created_by'     => $user->id,
-                ]);
+                ];
+                if ($request->payment_method === 'cash') {
+                    $books->cashEntry($line);
+                } elseif ($request->payment_method === 'bank') {
+                    $books->bankEntry($line + ['bank_name' => $request->bank_name, 'cheque_number' => $request->reference_number], $bank);
+                } elseif ($request->payment_method === 'mobile') {
+                    $books->mobileEntry($line + ['provider' => $request->mobile_provider, 'transaction_id' => $request->reference_number], $mobile);
+                }
             }
 
             AuditLog::record(
@@ -246,6 +234,8 @@ class VoucherController extends Controller
         return DB::transaction(function () use ($voucher, $user, $reason) {
             $oldSnapshot = $voucher->toArray();
             $voucher->archive($user->id, $reason);
+            // Undo the money the voucher moved, in the same book and account.
+            app(AccountBookService::class)->reverseEntriesFor(Voucher::class, $voucher->id, now()->toDateString(), $user->id, "voucher {$voucher->voucher_number} archived");
 
             AuditLog::record(
                 $user->id,

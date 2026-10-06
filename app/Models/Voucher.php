@@ -22,6 +22,8 @@ class Voucher extends Model
         'total_amount',
         'payment_method',
         'bank_name',
+        'bank_account_id',
+        'mobile_account_id',
         'mobile_provider',
         'reference_number',
         'note',

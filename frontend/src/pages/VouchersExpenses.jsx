@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
+import AccountPicker from '../components/AccountPicker';
 import { formatCurrency, formatDate } from '../utils/format';
 
 const VouchersExpenses = () => {
@@ -42,8 +43,9 @@ const VouchersExpenses = () => {
   const [expAmount, setExpAmount] = useState('');
   const [expMethod, setExpMethod] = useState('cash');
   const [expDate, setExpDate] = useState(new Date().toISOString().substring(0, 10));
-  const [expBankName, setExpBankName] = useState('');
-  const [expMobileProvider, setExpMobileProvider] = useState('bKash');
+  // Registered account the expense was paid from (Settings → Bank / Mobile).
+  const [expBankAccountId, setExpBankAccountId] = useState('');
+  const [expMobileAccountId, setExpMobileAccountId] = useState('');
   const [expRefNo, setExpRefNo] = useState('');
   const [expDescription, setExpDescription] = useState('');
   const [submittingExpense, setSubmittingExpense] = useState(false);
@@ -53,8 +55,8 @@ const VouchersExpenses = () => {
   const [vAmount, setVAmount] = useState('');
   const [vMethod, setVMethod] = useState('cash');
   const [vDate, setVDate] = useState(new Date().toISOString().substring(0, 10));
-  const [vBankName, setVBankName] = useState('');
-  const [vMobileProvider, setVMobileProvider] = useState('bKash');
+  const [vBankAccountId, setVBankAccountId] = useState('');
+  const [vMobileAccountId, setVMobileAccountId] = useState('');
   const [vRefNo, setVRefNo] = useState('');
   const [vDescription, setVDescription] = useState('');
   const [vNote, setVNote] = useState('');
@@ -130,6 +132,15 @@ const VouchersExpenses = () => {
       return;
     }
 
+    if (expMethod === 'bank' && !expBankAccountId) {
+      alert('Choose the bank account this expense was paid from.');
+      return;
+    }
+    if (expMethod === 'mobile' && !expMobileAccountId) {
+      alert('Choose the mobile account this expense was paid from.');
+      return;
+    }
+
     setSubmittingExpense(true);
     try {
       await api.post('/expenses', {
@@ -137,8 +148,8 @@ const VouchersExpenses = () => {
         amount: amt,
         payment_method: expMethod,
         expense_date: expDate,
-        bank_name: expBankName,
-        mobile_provider: expMobileProvider,
+        bank_account_id: expMethod === 'bank' ? Number(expBankAccountId) : undefined,
+        mobile_account_id: expMethod === 'mobile' ? Number(expMobileAccountId) : undefined,
         reference_number: expRefNo,
         description: expDescription,
       });
@@ -165,6 +176,17 @@ const VouchersExpenses = () => {
       return;
     }
 
+    // A journal voucher moves no money, so it needs no account.
+    const vMovesMoney = vType !== 'journal';
+    if (vMovesMoney && vMethod === 'bank' && !vBankAccountId) {
+      alert('Choose the bank account for this voucher.');
+      return;
+    }
+    if (vMovesMoney && vMethod === 'mobile' && !vMobileAccountId) {
+      alert('Choose the mobile account for this voucher.');
+      return;
+    }
+
     setSubmittingVoucher(true);
     try {
       await api.post('/vouchers', {
@@ -172,8 +194,8 @@ const VouchersExpenses = () => {
         total_amount: amt,
         payment_method: vMethod,
         date: vDate,
-        bank_name: vBankName,
-        mobile_provider: vMobileProvider,
+        bank_account_id: vMovesMoney && vMethod === 'bank' ? Number(vBankAccountId) : undefined,
+        mobile_account_id: vMovesMoney && vMethod === 'mobile' ? Number(vMobileAccountId) : undefined,
         reference_number: vRefNo,
         description: vDescription,
         note: vNote,
@@ -669,29 +691,26 @@ const VouchersExpenses = () => {
                 </select>
               </div>
 
-              {expMethod === 'bank' && (
-                <div className="form-group" style={{ marginBottom: '14px' }}>
-                  <label style={{ fontSize: '12px' }}>Bank Name & Cheque No.</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. City Bank - Cheque: 104885"
-                    className="modern-form-control"
-                    value={expBankName}
-                    onChange={(e) => setExpBankName(e.target.value)}
-                  />
-                </div>
-              )}
-
-              {expMethod === 'mobile' && (
-                <div className="form-group" style={{ marginBottom: '14px' }}>
-                  <label style={{ fontSize: '12px' }}>Mobile Provider & Txn ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. bKash Txn: TRX-8845"
-                    className="modern-form-control"
-                    value={expRefNo}
-                    onChange={(e) => setExpRefNo(e.target.value)}
-                  />
+              {(expMethod === 'bank' || expMethod === 'mobile') && (
+                <div className="form-grid" style={{ marginBottom: '14px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '12px' }}>{expMethod === 'bank' ? 'Bank Account *' : 'Mobile Account *'}</label>
+                    {expMethod === 'bank' ? (
+                      <AccountPicker kind="bank" value={expBankAccountId} onChange={setExpBankAccountId} className="modern-form-control" />
+                    ) : (
+                      <AccountPicker kind="mobile" value={expMobileAccountId} onChange={setExpMobileAccountId} className="modern-form-control" />
+                    )}
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '12px' }}>{expMethod === 'bank' ? 'Cheque / Ref No.' : 'Transaction ID'}</label>
+                    <input
+                      type="text"
+                      placeholder={expMethod === 'bank' ? 'e.g. 104885' : 'e.g. TRX-8845'}
+                      className="modern-form-control"
+                      value={expRefNo}
+                      onChange={(e) => setExpRefNo(e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -781,10 +800,33 @@ const VouchersExpenses = () => {
                 </div>
               </div>
 
+              {vType !== 'journal' && (vMethod === 'bank' || vMethod === 'mobile') && (
+                <div className="form-grid" style={{ marginBottom: '14px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '12px' }}>{vMethod === 'bank' ? 'Bank Account *' : 'Mobile Account *'}</label>
+                    {vMethod === 'bank' ? (
+                      <AccountPicker kind="bank" value={vBankAccountId} onChange={setVBankAccountId} className="modern-form-control" />
+                    ) : (
+                      <AccountPicker kind="mobile" value={vMobileAccountId} onChange={setVMobileAccountId} className="modern-form-control" />
+                    )}
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '12px' }}>{vMethod === 'bank' ? 'Cheque / Ref No.' : 'Transaction ID'}</label>
+                    <input
+                      type="text"
+                      className="modern-form-control"
+                      value={vRefNo}
+                      onChange={(e) => setVRefNo(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px' }}>Description / Particulars</label>
+                <label style={{ fontSize: '12px' }}>Description / Particulars *</label>
                 <input
                   type="text"
+                  required
                   placeholder="e.g. End of month ledger adjustment"
                   className="modern-form-control"
                   value={vDescription}

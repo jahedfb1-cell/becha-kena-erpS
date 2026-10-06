@@ -16,6 +16,7 @@ class BankBookEntry extends Model
     protected $fillable = [
         'brand_id',
         'bank_name',
+        'bank_account_id',
         'account_number',
         'entry_type',
         'reference_type',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import AccountPicker, { refreshAccountPickers } from '../components/AccountPicker';
 import { formatCurrency, formatDate } from '../utils/format';
 
 const Settings = () => {
@@ -170,6 +171,7 @@ const Settings = () => {
     setModalError('');
     try {
       await api.post('/settings/bank-accounts', formInput);
+      refreshAccountPickers();
       setModalSuccess('Bank account added successfully!');
       setFormInput({});
       handleOpenModal('bank');
@@ -183,6 +185,7 @@ const Settings = () => {
     if (!window.confirm('Remove this bank account?')) return;
     try {
       await api.delete(`/settings/bank-accounts/${id}`);
+      refreshAccountPickers();
       handleOpenModal('bank');
       fetchSummary();
     } catch (err) {
@@ -196,6 +199,7 @@ const Settings = () => {
     setModalError('');
     try {
       await api.post('/settings/mobile-accounts', formInput);
+      refreshAccountPickers();
       setModalSuccess('Mobile account added successfully!');
       setFormInput({});
       handleOpenModal('mobile');
@@ -209,6 +213,7 @@ const Settings = () => {
     if (!window.confirm('Remove this mobile account?')) return;
     try {
       await api.delete(`/settings/mobile-accounts/${id}`);
+      refreshAccountPickers();
       handleOpenModal('mobile');
       fetchSummary();
     } catch (err) {
@@ -223,8 +228,11 @@ const Settings = () => {
     try {
       await api.post('/settings/balance-transfers', {
         ...formInput,
+        from_account_type: formInput.from_account_type || 'cash',
+        to_account_type: formInput.to_account_type || 'bank',
         transfer_date: formInput.transfer_date || new Date().toISOString().substring(0, 10),
       });
+      refreshAccountPickers();
       setModalSuccess('Balance transfer recorded successfully!');
       setFormInput({});
       handleOpenModal('transfer');
@@ -670,7 +678,12 @@ const Settings = () => {
             {modalError && <div style={{ background: '#fde8e8', color: '#9b1c1c', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', fontSize: '13px' }}>{modalError}</div>}
 
             <form onSubmit={handleAddMobileAccount} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: '10px', marginBottom: '20px' }}>
-              <input type="text" placeholder="Provider (bKash/Nagad)" value={formInput.provider || ''} onChange={(e) => setFormInput({ ...formInput, provider: e.target.value })} required className="modern-form-control" />
+              <select value={formInput.provider || ''} onChange={(e) => setFormInput({ ...formInput, provider: e.target.value })} required className="modern-form-control">
+                <option value="" disabled>Provider</option>
+                <option value="bKash">bKash</option>
+                <option value="Nagad">Nagad</option>
+                <option value="Rocket">Rocket</option>
+              </select>
               <input type="text" placeholder="Mobile Number" value={formInput.account_number || ''} onChange={(e) => setFormInput({ ...formInput, account_number: e.target.value })} required className="modern-form-control" />
               <select value={formInput.account_type || 'Personal'} onChange={(e) => setFormInput({ ...formInput, account_type: e.target.value })} className="modern-form-control">
                 <option value="Personal">Personal</option>
@@ -721,22 +734,36 @@ const Settings = () => {
             {modalSuccess && <div style={{ background: '#def7ec', color: '#03543f', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', fontSize: '13px' }}>{modalSuccess}</div>}
             {modalError && <div style={{ background: '#fde8e8', color: '#9b1c1c', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px', fontSize: '13px' }}>{modalError}</div>}
 
-            <form onSubmit={handleAddTransfer} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: '10px', marginBottom: '20px' }}>
-              <select value={formInput.from_account_type || 'cash'} onChange={(e) => setFormInput({ ...formInput, from_account_type: e.target.value })} className="modern-form-control">
+            <form onSubmit={handleAddTransfer} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', marginBottom: '20px' }}>
+              <select value={formInput.from_account_type || 'cash'} onChange={(e) => setFormInput({ ...formInput, from_account_type: e.target.value, from_account_id: '' })} className="modern-form-control">
                 <option value="cash">From: Cash Account</option>
                 <option value="bank">From: Bank Account</option>
                 <option value="mobile">From: Mobile Banking</option>
               </select>
 
-              <select value={formInput.to_account_type || 'bank'} onChange={(e) => setFormInput({ ...formInput, to_account_type: e.target.value })} className="modern-form-control">
+              <select value={formInput.to_account_type || 'bank'} onChange={(e) => setFormInput({ ...formInput, to_account_type: e.target.value, to_account_id: '' })} className="modern-form-control">
                 <option value="bank">To: Bank Account</option>
                 <option value="mobile">To: Mobile Banking</option>
                 <option value="cash">To: Cash Account</option>
               </select>
 
+              {['from', 'to'].map((side) => {
+                const type = formInput[`${side}_account_type`] || (side === 'from' ? 'cash' : 'bank');
+                return type === 'cash' ? (
+                  <div key={side} className="modern-form-control" style={{ display: 'flex', alignItems: 'center', color: '#64748b' }}>Cash in hand</div>
+                ) : (
+                  <AccountPicker
+                    key={side + type}
+                    kind={type}
+                    value={formInput[`${side}_account_id`] || ''}
+                    onChange={(id) => setFormInput((f) => ({ ...f, [`${side}_account_id`]: id }))}
+                    className="modern-form-control"
+                  />
+                );
+              })}
               <input type="number" placeholder="Transfer Amount (Tk)" value={formInput.amount || ''} onChange={(e) => setFormInput({ ...formInput, amount: e.target.value })} required className="modern-form-control" />
               <input type="date" value={formInput.transfer_date || new Date().toISOString().substring(0, 10)} onChange={(e) => setFormInput({ ...formInput, transfer_date: e.target.value })} className="modern-form-control" />
-              <button type="submit" className="primary-btn" style={{ padding: '8px 16px' }}>Transfer</button>
+              <button type="submit" className="primary-btn" style={{ padding: '10px 16px', gridColumn: '1 / -1' }}>Transfer</button>
             </form>
 
             <table className="data-table">

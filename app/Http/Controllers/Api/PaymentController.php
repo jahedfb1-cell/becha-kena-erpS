@@ -112,8 +112,10 @@ class PaymentController extends Controller
             'discount_note'   => 'nullable|string|max:255',
             // Required so the bank/mobile book-entry (which has a NOT NULL
             // bank_name/provider column) never fails at the database level.
-            'bank_name'       => 'required_if:payment_method,bank|string|max:100',
-            'mobile_provider' => 'required_if:payment_method,mobile|string|max:100',
+            'bank_account_id' => 'nullable|integer',
+            'bank_name'       => 'exclude_with:bank_account_id|required_if:payment_method,bank|string|max:100',
+            'mobile_account_id' => 'nullable|integer',
+            'mobile_provider' => 'exclude_with:mobile_account_id|required_if:payment_method,mobile|string|max:100',
         ]);
 
         $invoice = Invoice::find($request->invoice_id);

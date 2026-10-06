@@ -178,11 +178,17 @@ class PaymentServiceTest extends TestCase
         $entry = MobileBookEntry::first();
 
         $this->assertNotNull($entry);
-        $this->assertSame('bKash', $entry->provider);
+        // Filed under the book's own provider value (the column is an enum of
+        // bkash / nagad / rocket - MySQL stores it lower-case regardless) and
+        // linked to the registered bKash wallet, whose running balance starts
+        // from its 1,000 opening balance.
+        $wallet = \App\Models\MobileAccount::where('account_number', '01629000200')->firstOrFail();
+        $this->assertSame('bkash', $entry->provider);
+        $this->assertSame($wallet->id, (int) $entry->mobile_account_id);
         $this->assertSame('in', $entry->entry_type);
         $this->assertSame('TRX-9911', $entry->transaction_id);
         $this->assertEquals(300, $entry->amount);
-        $this->assertEquals(300, $entry->balance);
+        $this->assertEquals(1300, $entry->balance);
     }
 
     // ── Voiding ──────────────────────────────────────────────────────
@@ -300,7 +306,9 @@ class PaymentServiceTest extends TestCase
         $this->assertSame('Nagad', $moved->mobile_provider);
 
         // Void-out then pay-in on the same provider nets back to the amount.
-        $entries = MobileBookEntry::where('provider', 'Nagad')->orderBy('id')->get();
+        // No Nagad wallet is registered, so these stay unlinked, filed under
+        // the book's lower-case provider value.
+        $entries = MobileBookEntry::where('provider', 'nagad')->orderBy('id')->get();
         $this->assertSame(['in', 'out', 'in'], $entries->pluck('entry_type')->all());
         $this->assertEquals(300, $entries->last()->balance);
     }

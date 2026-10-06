@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\BankAccount;
 use App\Models\ExpenseCategory;
+use App\Models\MobileAccount;
 use App\Models\ProductVariant;
 use App\Models\User;
+use App\Services\AccountBookService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class SettingController extends Controller
 {
@@ -29,8 +33,8 @@ class SettingController extends Controller
             $userTypesCount = User::count();
             
             $cashAccountsCount = 1; // Primary Cash Account
-            $bankAccountsCount = DB::table('bank_accounts')->where('is_active', true)->count();
-            $mobileAccountsCount = DB::table('mobile_accounts')->where('is_active', true)->count();
+            $bankAccountsCount = BankAccount::active()->where('is_active', true)->count();
+            $mobileAccountsCount = MobileAccount::active()->where('is_active', true)->count();
             
             $notificationCount = DB::table('notifications')->where('is_read', false)->count();
             $balanceTransfersCount = DB::table('balance_transfers')->count();
@@ -123,82 +127,171 @@ class SettingController extends Controller
     // ------------------------------------------------------------------------
     // BANK ACCOUNTS MANAGEMENT
     // ------------------------------------------------------------------------
-    public function getBankAccounts(): JsonResponse
+
+    /**
+     * Active bank accounts of the user's brand. current_balance is computed
+     * (opening + the bank book lines linked to the account), never stored.
+     */
+    public function getBankAccounts(AccountBookService $books): JsonResponse
     {
-        $accounts = DB::table('bank_accounts')->orderBy('id', 'desc')->get();
+        $accounts = BankAccount::active()->orderByDesc('id')->get()
+            ->map(fn (BankAccount $a) => array_merge($a->toArray(), [
+                'current_balance' => $books->bankBalance($a),
+                'label'           => $a->label,
+            ]));
+
         return $this->successResponse($accounts, 'Bank accounts retrieved.');
     }
 
     public function storeBankAccount(Request $request): JsonResponse
     {
         $request->validate([
-            'bank_name' => 'required|string|max:150',
-            'account_name' => 'required|string|max:150',
-            'account_number' => 'required|string|max:100',
-            'branch' => 'nullable|string|max:150',
-            'opening_balance' => 'numeric|min:0',
+            'bank_name'       => 'required|string|max:150',
+            'account_name'    => 'required|string|max:150',
+            'account_number'  => 'required|string|max:100',
+            'branch'          => 'nullable|string|max:150',
+            'opening_balance' => 'nullable|numeric|min:0',
         ]);
 
-        $openingBal = (float) ($request->opening_balance ?? 0);
+        $exists = BankAccount::active()
+            ->whereRaw('LOWER(bank_name) = ?', [mb_strtolower(trim($request->bank_name))])
+            ->where('account_number', trim($request->account_number))
+            ->exists();
+        if ($exists) {
+            throw ValidationException::withMessages(['account_number' => ['This bank account is already registered.']]);
+        }
 
-        $id = DB::table('bank_accounts')->insertGetId([
-            'bank_name' => $request->bank_name,
-            'account_name' => $request->account_name,
-            'account_number' => $request->account_number,
-            'branch' => $request->branch,
-            'opening_balance' => $openingBal,
-            'current_balance' => $openingBal,
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
+        $user = $request->user();
+
+        // The same account removed earlier: bring it back rather than add a
+        // second row (the unique index covers archived accounts too).
+        $archived = BankAccount::archived()
+            ->whereRaw('LOWER(bank_name) = ?', [mb_strtolower(trim($request->bank_name))])
+            ->where('account_number', trim($request->account_number))
+            ->first();
+        if ($archived) {
+            $archived->restore($user->id);
+            $archived->update(['account_name' => trim($request->account_name), 'branch' => $request->branch, 'is_active' => true]);
+            AuditLog::record($user->id, $user->name, 'restore', BankAccount::class, $archived->id, null, null,
+                "Restored bank account {$archived->label}");
+
+            return $this->createdResponse($archived->fresh(), 'Bank account restored.');
+        }
+
+        $account = BankAccount::create([
+            'bank_name'       => trim($request->bank_name),
+            'account_name'    => trim($request->account_name),
+            'account_number'  => trim($request->account_number),
+            'branch'          => $request->branch,
+            'opening_balance' => (float) ($request->opening_balance ?? 0),
+            'is_active'       => true,
+            'created_by'      => $user->id,
         ]);
 
-        return $this->createdResponse(DB::table('bank_accounts')->find($id), 'Bank account added successfully.');
+        AuditLog::record($user->id, $user->name, 'create', BankAccount::class, $account->id, null, $account->toArray(),
+            "Added bank account {$account->label}");
+
+        return $this->createdResponse($account, 'Bank account added successfully.');
     }
 
-    public function deleteBankAccount(int $id): JsonResponse
+    /**
+     * Archives - never deletes - so every book line and payment that went
+     * through the account can still be traced to it.
+     */
+    public function deleteBankAccount(Request $request, int $id): JsonResponse
     {
-        DB::table('bank_accounts')->where('id', $id)->delete();
+        $account = BankAccount::active()->find($id);
+        if (!$account) {
+            return $this->notFoundResponse('Bank account not found.');
+        }
+
+        $user = $request->user();
+        $account->archive($user->id, $request->get('reason', 'Removed from Settings'));
+        AuditLog::record($user->id, $user->name, 'archive', BankAccount::class, $account->id, null, null,
+            "Archived bank account {$account->label}");
+
         return $this->successResponse(null, 'Bank account removed.');
     }
 
     // ------------------------------------------------------------------------
     // MOBILE ACCOUNTS MANAGEMENT
     // ------------------------------------------------------------------------
-    public function getMobileAccounts(): JsonResponse
+    public function getMobileAccounts(AccountBookService $books): JsonResponse
     {
-        $accounts = DB::table('mobile_accounts')->orderBy('id', 'desc')->get();
+        $accounts = MobileAccount::active()->orderByDesc('id')->get()
+            ->map(fn (MobileAccount $a) => array_merge($a->toArray(), [
+                'current_balance' => $books->mobileBalance($a),
+                'label'           => $a->label,
+            ]));
+
         return $this->successResponse($accounts, 'Mobile accounts retrieved.');
     }
 
     public function storeMobileAccount(Request $request): JsonResponse
     {
         $request->validate([
-            'provider' => 'required|string|max:100',
-            'account_number' => 'required|string|max:50',
-            'account_type' => 'nullable|string|max:50',
-            'opening_balance' => 'numeric|min:0',
+            'provider'        => 'required|string|max:100',
+            'account_number'  => 'required|string|max:50',
+            'account_type'    => 'nullable|string|max:50',
+            'opening_balance' => 'nullable|numeric|min:0',
         ]);
 
-        $openingBal = (float) ($request->opening_balance ?? 0);
+        // The mobile book can only file bKash, Nagad and Rocket.
+        $probe = new MobileAccount(['provider' => $request->provider]);
+        if ($probe->book_provider === null) {
+            throw ValidationException::withMessages(['provider' => ['Provider must be bKash, Nagad or Rocket.']]);
+        }
 
-        $id = DB::table('mobile_accounts')->insertGetId([
-            'provider' => $request->provider,
-            'account_number' => $request->account_number,
-            'account_type' => $request->account_type ?? 'Personal',
-            'opening_balance' => $openingBal,
-            'current_balance' => $openingBal,
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
+        $exists = MobileAccount::active()
+            ->whereRaw('LOWER(provider) = ?', [mb_strtolower(trim($request->provider))])
+            ->where('account_number', trim($request->account_number))
+            ->exists();
+        if ($exists) {
+            throw ValidationException::withMessages(['account_number' => ['This mobile account is already registered.']]);
+        }
+
+        $user = $request->user();
+
+        $archived = MobileAccount::archived()
+            ->whereRaw('LOWER(provider) = ?', [mb_strtolower(trim($request->provider))])
+            ->where('account_number', trim($request->account_number))
+            ->first();
+        if ($archived) {
+            $archived->restore($user->id);
+            $archived->update(['account_type' => $request->account_type ?? $archived->account_type, 'is_active' => true]);
+            AuditLog::record($user->id, $user->name, 'restore', MobileAccount::class, $archived->id, null, null,
+                "Restored mobile account {$archived->label}");
+
+            return $this->createdResponse($archived->fresh(), 'Mobile account restored.');
+        }
+
+        $account = MobileAccount::create([
+            'provider'        => trim($request->provider),
+            'account_number'  => trim($request->account_number),
+            'account_type'    => $request->account_type ?? 'Personal',
+            'opening_balance' => (float) ($request->opening_balance ?? 0),
+            'is_active'       => true,
+            'created_by'      => $user->id,
         ]);
 
-        return $this->createdResponse(DB::table('mobile_accounts')->find($id), 'Mobile account added successfully.');
+        AuditLog::record($user->id, $user->name, 'create', MobileAccount::class, $account->id, null, $account->toArray(),
+            "Added mobile account {$account->label}");
+
+        return $this->createdResponse($account, 'Mobile account added successfully.');
     }
 
-    public function deleteMobileAccount(int $id): JsonResponse
+    public function deleteMobileAccount(Request $request, int $id): JsonResponse
     {
-        DB::table('mobile_accounts')->where('id', $id)->delete();
+        $account = MobileAccount::active()->find($id);
+        if (!$account) {
+            return $this->notFoundResponse('Mobile account not found.');
+        }
+
+        $user = $request->user();
+        $account->archive($user->id, $request->get('reason', 'Removed from Settings'));
+        AuditLog::record($user->id, $user->name, 'archive', MobileAccount::class, $account->id, null, null,
+            "Archived mobile account {$account->label}");
+
         return $this->successResponse(null, 'Mobile account removed.');
     }
 
@@ -213,66 +306,87 @@ class SettingController extends Controller
         return $this->successResponse($transfers, 'Balance transfers retrieved.');
     }
 
-    public function storeBalanceTransfer(Request $request): JsonResponse
+    /**
+     * Moves money between cash, a bank account and a mobile account. Each
+     * side is written to its own book (an "out" line on the source, an "in"
+     * line on the destination), linked to the account, so both balances -
+     * which are computed from the books - move together.
+     */
+    public function storeBalanceTransfer(Request $request, AccountBookService $books): JsonResponse
     {
         $request->validate([
             'from_account_type' => 'required|string|in:cash,bank,mobile',
-            'from_account_id' => 'nullable|integer',
-            'to_account_type' => 'required|string|in:cash,bank,mobile',
-            'to_account_id' => 'nullable|integer',
-            'amount' => 'required|numeric|min:1',
-            'transfer_date' => 'required|date',
-            'note' => 'nullable|string',
+            'from_account_id'   => 'nullable|required_unless:from_account_type,cash|integer',
+            'to_account_type'   => 'required|string|in:cash,bank,mobile',
+            'to_account_id'     => 'nullable|required_unless:to_account_type,cash|integer',
+            'amount'            => 'required|numeric|min:1',
+            'transfer_date'     => 'required|date',
+            'note'              => 'nullable|string',
         ]);
+
+        $from = $this->transferSide($books, $request->from_account_type, $request->integer('from_account_id') ?: null, 'from_account_id');
+        $to = $this->transferSide($books, $request->to_account_type, $request->integer('to_account_id') ?: null, 'to_account_id');
+        if ($request->from_account_type === $request->to_account_type && $from?->id === $to?->id) {
+            throw ValidationException::withMessages(['to_account_id' => ['Choose a different account to transfer to.']]);
+        }
 
         $user = $request->user();
         $transferNo = 'TRF-' . date('YmdHis');
-        $amount = (float) $request->amount;
+        $amount = round((float) $request->amount, 2);
 
-        DB::transaction(function () use ($request, $user, $transferNo, $amount) {
-            // Deduct from Source Account
-            if ($request->from_account_type === 'bank' && $request->from_account_id) {
-                DB::table('bank_accounts')->where('id', $request->from_account_id)->decrement('current_balance', $amount);
-            } elseif ($request->from_account_type === 'mobile' && $request->from_account_id) {
-                DB::table('mobile_accounts')->where('id', $request->from_account_id)->decrement('current_balance', $amount);
-            }
-
-            // Add to Target Account
-            if ($request->to_account_type === 'bank' && $request->to_account_id) {
-                DB::table('bank_accounts')->where('id', $request->to_account_id)->increment('current_balance', $amount);
-            } elseif ($request->to_account_type === 'mobile' && $request->to_account_id) {
-                DB::table('mobile_accounts')->where('id', $request->to_account_id)->increment('current_balance', $amount);
-            }
-
-            // Record Transfer
-            DB::table('balance_transfers')->insert([
-                'transfer_number' => $transferNo,
+        DB::transaction(function () use ($request, $user, $transferNo, $amount, $books, $from, $to) {
+            $id = DB::table('balance_transfers')->insertGetId([
+                'transfer_number'   => $transferNo,
                 'from_account_type' => $request->from_account_type,
-                'from_account_id' => $request->from_account_id,
-                'to_account_type' => $request->to_account_type,
-                'to_account_id' => $request->to_account_id,
-                'amount' => $amount,
-                'transfer_date' => $request->transfer_date,
-                'note' => $request->note,
-                'created_by' => $user->id ?? null,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'from_account_id'   => $from?->id,
+                'to_account_type'   => $request->to_account_type,
+                'to_account_id'     => $to?->id,
+                'amount'            => $amount,
+                'transfer_date'     => $request->transfer_date,
+                'note'              => $request->note,
+                'created_by'        => $user->id,
+                'created_at'        => now(),
+                'updated_at'        => now(),
             ]);
 
-            AuditLog::record(
-                $user->id,
-                $user->name,
-                'create',
-                'BalanceTransfer',
-                null,
-                $transferNo,
-                null,
-                ['amount' => $amount],
-                "Recorded balance transfer {$transferNo} of Tk. {$amount}"
-            );
+            $line = fn (string $type, string $desc) => [
+                'entry_type'     => $type,
+                'reference_type' => 'balance_transfer',
+                'reference_id'   => $id,
+                'description'    => $desc,
+                'amount'         => $amount,
+                'entry_date'     => $request->transfer_date,
+                'created_by'     => $user->id,
+            ];
+            $this->postTransferSide($books, $request->from_account_type, $from, $line('out', "Transfer {$transferNo} out"));
+            $this->postTransferSide($books, $request->to_account_type, $to, $line('in', "Transfer {$transferNo} in"));
+
+            AuditLog::record($user->id, $user->name, 'create', 'BalanceTransfer', $id, null, [
+                'from' => $request->from_account_type . ($from ? " #{$from->id}" : ''),
+                'to'   => $request->to_account_type . ($to ? " #{$to->id}" : ''),
+                'amount' => $amount,
+            ], "Recorded balance transfer {$transferNo} of Tk. {$amount}", $transferNo);
         });
 
         return $this->createdResponse(null, "Balance transfer {$transferNo} recorded successfully!");
+    }
+
+    private function transferSide(AccountBookService $books, string $type, ?int $id, string $field): BankAccount|MobileAccount|null
+    {
+        return match ($type) {
+            'bank'   => $books->resolveBank($id, null, $field),
+            'mobile' => $books->resolveMobile($id, null, $field),
+            default  => null,
+        };
+    }
+
+    private function postTransferSide(AccountBookService $books, string $type, BankAccount|MobileAccount|null $account, array $line): void
+    {
+        match ($type) {
+            'bank'   => $books->bankEntry($line, $account),
+            'mobile' => $books->mobileEntry($line, $account),
+            default  => $books->cashEntry($line),
+        };
     }
 
     // ------------------------------------------------------------------------

@@ -23,6 +23,8 @@ class Payment extends Model
         'discount_note',
         'payment_method',
         'bank_name',
+        'bank_account_id',
+        'mobile_account_id',
         'mobile_provider',
         'transaction_id',
         'cheque_number',

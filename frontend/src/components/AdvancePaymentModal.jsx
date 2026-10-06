@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 import { formatCurrency } from '../utils/format';
+import AccountPicker from './AccountPicker';
 
 /**
  * Records an advance payment against an order that has no invoice yet.
@@ -23,12 +24,14 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().substring(0, 10));
 
-  const [bankName, setBankName] = useState('');
+  // The registered account the advance went into (Settings → Bank / Mobile
+  // accounts). The picked account itself is kept too, for its display name.
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [bankAccount, setBankAccount] = useState(null);
   const [chequeNumber, setChequeNumber] = useState('');
-  const [bankAccounts, setBankAccounts] = useState(null); // null = not fetched yet
-  const [useCustomBank, setUseCustomBank] = useState(false);
 
-  const [mobileProvider, setMobileProvider] = useState('bKash');
+  const [mobileAccountId, setMobileAccountId] = useState('');
+  const [mobileAccount, setMobileAccount] = useState(null);
   const [transactionId, setTransactionId] = useState('');
 
   const [notes, setNotes] = useState('');
@@ -41,40 +44,19 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
       setAmount(seed.amount != null ? String(seed.amount) : '');
       setPaymentMethod(seed.payment_method || 'cash');
       setPaymentDate(seed.payment_date || new Date().toISOString().substring(0, 10));
-      setBankName(seed.bank_name || '');
-      setUseCustomBank(false);
+      setBankAccountId(seed.bank_account_id ? String(seed.bank_account_id) : '');
+      setBankAccount(null);
       setChequeNumber(seed.cheque_number || '');
-      setMobileProvider(seed.mobile_provider || 'bKash');
+      setMobileAccountId(seed.mobile_account_id ? String(seed.mobile_account_id) : '');
+      setMobileAccount(null);
       setTransactionId(seed.transaction_id || '');
       setNotes(seed.notes || '');
       setError('');
     }
   }, [isOpen, quotation, draftMode, initialDraft]);
 
-  // Fetch the registered bank accounts once, the first time the modal opens
-  // — see PaymentModal's identical fetch for why this has to be a dropdown
-  // of real accounts rather than free text (BankBookEntry keys its running
-  // balance off this exact string). Falls back to free text if none are
-  // registered yet or the fetch fails.
-  useEffect(() => {
-    if (isOpen && bankAccounts === null) {
-      api.get('/settings/bank-accounts')
-        .then((res) => setBankAccounts(res.data?.data || []))
-        .catch(() => setBankAccounts([]));
-    }
-  }, [isOpen, bankAccounts]);
-
-  const bankNameOptions = Array.from(new Set((bankAccounts || []).map((b) => b.bank_name).filter(Boolean)));
-
-  // A draft seeded with a bank name typed before the account list loaded (or
-  // one that isn't a registered account at all) needs the custom-text field
-  // switched on, or the dropdown would silently swap it for a blank value.
-  useEffect(() => {
-    if (isOpen && bankName && bankNameOptions.length > 0 && !bankNameOptions.includes(bankName)) {
-      setUseCustomBank(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, bankAccounts]);
+  const pickBank = useCallback((id, account) => { setBankAccountId(id); setBankAccount(account || null); }, []);
+  const pickMobile = useCallback((id, account) => { setMobileAccountId(id); setMobileAccount(account || null); }, []);
 
   if (!isOpen || !quotation) return null;
 
@@ -106,11 +88,23 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
       notes,
     };
 
+    // The account id is what the server records against; the name only
+    // labels a draft advance chip on the Orders form.
     if (paymentMethod === 'bank') {
-      payload.bank_name = bankName;
+      if (!bankAccountId) {
+        setError('Choose the bank account the advance went into.');
+        return;
+      }
+      payload.bank_account_id = Number(bankAccountId);
+      payload.bank_name = bankAccount?.bank_name || initialDraft?.bank_name || '';
       payload.cheque_number = chequeNumber;
     } else if (paymentMethod === 'mobile') {
-      payload.mobile_provider = mobileProvider;
+      if (!mobileAccountId) {
+        setError('Choose the mobile account the advance went into.');
+        return;
+      }
+      payload.mobile_account_id = Number(mobileAccountId);
+      payload.mobile_provider = mobileAccount?.provider || initialDraft?.mobile_provider || '';
       payload.transaction_id = transactionId;
     }
 
@@ -139,9 +133,11 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
     setAmount('');
     setPaymentMethod('cash');
     setPaymentDate(new Date().toISOString().substring(0, 10));
-    setBankName('');
+    setBankAccountId('');
+    setBankAccount(null);
     setChequeNumber('');
-    setMobileProvider('bKash');
+    setMobileAccountId('');
+    setMobileAccount(null);
     setTransactionId('');
     setNotes('');
     setError('');
@@ -306,50 +302,8 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
           {paymentMethod === 'bank' && (
             <div className="custom-form-grid" style={{ padding: '16px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
               <div className="custom-form-group">
-                <label className="custom-form-label" style={{ color: '#60a5fa' }}>Bank Name *</label>
-                {bankNameOptions.length > 0 && !useCustomBank ? (
-                  <select
-                    value={bankName}
-                    onChange={(e) => {
-                      if (e.target.value === '__other__') {
-                        setUseCustomBank(true);
-                        setBankName('');
-                      } else {
-                        setBankName(e.target.value);
-                      }
-                    }}
-                    disabled={loading}
-                    required
-                    className="custom-form-input"
-                  >
-                    <option value="" disabled>Select bank...</option>
-                    {bankNameOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                    <option value="__other__">+ Other (not listed)</option>
-                  </select>
-                ) : (
-                  <>
-                    <input
-                      type="text"
-                      placeholder="e.g. Dutch-Bangla Bank"
-                      value={bankName}
-                      onChange={(e) => setBankName(e.target.value)}
-                      disabled={loading}
-                      required
-                      className="custom-form-input"
-                    />
-                    {bankNameOptions.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => { setUseCustomBank(false); setBankName(''); }}
-                        style={{ background: 'none', border: 'none', color: '#60a5fa', fontSize: '12px', cursor: 'pointer', padding: '4px 0', textAlign: 'left' }}
-                      >
-                        ‹ Choose from registered banks
-                      </button>
-                    )}
-                  </>
-                )}
+                <label className="custom-form-label" style={{ color: '#60a5fa' }}>Bank Account *</label>
+                <AccountPicker kind="bank" value={bankAccountId} onChange={pickBank} disabled={loading} />
               </div>
               <div className="custom-form-group">
                 <label className="custom-form-label" style={{ color: '#60a5fa' }}>Cheque / Ref Number</label>
@@ -361,13 +315,8 @@ const AdvancePaymentModal = ({ isOpen, onClose, quotation, alreadyAdvanced = 0, 
           {paymentMethod === 'mobile' && (
             <div className="custom-form-grid" style={{ padding: '16px', background: 'rgba(168, 85, 247, 0.1)', borderRadius: '12px', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
               <div className="custom-form-group">
-                <label className="custom-form-label" style={{ color: '#c084fc' }}>Mobile Provider *</label>
-                <select value={mobileProvider} onChange={(e) => setMobileProvider(e.target.value)} disabled={loading} required className="custom-form-input">
-                  <option value="bKash">bKash</option>
-                  <option value="Nagad">Nagad</option>
-                  <option value="Rocket">Rocket</option>
-                  <option value="Upay">Upay</option>
-                </select>
+                <label className="custom-form-label" style={{ color: '#c084fc' }}>Mobile Account *</label>
+                <AccountPicker kind="mobile" value={mobileAccountId} onChange={pickMobile} disabled={loading} />
               </div>
               <div className="custom-form-group">
                 <label className="custom-form-label" style={{ color: '#c084fc' }}>Transaction ID (TxnID) *</label>

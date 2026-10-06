@@ -16,6 +16,7 @@ class MobileBookEntry extends Model
     protected $fillable = [
         'brand_id',
         'provider',
+        'mobile_account_id',
         'account_number',
         'entry_type',
         'reference_type',
