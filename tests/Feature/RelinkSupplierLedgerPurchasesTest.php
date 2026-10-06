@@ -36,6 +36,18 @@ class RelinkSupplierLedgerPurchasesTest extends TestCase
         $supplier = Supplier::create(['supplier_code' => 'SUP-0001', 'name' => 'S', 'company_name' => 'S', 'created_by' => $admin->id]);
         ProductSupplierLink::create(['product_id' => $product->id, 'supplier_id' => $supplier->id, 'cost_price' => 50, 'min_billing_sqft' => 0, 'priority_rank' => 1, 'created_by' => $admin->id]);
 
+        // An unrelated quotation first, so order-line ids and purchase-entry
+        // ids no longer coincide - with equal ids a ledger line pointing at
+        // the order line instead of the purchase entry would go unnoticed.
+        $this->actingAs($admin, 'sanctum')->postJson('/api/quotations', [
+            'customer_id' => $customer->id,
+            'items'       => [
+                ['product_id' => $product->id, 'width' => 30, 'height' => 30, 'pcs' => 1, 'unit_price' => 100],
+                ['product_id' => $product->id, 'width' => 30, 'height' => 40, 'pcs' => 1, 'unit_price' => 100],
+                ['product_id' => $product->id, 'width' => 30, 'height' => 50, 'pcs' => 1, 'unit_price' => 100],
+            ],
+        ])->assertStatus(201);
+
         // A direct confirmed order writes the PO and its supplier ledger credit.
         $this->actingAs($admin, 'sanctum')->postJson('/api/quotations', [
             'customer_id' => $customer->id,
@@ -48,7 +60,12 @@ class RelinkSupplierLedgerPurchasesTest extends TestCase
 
         $this->line = SupplierLedger::where('transaction_type', 'purchase')->firstOrFail();
         $this->correctId = (int) $this->line->reference_id;
-        $this->assertNotNull(PurchaseEntry::find($this->correctId));
+
+        // New ledger lines point at the first purchase entry of their own PO.
+        $entry = PurchaseEntry::find($this->correctId);
+        $this->assertNotNull($entry, 'ledger line must point at a purchase entry');
+        $this->assertStringContainsString($entry->purchase_number, $this->line->description);
+        $this->assertSame($this->correctId, (int) PurchaseEntry::where('purchase_number', $entry->purchase_number)->min('id'));
 
         // What the live data looks like: the entry id it points at is gone.
         $this->line->forceFill(['reference_id' => 999999])->saveQuietly();

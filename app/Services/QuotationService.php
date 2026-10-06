@@ -337,6 +337,7 @@ class QuotationService
         foreach ($eligibleItems->groupBy('supplier_id') as $supplierId => $items) {
             $purchaseNumber = $this->generatePurchaseNumber();
             $groupTotalCost = 0;
+            $firstEntry = null;
 
             foreach ($items as $item) {
                 $totalCost = round((float) $item->cost_price * (float) $item->billed_sqft, 2);
@@ -349,7 +350,7 @@ class QuotationService
                 // switch. Once auto-created, the Purchase Entry is
                 // immediately ready for its Invoice to be generated from
                 // Orders whenever the salesman chooses to.
-                PurchaseEntry::create([
+                $entry = PurchaseEntry::create([
                     'purchase_number'    => $purchaseNumber,
                     'quotation_id'       => $quotation->id,
                     'quotation_item_id'  => $item->id,
@@ -368,6 +369,7 @@ class QuotationService
                     'received_by'        => $userId,
                     'created_by'         => $userId,
                 ]);
+                $firstEntry ??= $entry;
             }
 
             $groupTotalCost = round($groupTotalCost, 2);
@@ -382,7 +384,10 @@ class QuotationService
                 'supplier_id'      => $supplierId,
                 'transaction_type' => 'purchase',
                 'reference_type'   => PurchaseEntry::class,
-                'reference_id'     => $items->first()->id,
+                // The PO's first purchase entry - not the first order line,
+                // whose id is a quotation_items id and pointed the ledger at
+                // the wrong record (see ledger:relink-supplier-purchases).
+                'reference_id'     => $firstEntry->id,
                 'description'      => "Purchase order {$purchaseNumber} for quotation {$quotation->quotation_number}",
                 'debit'            => 0,
                 'credit'           => $groupTotalCost,
