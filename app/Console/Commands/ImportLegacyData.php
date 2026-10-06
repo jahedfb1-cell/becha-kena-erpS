@@ -30,7 +30,7 @@ use Illuminate\Support\Str;
  */
 class ImportLegacyData extends Command
 {
-    protected $signature = 'legacy:import {--dry-run : Report counts without writing}';
+    protected $signature = 'legacy:import {--dry-run : Report counts without writing} {--force : Required to write on a production database}';
     protected $description = 'Import customers, quotations, invoices, and dues from the legacy software dump';
 
     private int $adminId;
@@ -41,6 +41,15 @@ class ImportLegacyData extends Command
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
+
+        // A one-off migration of the old software's data. Run again by mistake on a
+        // live database it would add the same customers and invoices a second
+        // time, so on production it only writes when explicitly forced.
+        if (!$dryRun && app()->environment('production') && !$this->option('force')) {
+            $this->error('Refusing to import into a production database without --force. Use --dry-run to preview.');
+
+            return self::FAILURE;
+        }
 
         if (! DB::getSchemaBuilder()->hasTable('legacy_customers')) {
             $this->error('legacy_* tables not found. Import the legacy SQL dump first.');

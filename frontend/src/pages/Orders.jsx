@@ -39,6 +39,7 @@ import AISizeScanModal from '../components/AISizeScanModal';
 import AdvancePaymentModal from '../components/AdvancePaymentModal';
 import CourierBookingModal from '../components/CourierBookingModal';
 import openPrintPage from '../utils/openPrintPage';
+import { copySizesToClipboard } from '../utils/copySizes';
 
 const Orders = () => {
   const navigate = useNavigate();
@@ -97,6 +98,22 @@ const Orders = () => {
   // Excel Paste Modal States
   const [excelPasteTargetBlock, setExcelPasteTargetBlock] = useState(null);
   const [excelPasteText, setExcelPasteText] = useState('');
+  // Which section's "Copy all sizes" button is showing "Copied".
+  const [copiedSectionId, setCopiedSectionId] = useState(null);
+
+  // Copies Width / Height / Pcs of every product block in a section as
+  // tab-separated text (pastes into Excel as three columns) - the same
+  // button the quotation builder has under each of its sections.
+  const handleCopySizes = async (sec) => {
+    const sizes = sec.blocks.flatMap((b) => b.sizes || []);
+    const ok = await copySizesToClipboard(sizes);
+    if (!ok) {
+      alert('Could not copy. Please select the sizes and copy them manually.');
+      return;
+    }
+    setCopiedSectionId(sec.id);
+    setTimeout(() => setCopiedSectionId((cur) => (cur === sec.id ? null : cur)), 2000);
+  };
 
   // AI Size Scan Modal State
   const [aiScanTargetBlock, setAiScanTargetBlock] = useState(null);
@@ -2700,6 +2717,18 @@ const Orders = () => {
                           </div>
                         );
                       })
+                    )}
+                    {sec.blocks.length > 0 && (
+                      <div className="size-copy-bar">
+                        <button
+                          type="button"
+                          className={`size-copy-btn ${copiedSectionId === sec.id ? 'is-copied' : ''}`}
+                          onClick={() => handleCopySizes(sec)}
+                          title="Copy Width, Height and Pcs of every product in this section - pastes into Excel as three columns"
+                        >
+                          {copiedSectionId === sec.id ? '✓ Copied' : `📋 Copy all sizes - ${sec.name}`}
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
