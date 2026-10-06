@@ -7,6 +7,7 @@ use App\Models\Notification;
 use App\Models\NotificationSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Http\Requests\UpdateNotificationSettingsRequest;
 
 class NotificationController extends Controller
 {
@@ -102,13 +103,9 @@ class NotificationController extends Controller
     /**
      * Update Email & SMS notification settings for current user.
      */
-    public function updateSettings(Request $request): JsonResponse
+    public function updateSettings(UpdateNotificationSettingsRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'email_enabled' => 'required|boolean',
-            'sms_enabled'   => 'required|boolean',
-            'events'        => 'nullable|array',
-        ]);
+        $validated = $request->validated();
 
         $settings = NotificationSetting::updateOrCreate(
             ['user_id' => $request->user()->id],

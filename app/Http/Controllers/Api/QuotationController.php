@@ -15,6 +15,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Http\Requests\ConvertQuotationToOrderRequest;
+use App\Http\Requests\RejectQuotationRequest;
+use App\Http\Requests\StoreAdvancePaymentRequest;
 
 class QuotationController extends Controller
 {
@@ -432,7 +435,7 @@ class QuotationController extends Controller
      * POST /api/quotations/{id}/convert-to-order
      * Convert status to 'pending_approval' with optional discount update.
      */
-    public function convertToOrder(Request $request, int $id): JsonResponse
+    public function convertToOrder(ConvertQuotationToOrderRequest $request, int $id): JsonResponse
     {
         $quotation = Quotation::with('items')->find($id);
 
@@ -444,11 +447,6 @@ class QuotationController extends Controller
             return $this->errorResponse("Quotation cannot be converted to order from status '{$quotation->status}'.", 422);
         }
 
-        $request->validate([
-            'discount_type'   => 'nullable|in:percentage,flat',
-            'discount_value'  => 'nullable|numeric|min:0',
-            'selected_option' => 'nullable|integer|min:1',
-        ]);
 
         // A quotation offering Option 1 / Option 2 ... becomes an order for
         // exactly one of them, so the caller has to say which.
@@ -595,12 +593,8 @@ class QuotationController extends Controller
      * POST /api/quotations/{id}/reject
      * Reject quotation order with reason.
      */
-    public function reject(Request $request, int $id): JsonResponse
+    public function reject(RejectQuotationRequest $request, int $id): JsonResponse
     {
-        if (!$request->user()->can('quotations:reject')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
         $quotation = Quotation::find($id);
 
         if (!$quotation) {
@@ -619,9 +613,6 @@ class QuotationController extends Controller
             return $this->errorResponse("Quotation in status '{$quotation->status}' cannot be rejected.", 422);
         }
 
-        $request->validate([
-            'rejection_reason' => 'required|string|max:1000',
-        ]);
 
         $user = $request->user();
         $oldSnapshot = $quotation->toArray();
@@ -694,12 +685,8 @@ class QuotationController extends Controller
      * re-saving an order's items (add a line, change a price) never
      * silently re-charges an advance a second time.
      */
-    public function storeAdvancePayment(Request $request, int $id): JsonResponse
+    public function storeAdvancePayment(StoreAdvancePaymentRequest $request, int $id): JsonResponse
     {
-        if (!$request->user()->can('payments:create')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
         $quotation = Quotation::find($id);
 
         if (!$quotation) {
@@ -713,18 +700,6 @@ class QuotationController extends Controller
             return $this->errorResponse('This order has already been invoiced — record payments against its invoice instead.', 422);
         }
 
-        $request->validate([
-            'amount'          => 'required|numeric|min:0.01',
-            'payment_method'  => 'required|in:cash,bank,mobile',
-            'payment_date'    => 'required|date',
-            'bank_account_id' => 'nullable|integer',
-            'bank_name'       => 'exclude_with:bank_account_id|required_if:payment_method,bank|string|max:100',
-            'mobile_account_id' => 'nullable|integer',
-            'mobile_provider' => 'exclude_with:mobile_account_id|required_if:payment_method,mobile|string|max:100',
-            'transaction_id'  => 'nullable|string|max:100',
-            'cheque_number'   => 'nullable|string|max:100',
-            'notes'           => 'nullable|string|max:1000',
-        ]);
 
         // An advance can't exceed what's actually owed on the order, same
         // guard PaymentController::store applies against an invoice's due

@@ -7,6 +7,8 @@ use App\Models\ProductCategory;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Http\Requests\StoreProductCategoryRequest;
+use App\Http\Requests\UpdateProductCategoryRequest;
 
 class ProductCategoryController extends Controller
 {
@@ -23,12 +25,8 @@ class ProductCategoryController extends Controller
         return $this->successResponse($categories, 'Product categories retrieved successfully.');
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreProductCategoryRequest $request): JsonResponse
     {
-        $request->validate([
-            'name'        => 'required|string|max:255|unique:product_categories,name',
-            'description' => 'nullable|string|max:1000',
-        ]);
 
         $category = ProductCategory::create([
             'name'        => $request->name,
@@ -39,12 +37,8 @@ class ProductCategoryController extends Controller
         return $this->successResponse($category, 'Product category created successfully.', 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateProductCategoryRequest $request, int $id): JsonResponse
     {
-        $request->validate([
-            'name'        => 'required|string|max:255|unique:product_categories,name,' . $id,
-            'description' => 'nullable|string|max:1000',
-        ]);
 
         $category = ProductCategory::findOrFail($id);
         $category->update([

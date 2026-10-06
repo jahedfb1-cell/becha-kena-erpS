@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Http\Requests\StoreVoucherRequest;
 
 class VoucherController extends Controller
 {
@@ -111,29 +112,12 @@ class VoucherController extends Controller
     /**
      * POST /api/vouchers
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreVoucherRequest $request): JsonResponse
     {
-        $request->validate([
-            'voucher_type'     => 'required|in:debit,credit,journal',
-            'date'             => 'required|date',
-            'total_amount'     => 'required|numeric|min:0.01',
-            'payment_method'   => 'required|in:cash,bank,mobile',
-            'bank_account_id'   => 'nullable|integer',
-            'bank_name'         => 'nullable|string',
-            'mobile_account_id' => 'nullable|integer',
-            'mobile_provider'   => 'nullable|string',
-            'reference_number'  => 'nullable|string',
-            'description'      => 'required|string|max:1000',
-            'note'             => 'nullable|string',
-        ]);
 
         $user = $request->user();
 
         // Enforce Admin or explicit voucher creation permission
-        if ($user->role !== 'admin' && !$user->can('vouchers:create')) {
-            return $this->forbiddenResponse('Only system administrators can create manual accounting vouchers.');
-        }
-
         // The registered account this money moves through (the id the form
         // sends, or the one account matching an older client's typed name).
         $books = app(AccountBookService::class);
@@ -226,7 +210,7 @@ class VoucherController extends Controller
         $user = $request->user();
 
         if ($user->role !== 'admin' && !$user->can('vouchers:archive')) {
-            return $this->forbiddenResponse('Only system administrators can archive vouchers.');
+            return $this->errorResponse('Only system administrators can archive vouchers.', 403);
         }
 
         $reason = $request->get('reason', 'Archived via API');

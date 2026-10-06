@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use App\Http\Requests\UpdateAccessSetupRequest;
 
 class AccessSetupController extends Controller
 {
@@ -273,17 +274,8 @@ class AccessSetupController extends Controller
      * POST /api/access-setup/update
      * Update permissions assigned to a specific role.
      */
-    public function update(Request $request): JsonResponse
+    public function update(UpdateAccessSetupRequest $request): JsonResponse
     {
-        if (!$request->user()->can('access_setup:manage')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
-        $request->validate([
-            'role'          => 'required|string',
-            'permissions'   => 'present|array',
-            'permissions.*' => 'string',
-        ]);
 
         $roleName = $request->role;
         $permissionNames = $request->permissions;

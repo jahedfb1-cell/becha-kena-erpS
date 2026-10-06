@@ -8,6 +8,7 @@ use App\Models\PriceList;
 use App\Traits\ApiResponse;
 use App\Traits\GeneratesDocumentNumbers;
 use Illuminate\Database\Eloquent\Builder;
+use App\Http\Requests\PriceListRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,37 +48,6 @@ class PriceListController extends Controller
         }
 
         $query->where('created_by', $user->id);
-    }
-
-    /**
-     * The shape the create/update form posts and the show endpoint returns.
-     *
-     * `items` is required and must be non-empty: a rate card with no rates
-     * is not a document, and letting one save would put an unopenable row
-     * on the list page.
-     */
-    private function validatePayload(Request $request): array
-    {
-        return $request->validate([
-            'customer_id'            => 'nullable|integer|exists:customers,id',
-            'customer_name'          => 'nullable|string|max:150',
-            'customer_company'       => 'nullable|string|max:150',
-            'customer_phone'         => 'nullable|string|max:30',
-            'customer_address'       => 'nullable|string',
-            'issue_date'             => 'required|date',
-            'subject'                => 'nullable|string|max:255',
-            'validity'               => 'nullable|string|max:60',
-            'terms'                  => 'nullable|string',
-
-            'items'                  => 'required|array|min:1',
-            'items.*.product_id'     => 'nullable|integer|exists:products,id',
-            'items.*.product_name'   => 'required|string|max:255',
-            'items.*.description'    => 'nullable|string',
-            'items.*.color_code'     => 'nullable|string|max:100',
-            'items.*.uom'            => 'nullable|string|max:30',
-            'items.*.rate'           => 'nullable|numeric|min:0',
-            'items.*.remarks'        => 'nullable|string|max:255',
-        ]);
     }
 
     /** Rewrites the whole item set; used by both store() and update(). */
@@ -176,13 +146,9 @@ class PriceListController extends Controller
     /**
      * POST /api/price-lists
      */
-    public function store(Request $request): JsonResponse
+    public function store(PriceListRequest $request): JsonResponse
     {
-        if (!$request->user()->can('price_lists:create')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
-        $data = $this->validatePayload($request);
+        $data = $request->validated();
 
         $priceList = DB::transaction(function () use ($data, $request) {
             $priceList = PriceList::create([
@@ -227,13 +193,9 @@ class PriceListController extends Controller
     /**
      * PUT /api/price-lists/{id}
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(PriceListRequest $request, int $id): JsonResponse
     {
         $user = $request->user();
-
-        if (!$user->can('price_lists:create')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
 
         // Visibility doubles as the edit rule: whatever a user is allowed to
         // see, they are allowed to correct. A salesman therefore cannot
@@ -250,7 +212,7 @@ class PriceListController extends Controller
             return $this->errorResponse('This price list is archived. Restore it before editing.', 422);
         }
 
-        $data = $this->validatePayload($request);
+        $data = $request->validated();
         $oldValue = $priceList->toArray();
 
         DB::transaction(function () use ($priceList, $data) {

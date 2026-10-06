@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Http\Requests\StoreExpenseRequest;
 
 class ExpenseController extends Controller
 {
@@ -117,20 +118,8 @@ class ExpenseController extends Controller
     /**
      * POST /api/expenses
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreExpenseRequest $request): JsonResponse
     {
-        $request->validate([
-            'expense_category_id' => 'required|exists:expense_categories,id',
-            'amount'              => 'required|numeric|min:0.01',
-            'payment_method'      => 'required|in:cash,bank,mobile',
-            'expense_date'        => 'required|date',
-            'bank_account_id'     => 'nullable|integer',
-            'bank_name'           => 'nullable|string',
-            'mobile_account_id'   => 'nullable|integer',
-            'mobile_provider'     => 'nullable|string',
-            'reference_number'    => 'nullable|string',
-            'description'         => 'nullable|string',
-        ]);
 
         // The registered account this money moves through (the id the form
         // sends, or the one account matching an older client's typed name).

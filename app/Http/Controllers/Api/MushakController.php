@@ -12,6 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use App\Http\Requests\IssueMushakChallanRequest;
+use App\Http\Requests\ArchiveMushakChallanRequest;
 
 /**
  * NBR Mushak 6.3 VAT challans.
@@ -101,18 +103,8 @@ class MushakController extends Controller
     /**
      * POST /api/mushak/issue/{invoiceId}
      */
-    public function issue(int $invoiceId, Request $request): JsonResponse
+    public function issue(int $invoiceId, IssueMushakChallanRequest $request): JsonResponse
     {
-        if (!$request->user()->can('mushak:issue')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
-        $request->validate([
-            'buyer_bin'             => 'nullable|string|max:30',
-            'save_bin_to_customer'  => 'nullable|boolean',
-            'issued_by_name'        => 'nullable|string|max:150',
-            'issued_by_designation' => 'nullable|string|max:150',
-        ]);
 
         $invoice = Invoice::with(['quotation.items.product.category', 'quotation.items.variant', 'customer'])
             ->find($invoiceId);
@@ -188,13 +180,8 @@ class MushakController extends Controller
      * Archive, never hard delete: an issued VAT document has to remain
      * accounted for even after it is superseded.
      */
-    public function destroy(int $id, Request $request): JsonResponse
+    public function destroy(int $id, ArchiveMushakChallanRequest $request): JsonResponse
     {
-        if (!$request->user()->can('mushak:issue')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
-        $request->validate(['archive_reason' => 'required|string|max:1000']);
 
         $challan = MushakInvoice::find($id);
 

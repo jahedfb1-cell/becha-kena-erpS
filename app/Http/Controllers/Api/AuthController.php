@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\ForgotPasswordRequest;
+use App\Http\Requests\ResetPasswordRequest;
+use App\Http\Requests\ChangePasswordRequest;
+use App\Http\Requests\UpdateProfileRequest;
 
 class AuthController extends Controller
 {
@@ -21,12 +26,8 @@ class AuthController extends Controller
     /**
      * Authenticate a user and return a Sanctum token.
      */
-    public function login(Request $request): JsonResponse
+    public function login(LoginRequest $request): JsonResponse
     {
-        $request->validate([
-            'email'    => 'required|string',
-            'password' => 'required|string',
-        ]);
 
         $loginInput = trim($request->input('email'));
         $fieldType = filter_var($loginInput, FILTER_VALIDATE_EMAIL) ? 'email' : 'phone';
@@ -83,11 +84,8 @@ class AuthController extends Controller
      * message regardless of whether the account exists, so this
      * endpoint can't be used to probe which emails are registered.
      */
-    public function forgotPassword(Request $request): JsonResponse
+    public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
-        $request->validate([
-            'email' => 'required|email',
-        ]);
 
         $status = PasswordBroker::sendResetLink(
             $request->only('email')
@@ -115,13 +113,8 @@ class AuthController extends Controller
     /**
      * Reset a password using the token emailed by forgotPassword().
      */
-    public function resetPassword(Request $request): JsonResponse
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
-        $request->validate([
-            'token'    => 'required|string',
-            'email'    => 'required|email',
-            'password' => ['required', 'string', 'confirmed', Password::min(8)],
-        ]);
 
         $status = PasswordBroker::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
@@ -205,12 +198,8 @@ class AuthController extends Controller
     /**
      * Update the authenticated user's password.
      */
-    public function changePassword(Request $request): JsonResponse
+    public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
-        $request->validate([
-            'old_password' => 'required|string',
-            'new_password' => ['required', 'string', 'confirmed', Password::min(8)],
-        ]);
 
         $user = $request->user();
 
@@ -248,15 +237,10 @@ class AuthController extends Controller
     /**
      * Update authenticated user's profile info (name, email, phone).
      */
-    public function updateProfile(Request $request): JsonResponse
+    public function updateProfile(UpdateProfileRequest $request): JsonResponse
     {
         $user = $request->user();
 
-        $request->validate([
-            'name'  => 'required|string|max:250',
-            'email' => 'required|email|max:250|unique:users,email,' . $user->id,
-            'phone' => 'nullable|string|max:30',
-        ]);
 
         $user->update([
             'name'  => $request->name,

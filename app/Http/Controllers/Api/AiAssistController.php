@@ -9,6 +9,10 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
+use App\Http\Requests\ParseCustomerTextRequest;
+use App\Http\Requests\LogAiSuggestionAppliedRequest;
+use App\Http\Requests\TranscribeAudioRequest;
+use App\Http\Requests\ParseSizesImageRequest;
 
 /**
  * AI Assist — see AI_Assist_PRD.md for the customer-form feature, and the
@@ -99,17 +103,13 @@ class AiAssistController extends Controller
     /**
      * POST /api/ai/parse-customer
      */
-    public function parseCustomer(Request $request): JsonResponse
+    public function parseCustomer(ParseCustomerTextRequest $request): JsonResponse
     {
         if ($denied = $this->denyUnlessCanCreateCustomer($request)) {
             return $denied;
         }
 
-        $validated = $request->validate([
-            'image' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:6144',
-            'text'  => 'nullable|string|max:8000',
-            'mode'  => 'nullable|string|in:card,text,voice',
-        ]);
+        $validated = $request->validated();
 
         $text = trim((string) ($validated['text'] ?? ''));
         $hasImage = $request->hasFile('image');
@@ -157,11 +157,9 @@ class AiAssistController extends Controller
      * call because acceptance happens on the review screen, long after the
      * extraction response has been returned.
      */
-    public function logApplied(Request $request): JsonResponse
+    public function logApplied(LogAiSuggestionAppliedRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'log_id' => 'required|integer',
-        ]);
+        $validated = $request->validated();
 
         AiAssistLog::where('id', $validated['log_id'])
             ->where('user_id', $request->user()?->id)
@@ -178,15 +176,12 @@ class AiAssistController extends Controller
      * user in the text tab rather than applied to the form, because a
      * misheard digit reads as perfectly plausible text.
      */
-    public function transcribe(Request $request): JsonResponse
+    public function transcribe(TranscribeAudioRequest $request): JsonResponse
     {
         if ($denied = $this->denyUnlessCanCreateCustomer($request)) {
             return $denied;
         }
 
-        $request->validate([
-            'audio' => 'required|file|mimes:webm,ogg,mp3,wav,m4a,mp4|max:10240',
-        ]);
 
         $file = $request->file('audio');
 
@@ -227,15 +222,12 @@ class AiAssistController extends Controller
      * predates the PRD): a misread "60" as "80" is a wrong purchase order
      * and a wrong invoice, so nothing here is trusted uncritically.
      */
-    public function parseSizes(Request $request): JsonResponse
+    public function parseSizes(ParseSizesImageRequest $request): JsonResponse
     {
         if ($denied = $this->denyUnlessCanCreateQuotation($request)) {
             return $denied;
         }
 
-        $request->validate([
-            'image' => 'required|file|mimes:jpg,jpeg,png,webp|max:8192',
-        ]);
 
         $file = $request->file('image');
         $parts = [

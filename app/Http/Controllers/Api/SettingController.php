@@ -15,6 +15,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Http\Requests\StoreUnitRequest;
+use App\Http\Requests\UpdateUnitRequest;
+use App\Http\Requests\StoreBankAccountRequest;
+use App\Http\Requests\StoreMobileAccountRequest;
+use App\Http\Requests\StoreBalanceTransferRequest;
+use App\Http\Requests\StoreDepartmentRequest;
+use App\Http\Requests\UpdatePipelineModeRequest;
 
 class SettingController extends Controller
 {
@@ -84,12 +91,8 @@ class SettingController extends Controller
         return $this->successResponse($units, 'Units retrieved.');
     }
 
-    public function storeUnit(Request $request): JsonResponse
+    public function storeUnit(StoreUnitRequest $request): JsonResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:100',
-            'code' => 'required|string|max:20|unique:units,code',
-        ]);
 
         $id = DB::table('units')->insertGetId([
             'name' => $request->name,
@@ -102,12 +105,8 @@ class SettingController extends Controller
         return $this->createdResponse(DB::table('units')->find($id), 'Unit created successfully.');
     }
 
-    public function updateUnit(Request $request, int $id): JsonResponse
+    public function updateUnit(UpdateUnitRequest $request, int $id): JsonResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:100',
-            'code' => 'required|string|max:20|unique:units,code,' . $id,
-        ]);
 
         DB::table('units')->where('id', $id)->update([
             'name' => $request->name,
@@ -143,15 +142,8 @@ class SettingController extends Controller
         return $this->successResponse($accounts, 'Bank accounts retrieved.');
     }
 
-    public function storeBankAccount(Request $request): JsonResponse
+    public function storeBankAccount(StoreBankAccountRequest $request): JsonResponse
     {
-        $request->validate([
-            'bank_name'       => 'required|string|max:150',
-            'account_name'    => 'required|string|max:150',
-            'account_number'  => 'required|string|max:100',
-            'branch'          => 'nullable|string|max:150',
-            'opening_balance' => 'nullable|numeric|min:0',
-        ]);
 
         $exists = BankAccount::active()
             ->whereRaw('LOWER(bank_name) = ?', [mb_strtolower(trim($request->bank_name))])
@@ -227,14 +219,8 @@ class SettingController extends Controller
         return $this->successResponse($accounts, 'Mobile accounts retrieved.');
     }
 
-    public function storeMobileAccount(Request $request): JsonResponse
+    public function storeMobileAccount(StoreMobileAccountRequest $request): JsonResponse
     {
-        $request->validate([
-            'provider'        => 'required|string|max:100',
-            'account_number'  => 'required|string|max:50',
-            'account_type'    => 'nullable|string|max:50',
-            'opening_balance' => 'nullable|numeric|min:0',
-        ]);
 
         // The mobile book can only file bKash, Nagad and Rocket.
         $probe = new MobileAccount(['provider' => $request->provider]);
@@ -312,17 +298,8 @@ class SettingController extends Controller
      * line on the destination), linked to the account, so both balances -
      * which are computed from the books - move together.
      */
-    public function storeBalanceTransfer(Request $request, AccountBookService $books): JsonResponse
+    public function storeBalanceTransfer(StoreBalanceTransferRequest $request, AccountBookService $books): JsonResponse
     {
-        $request->validate([
-            'from_account_type' => 'required|string|in:cash,bank,mobile',
-            'from_account_id'   => 'nullable|required_unless:from_account_type,cash|integer',
-            'to_account_type'   => 'required|string|in:cash,bank,mobile',
-            'to_account_id'     => 'nullable|required_unless:to_account_type,cash|integer',
-            'amount'            => 'required|numeric|min:1',
-            'transfer_date'     => 'required|date',
-            'note'              => 'nullable|string',
-        ]);
 
         $from = $this->transferSide($books, $request->from_account_type, $request->integer('from_account_id') ?: null, 'from_account_id');
         $to = $this->transferSide($books, $request->to_account_type, $request->integer('to_account_id') ?: null, 'to_account_id');
@@ -398,12 +375,8 @@ class SettingController extends Controller
         return $this->successResponse($departments, 'Departments retrieved.');
     }
 
-    public function storeDepartment(Request $request): JsonResponse
+    public function storeDepartment(StoreDepartmentRequest $request): JsonResponse
     {
-        $request->validate([
-            'name' => 'required|string|max:150',
-            'description' => 'nullable|string|max:255',
-        ]);
 
         $id = DB::table('departments')->insertGetId([
             'name' => $request->name,
@@ -436,11 +409,8 @@ class SettingController extends Controller
         return response()->json(['status' => 'success', 'data' => ['order_pipeline_mode' => $mode]]);
     }
 
-    public function updatePipelineMode(Request $request): JsonResponse
+    public function updatePipelineMode(UpdatePipelineModeRequest $request): JsonResponse
     {
-        $request->validate([
-            'order_pipeline_mode' => 'required|in:standard,role_based',
-        ]);
         $profileFile = storage_path('app/company_profile.json');
         $data = file_exists($profileFile) ? json_decode(file_get_contents($profileFile), true) : [];
         $data['order_pipeline_mode'] = $request->order_pipeline_mode;

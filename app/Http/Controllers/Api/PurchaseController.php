@@ -12,6 +12,8 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Requests\RecordSupplierPaymentRequest;
+use App\Http\Requests\MarkPurchasesReceivedRequest;
 
 class PurchaseController extends Controller
 {
@@ -167,18 +169,8 @@ class PurchaseController extends Controller
      * POST /api/purchases/supplier-payment
      * Record payment made to a supplier and update supplier ledger balance.
      */
-    public function recordSupplierPayment(Request $request): JsonResponse
+    public function recordSupplierPayment(RecordSupplierPaymentRequest $request): JsonResponse
     {
-        $request->validate([
-            'supplier_id'    => 'required|exists:suppliers,id',
-            'amount'         => 'required|numeric|min:0.01',
-            'payment_date'   => 'required|date',
-            'payment_method' => 'required|in:cash,bank,mobile',
-            'bank_name'      => 'nullable|string',
-            'cheque_number'  => 'nullable|string',
-            'transaction_id' => 'nullable|string',
-            'notes'          => 'nullable|string',
-        ]);
 
         $supplier = Supplier::find($request->supplier_id);
         $user = $request->user();
@@ -247,12 +239,9 @@ class PurchaseController extends Controller
      * This only advances the fulfilment status — it never touches cost,
      * ledger or payable amounts, which are already written at order approval.
      */
-    public function markReceived(Request $request): JsonResponse
+    public function markReceived(MarkPurchasesReceivedRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'ids'   => 'required|array|min:1',
-            'ids.*' => 'integer|exists:purchase_entries,id',
-        ]);
+        $validated = $request->validated();
 
         $user = $request->user();
 

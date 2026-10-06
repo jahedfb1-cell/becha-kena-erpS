@@ -12,6 +12,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 
 class UserController extends Controller
 {
@@ -58,22 +60,9 @@ class UserController extends Controller
      * POST /api/users
      * Create a new user account with role & manager assignment.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreUserRequest $request): JsonResponse
     {
-        if (!$request->user()->can('users:create')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
-        $validated = $request->validate([
-            'name'          => 'required|string|max:255',
-            'phone'         => 'required|string|max:20|unique:users,phone',
-            'email'         => 'nullable|email|unique:users,email',
-            'password'      => 'required|string|min:6',
-            'role'          => ['required', Rule::in(['admin', 'manager', 'salesman', 'staff'])],
-            'brand_id'      => 'nullable|exists:brands,id',
-            'department_id' => 'nullable|exists:departments,id',
-            'manager_id'    => 'nullable|exists:users,id',
-        ]);
+        $validated = $request->validated();
 
         return DB::transaction(function () use ($validated, $request) {
             $user = User::create([
@@ -96,9 +85,12 @@ class UserController extends Controller
 
             AuditLog::record(
                 $request->user()->id,
-                'CREATE_USER',
-                'User',
+                $request->user()->name,
+                'create',
+                User::class,
                 $user->id,
+                null,
+                $user->only(['id', 'name', 'phone', 'email', 'role', 'brand_id']),
                 "Created user account {$user->name} ({$user->role})"
             );
 
@@ -110,25 +102,12 @@ class UserController extends Controller
      * PUT /api/users/{id}
      * Update user details or role.
      */
-    public function update(Request $request, int $id): JsonResponse
+    public function update(UpdateUserRequest $request, int $id): JsonResponse
     {
-        if (!$request->user()->can('users:edit')) {
-            return $this->errorResponse('Unauthorized action.', 403);
-        }
-
         $user = User::findOrFail($id);
+        $oldSnapshot = $user->only(['id', 'name', 'phone', 'email', 'role', 'brand_id', 'is_active']);
 
-        $validated = $request->validate([
-            'name'          => 'sometimes|required|string|max:255',
-            'phone'         => ['sometimes', 'required', 'string', 'max:20', Rule::unique('users')->ignore($user->id)],
-            'email'         => ['nullable', 'email', Rule::unique('users')->ignore($user->id)],
-            'password'      => 'nullable|string|min:6',
-            'role'          => ['sometimes', 'required', Rule::in(['admin', 'manager', 'salesman', 'staff'])],
-            'brand_id'      => 'nullable|exists:brands,id',
-            'department_id' => 'nullable|exists:departments,id',
-            'manager_id'    => 'nullable|exists:users,id',
-            'is_active'     => 'sometimes|boolean',
-        ]);
+        $validated = $request->validated();
 
         // Changing someone's role (including your own) is a privilege-escalation
         // vector, so it requires the admin role specifically, not just users:edit.
@@ -144,7 +123,7 @@ class UserController extends Controller
             return $this->errorResponse('You cannot change your own role.', 403);
         }
 
-        return DB::transaction(function () use ($user, $validated, $request) {
+        return DB::transaction(function () use ($user, $validated, $request, $oldSnapshot) {
             if (!empty($validated['password'])) {
                 $validated['password'] = Hash::make($validated['password']);
             } else {
@@ -159,9 +138,12 @@ class UserController extends Controller
 
             AuditLog::record(
                 $request->user()->id,
-                'UPDATE_USER',
-                'User',
+                $request->user()->name,
+                'update',
+                User::class,
                 $user->id,
+                $oldSnapshot,
+                $user->only(['id', 'name', 'phone', 'email', 'role', 'brand_id', 'is_active']),
                 "Updated user account {$user->name}"
             );
 
@@ -195,9 +177,12 @@ class UserController extends Controller
 
         AuditLog::record(
             $request->user()->id,
-            'ARCHIVE_USER',
-            'User',
+            $request->user()->name,
+            'archive',
+            User::class,
             $user->id,
+            null,
+            null,
             "Archived user account {$user->name}"
         );
 

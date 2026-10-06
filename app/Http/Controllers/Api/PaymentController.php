@@ -12,6 +12,8 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Requests\StorePaymentRequest;
+use App\Http\Requests\TransferPaymentRequest;
 
 class PaymentController extends Controller
 {
@@ -99,24 +101,8 @@ class PaymentController extends Controller
         return $this->successResponse($payment, 'Payment receipt data retrieved.');
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StorePaymentRequest $request): JsonResponse
     {
-        $request->validate([
-            'invoice_id'      => 'required|exists:invoices,id',
-            'amount'          => 'required|numeric|min:0.01',
-            'payment_method'  => 'required|in:cash,bank,mobile',
-            'payment_date'    => 'required|date',
-            'discount_amount' => 'nullable|numeric|min:0',
-            // Optional: why the waive-off was given. Printed on the receipt
-            // only when it is filled in.
-            'discount_note'   => 'nullable|string|max:255',
-            // Required so the bank/mobile book-entry (which has a NOT NULL
-            // bank_name/provider column) never fails at the database level.
-            'bank_account_id' => 'nullable|integer',
-            'bank_name'       => 'exclude_with:bank_account_id|required_if:payment_method,bank|string|max:100',
-            'mobile_account_id' => 'nullable|integer',
-            'mobile_provider' => 'exclude_with:mobile_account_id|required_if:payment_method,mobile|string|max:100',
-        ]);
 
         $invoice = Invoice::find($request->invoice_id);
 
@@ -192,12 +178,8 @@ class PaymentController extends Controller
             );
         });
     }
-    public function transferPayment(int $id, Request $request): JsonResponse
+    public function transferPayment(int $id, TransferPaymentRequest $request): JsonResponse
     {
-        $request->validate([
-            'new_invoice_id' => 'required|exists:invoices,id',
-            'reason'         => 'nullable|string|max:500',
-        ]);
 
         $payment = Payment::active()->with(['invoice', 'customer'])->find($id);
 
