@@ -1292,7 +1292,7 @@ const Reports = () => {
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '16px', borderRadius: '10px' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL CONVENIENCE CHARGES</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>TOTAL TRANSPORTATION / SERVICE CHARGES</div>
                     <div style={{ fontSize: '20px', fontWeight: 800, color: '#17a2b8', marginTop: '4px' }}>{formatCurrency(reportData.summary.total_convenience)}</div>
                   </div>
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '16px', borderRadius: '10px' }}>
@@ -1312,7 +1312,7 @@ const Reports = () => {
                       <th>Customer</th>
                       <th>Salesperson</th>
                       <th>Date</th>
-                      <th style={{ textAlign: 'right' }}>Convenience Charge</th>
+                      <th style={{ textAlign: 'right' }}>Transportation / Service Charge</th>
                       <th style={{ textAlign: 'right' }}>Other Charge</th>
                       <th style={{ textAlign: 'right' }}>Total Extra</th>
                     </tr>
