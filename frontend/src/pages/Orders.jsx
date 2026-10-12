@@ -34,7 +34,6 @@ import SearchableSelect from '../components/SearchableSelect';
 const ORDER_COLUMNS = ['unit_price', 'width', 'height', 'pcs', 'billing', 'total', 'action'];
 const ORDER_COLUMNS_WITH_PVC = ['unit_price', 'width', 'twidth', 'height', 'pcs', 'billing', 'total', 'action'];
 import CustomerModal from '../components/CustomerModal';
-import ProductModal from '../components/ProductModal';
 import QuotationPrintModal from '../components/QuotationPrintModal';
 import AISizeScanModal from '../components/AISizeScanModal';
 import AdvancePaymentModal from '../components/AdvancePaymentModal';
@@ -253,7 +252,6 @@ const Orders = () => {
 
   // Modals
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
   // Fetch orders list fast
   // Refreshes the shared quotations cache after approve/reject/invoice.
@@ -2097,14 +2095,6 @@ const Orders = () => {
                           </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        className="btn-icon-square"
-                        onClick={() => setIsProductModalOpen(true)}
-                        title="Add New Product"
-                      >
-                        +
-                      </button>
                     </div>
                       {/* Selected Products Tags List */}
                       <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -3050,17 +3040,6 @@ const Orders = () => {
           setCustomerSearchQuery(newCust.company_name || newCust.name);
           if (sameAsCustomerAddress) {
             setDeliveryAddress(newCust.address || '');
-          }
-        }} 
-      />
-
-      <ProductModal 
-        isOpen={isProductModalOpen} 
-        onClose={() => setIsProductModalOpen(false)} 
-        onProductSaved={(newProd) => {
-          queryClient.setQueryData(masterDataKeys.products(), (prev) => [newProd, ...(prev ?? [])]);
-          if (newProd && newProd.id && sections.length > 0) {
-            addProductBlockToSection(sections[0].id, newProd.id);
           }
         }} 
       />
