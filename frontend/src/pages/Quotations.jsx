@@ -2527,7 +2527,7 @@ const Quotations = () => {
                                   so it's easy to see how many sq.ft this product line adds
                                   up to without adding the column by hand. */}
                               {!isPcsBlock && (
-                                <tr style={{ background: '#eef2ff' }}>
+                                <tr className="total-sqft-row" style={{ background: '#eef2ff' }}>
                                   <td colSpan={columnTitles.length - 3} style={{ padding: '6px 12px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: '#3730a3' }}>
                                     Total Sq.Ft
                                   </td>

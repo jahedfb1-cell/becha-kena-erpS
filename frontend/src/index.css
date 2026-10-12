@@ -2751,6 +2751,38 @@ select.custom-form-input {
     background: transparent !important;
   }
 
+  /* Per-line column-title row (Unit Price / Width / Height ...): on mobile
+     each field carries its own placeholder or the .mobile-size-card header,
+     so these titles only show up as a stray block of grey chips. */
+  .item-builder-table tr.block-header-row {
+    display: none;
+  }
+
+  /* The Total Sq.Ft summary row only holds a label once its input cell is
+     hidden below; the mobile size card's "Total Billing" pill shows it. */
+  .item-builder-table tr.total-sqft-row {
+    display: none;
+  }
+
+  /* Product name row: let "Change Product" / "Remove Product" wrap under the
+     product name instead of being pushed off-screen behind a sideways scroll. */
+  .item-builder-table tr.block-header-product-row > th {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .item-builder-table tr.block-header-product-row > th > div {
+    flex-wrap: wrap !important;
+    gap: 8px;
+    overflow-x: visible !important;
+  }
+
+  .item-builder-table tr.block-header-product-row > th > div > div {
+    flex-shrink: 1 !important;
+    max-width: 100%;
+  }
+
   /* Old per-row Width/Height/Pcs/Sq.Ft table cells are superseded by the
      .mobile-size-card below on mobile — hide them so the value isn't
      shown twice. Product/Unit Price/Total Price/Action cells are left
