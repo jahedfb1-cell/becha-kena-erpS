@@ -2610,7 +2610,7 @@ const Orders = () => {
                                                its own +/- buttons were just clutter alongside those.
                                                Deleting a single-row block is now done via the "Remove
                                                Product" button next to "Change Product" in the header. */}
-                                           {sIdx > 0 && !isPcsBlock && (
+                                           {(isPcsBlock ? sIdx === block.sizes.length - 1 : sIdx > 0) && (
                                              <button
                                                type="button"
                                                onClick={() => addSizeRowToBlock(sec.id, block.id)}

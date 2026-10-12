@@ -2445,7 +2445,7 @@ const Quotations = () => {
                                       {/* Add/Delete hidden on the first row per request - row 1
                                           already has Excel/AI Scan for adding rows in bulk, so
                                           its own +/- buttons were just clutter alongside those. */}
-                                      {sIdx > 0 && !isPcsBlock && (
+                                      {(isPcsBlock ? sIdx === block.sizes.length - 1 : sIdx > 0) && (
                                         <button
                                           type="button"
                                           onClick={() => addSizeRowToBlock(sec.id, block.id)}
