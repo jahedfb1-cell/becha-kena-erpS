@@ -1814,7 +1814,7 @@ const Quotations = () => {
               {!multiOption && (
                 <button
                   type="button"
-                  className="builder-add-section-btn"
+                  className="builder-add-section-btn hide-mobile-text"
                   onClick={() => addSection()}
                 >
                   ➕ Add Section
@@ -2821,7 +2821,7 @@ const Quotations = () => {
                 </div>
 
                 <div className="form-group">
-                  <label style={{ fontSize: '13px' }}>Convenience Charge</label>
+                  <label style={{ fontSize: '13px' }}>Transportation / Service Charge</label>
                   <input type="number" value={convenienceCharge} onChange={(e) => setConvenienceCharge(parseFloat(e.target.value) || 0)} />
                 </div>
 

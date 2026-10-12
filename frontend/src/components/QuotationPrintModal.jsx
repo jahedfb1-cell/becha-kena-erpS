@@ -703,7 +703,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                     {parseFloat(quotation.convenience_charge) > 0 && (
                       <tr>
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{buildGroups(items).length + 1}</td>
-                        <td colSpan={isDetailed ? 7 : 4}><strong>Conveyance Charge</strong></td>
+                        <td colSpan={isDetailed ? 7 : 4}><strong>Transportation / Service Charge</strong></td>
                         <td style={{ textAlign: 'right', fontWeight: 700, paddingRight: '8px' }}>
                           {parseFloat(quotation.convenience_charge).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
@@ -716,7 +716,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>
                           {buildGroups(items).length + (parseFloat(quotation.convenience_charge) > 0 ? 2 : 1)}
                         </td>
-                        <td colSpan={isDetailed ? 7 : 4}><strong>Other Installation Charges</strong></td>
+                        <td colSpan={isDetailed ? 7 : 4}><strong>{quotation.other_charge_label || 'Other Installation Charges'}</strong></td>
                         <td style={{ textAlign: 'right', fontWeight: 700, paddingRight: '8px' }}>
                           {parseFloat(quotation.other_charge).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>

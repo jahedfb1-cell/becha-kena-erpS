@@ -459,7 +459,7 @@ const PvcQuotationPrintPage = () => {
             {parseFloat(quotation.convenience_charge) > 0 && (
               <tr>
                 <td style={{ textAlign: 'center', fontWeight: 600, border: '1px solid #cbd5e1' }}>{groups.length + 1}</td>
-                <td colSpan={4} style={{ border: '1px solid #cbd5e1' }}><strong>Conveyance Charge</strong></td>
+                <td colSpan={4} style={{ border: '1px solid #cbd5e1' }}><strong>Transportation / Service Charge</strong></td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingRight: '8px', border: '1px solid #cbd5e1' }}>
                   {parseFloat(quotation.convenience_charge).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
@@ -471,7 +471,7 @@ const PvcQuotationPrintPage = () => {
                 <td style={{ textAlign: 'center', fontWeight: 600, border: '1px solid #cbd5e1' }}>
                   {groups.length + (parseFloat(quotation.convenience_charge) > 0 ? 2 : 1)}
                 </td>
-                <td colSpan={4} style={{ border: '1px solid #cbd5e1' }}><strong>Other Installation Charges</strong></td>
+                <td colSpan={4} style={{ border: '1px solid #cbd5e1' }}><strong>{quotation.other_charge_label || 'Other Installation Charges'}</strong></td>
                 <td style={{ textAlign: 'right', fontWeight: 700, paddingRight: '8px', border: '1px solid #cbd5e1' }}>
                   {parseFloat(quotation.other_charge).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
