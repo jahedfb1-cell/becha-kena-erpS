@@ -19,6 +19,7 @@ import {
   removeSizeRow,
   appendMeasuredRows,
   createProductBlock,
+  isPcsUnit,
   appendBlock,
   fallbackSpecification,
   OPTION_PREFIX,
@@ -595,7 +596,7 @@ const Quotations = () => {
             const h = parseFloat(updatedSize.height) || 0;
             const pcs = parseInt(updatedSize.pcs) || 1;
 
-            const isPcs = (block.unit || '').trim().toLowerCase() === 'pcs';
+            const isPcs = isPcsUnit(block.unit);
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
             let billedSqft = 0;
             let approxSlats = '';
@@ -686,7 +687,7 @@ const Quotations = () => {
               // for it, so fill in the 1x1 placeholder on any rows still
               // missing dimensions instead of leaving them blank (which would
               // otherwise fail the "valid size required" check on submit).
-              if ((prod.unit || '').trim().toLowerCase() === 'pcs') {
+              if (isPcsUnit(prod.unit)) {
                 updatedBlock.sizes = updatedBlock.sizes.map(size => ({
                   ...size,
                   width: parseFloat(size.width) > 0 ? size.width : 1,
@@ -699,7 +700,7 @@ const Quotations = () => {
           if (field === 'unit_price' || field === 'product_id') {
             const unitPrice = parseFloat(updatedBlock.unit_price) || 0;
             const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
-            const isPcs = (updatedBlock.unit || '').trim().toLowerCase() === 'pcs';
+            const isPcs = isPcsUnit(updatedBlock.unit);
             updatedBlock.sizes = updatedBlock.sizes.map(size => {
               const w = parseFloat(size.width) || 0;
               const h = parseFloat(size.height) || 0;
@@ -977,7 +978,7 @@ const Quotations = () => {
         const prodName = prod?.name || item.product?.name || `Product #${item.product_id}`;
         const _prodUnitLc = prodUnit.toLowerCase().trim();
         const isPvc = _prodUnitLc.includes('pvc');
-        const isPcs = prodUnit.trim().toLowerCase() === 'pcs';
+        const isPcs = isPcsUnit(prodUnit);
         const actualSqft = Math.round(((width * height) / 144) * 100) / 100;
 
         const slatsCount = item.slats !== undefined && item.slats !== null && item.slats !== '' ? parseInt(item.slats) : (width > 0 ? pvcSlatCount(width) : '');
@@ -2066,11 +2067,7 @@ const Quotations = () => {
                 // line's does. Calling this from both places instead means
                 // there is exactly one column layout to keep correct.
                 const renderItemTable = (block) => {
-                  const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs' ||
-                                     (block.unit || '').trim().toLowerCase() === 'pieces' ||
-                                     (block.unit || '').trim().toLowerCase() === 'piece' ||
-                                     (block.unit || '').trim().toLowerCase() === 'box' ||
-                                     (block.unit || '').trim().toLowerCase() === 'set';
+                  const isPcsBlock = isPcsUnit(block.unit);
 
                   const _blkUnit = (block.unit || '').toLowerCase().trim();
                   const isPvcBlock = _blkUnit.includes('pvc');
@@ -2463,14 +2460,14 @@ const Quotations = () => {
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            if (!isPcsBlock && block.sizes.length > 1) {
+                                            if (block.sizes.length > 1) {
                                               removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
                                             } else {
                                               removeProductBlock(sec.id, block.id);
                                             }
                                           }}
                                           className="btn-action-circle btn-action-delete"
-                                          title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
+                                          title={(block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
                                           style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                         >
                                           🗑️

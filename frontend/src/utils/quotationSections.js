@@ -77,6 +77,14 @@ export const toggleBlockPrint = (sections, sectionId, blockId) =>
   }));
 
 /**
+ * Per-piece units: the item table already treats these as one quantity (no
+ * width/height), so a new line for one must start with a single row too -
+ * not the four blank measurement rows a square-foot product gets.
+ */
+export const isPcsUnit = (unit) =>
+  ['pcs', 'pieces', 'piece', 'box', 'set'].includes((unit || '').trim().toLowerCase());
+
+/**
  * A blank size row.
  *
  * Per-piece goods have no width or height to fill in, so their row starts
@@ -84,7 +92,7 @@ export const toggleBlockPrint = (sections, sectionId, blockId) =>
  * never come.
  */
 const createSizeRow = (block) => {
-  const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs';
+  const isPcsBlock = isPcsUnit(block.unit);
 
   return {
     id: newId(),
@@ -160,7 +168,7 @@ export const createProductBlock = (product, {
   const priorityLink = product.supplier_links?.find(link => link.priority_rank === 1);
   const minBillingSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
   const unitPrice = parseFloat(product.default_unit_price) || 0;
-  const isPcsProduct = (product.unit || '').trim().toLowerCase() === 'pcs';
+  const isPcsProduct = isPcsUnit(product.unit);
 
   const stamp = Date.now();
 

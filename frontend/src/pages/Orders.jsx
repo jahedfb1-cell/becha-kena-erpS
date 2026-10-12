@@ -19,6 +19,7 @@ import {
   removeSizeRow,
   appendMeasuredRows,
   createProductBlock,
+  isPcsUnit,
   appendBlock,
 } from '../utils/quotationSections';
 import { describeSaveError } from '../utils/apiError';
@@ -768,7 +769,7 @@ const Orders = () => {
             const h = parseFloat(updatedSize.height) || 0;
             const pcs = parseInt(updatedSize.pcs) || 1;
 
-            const isPcs = (block.unit || '').trim().toLowerCase() === 'pcs';
+            const isPcs = isPcsUnit(block.unit);
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
             let billedSqft = 0;
             if (isPcs) {
@@ -836,7 +837,7 @@ const Orders = () => {
               // for it, so fill in the 1x1 placeholder on any rows still
               // missing dimensions instead of leaving them blank (which would
               // otherwise fail the "valid size required" check on submit).
-              if ((prod.unit || '').trim().toLowerCase() === 'pcs') {
+              if (isPcsUnit(prod.unit)) {
                 updatedBlock.sizes = updatedBlock.sizes.map(size => ({
                   ...size,
                   width: parseFloat(size.width) > 0 ? size.width : 1,
@@ -849,7 +850,7 @@ const Orders = () => {
           if (field === 'unit_price' || field === 'product_id') {
             const unitPrice = parseFloat(updatedBlock.unit_price) || 0;
             const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
-            const isPcs = (updatedBlock.unit || '').trim().toLowerCase() === 'pcs';
+            const isPcs = isPcsUnit(updatedBlock.unit);
 
             updatedBlock.sizes = updatedBlock.sizes.map(size => {
               const w = parseFloat(size.width) || 0;
@@ -2243,11 +2244,7 @@ const Orders = () => {
                         const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
                         const isOptionGroup = Boolean(block.option_group_id);
                         const isSelected = block.is_selected !== false;
-                        const isPcsBlock = (block.unit || '').trim().toLowerCase() === 'pcs' ||
-                                           (block.unit || '').trim().toLowerCase() === 'pieces' ||
-                                           (block.unit || '').trim().toLowerCase() === 'piece' ||
-                                           (block.unit || '').trim().toLowerCase() === 'box' ||
-                                           (block.unit || '').trim().toLowerCase() === 'set';
+                        const isPcsBlock = isPcsUnit(block.unit);
                         const _blkUnitO = (block.unit || '').toLowerCase().trim();
                         const isPvcBlock = _blkUnitO.includes('pvc');
                           
@@ -2628,14 +2625,14 @@ const Orders = () => {
                                              <button
                                                type="button"
                                                onClick={() => {
-                                                 if (!isPcsBlock && block.sizes.length > 1) {
+                                                 if (block.sizes.length > 1) {
                                                    removeSizeRowFromBlock(sec.id, block.id, sizeRow.id);
                                                  } else {
                                                    removeProductBlock(sec.id, block.id);
                                                  }
                                                }}
                                                className="btn-action-circle btn-action-delete"
-                                               title={(!isPcsBlock && block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
+                                               title={(block.sizes.length > 1) ? "Delete Size Row" : "Delete Product Block"}
                                                style={{ width: '28px', height: '28px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                              >
                                                🗑️
