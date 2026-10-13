@@ -121,6 +121,11 @@ const Orders = () => {
   // Edit Mode States
   const [isEditMode, setIsEditMode] = useState(false);
   const [editId, setEditId] = useState(null);
+  // Status the order had when its edit form was opened. Editing an order that is
+  // still waiting for approval must leave it waiting - approving is the separate
+  // Approve action, not a side effect of saving corrected product details.
+  const [editOrigStatus, setEditOrigStatus] = useState(null);
+  const isEditingPending = isEditMode && (editOrigStatus === 'pending_approval' || editOrigStatus === 'pending_reapproval');
 
   // Advance payments taken against this order before it's been invoiced.
   // Only meaningful once the order actually has an id — a brand-new,
@@ -947,6 +952,7 @@ const Orders = () => {
   const resetForm = () => {
     setIsEditMode(false);
     setEditId(null);
+    setEditOrigStatus(null);
     setEditOrderNumber('');
     setAdvancePayments([]);
     setDraftAdvancePayment(null);
@@ -998,6 +1004,7 @@ const Orders = () => {
 
       setIsEditMode(true);
       setEditId(fullQ.id);
+      setEditOrigStatus(fullQ.status || null);
       setEditOrderNumber(fullQ.quotation_number || '');
       fetchAdvancePayments(fullQ.id);
       setDate(fullQ.created_at ? fullQ.created_at.substring(0, 10) : new Date().toISOString().substring(0, 10));
@@ -1201,7 +1208,9 @@ const Orders = () => {
 
     const payload = {
       customer_id: parseInt(selectedCustomerId),
-      status: 'approved', // Direct Confirmed Order!
+      // A new order is a Direct Confirmed Order; an order being corrected while it
+      // waits for approval keeps waiting.
+      status: isEditingPending ? editOrigStatus : 'approved',
       convenience_charge: parseFloat(convenienceCharge) || 0,
       other_charge: parseFloat(otherCharge) || 0,
       other_charge_label: otherChargeLabel || null,
@@ -1228,7 +1237,7 @@ const Orders = () => {
       setIsSubmitting(true);
       if (isEditMode && editId) {
         await api.put(`/quotations/${editId}`, payload);
-        alert('Order updated successfully!');
+        alert(isEditingPending ? 'Order updated. It is still pending approval.' : 'Order updated successfully!');
       } else {
         await api.post('/quotations', payload);
         alert('Direct Order created & Purchase Entries generated successfully!');
@@ -1879,6 +1888,12 @@ const Orders = () => {
                         Reject Order (back to Quotation)
                       </button>
                     </>
+                  )}
+
+                  {(selectedOrder?.status === 'pending_approval' || selectedOrder?.status === 'pending_reapproval') && (user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
+                    <button type="button" className="secondary-btn" onClick={() => handleEditClick(selectedOrder)} style={{ padding: '10px' }} title="Correct product details before approving - the order stays pending">
+                      ✏️ Edit Product Details
+                    </button>
                   )}
 
                   {selectedOrder?.status === 'approved' && (user?.role === 'admin') && (
@@ -2760,7 +2775,7 @@ const Orders = () => {
                     className="btn-gradient-submit"
                     disabled={isSubmitting}
                   >
-                    💾 {isSubmitting ? 'Submitting...' : 'Save Direct Order'}
+                    💾 {isSubmitting ? 'Submitting...' : (isEditingPending ? 'Save Changes (stays pending)' : 'Save Direct Order')}
                   </button>
                   <span className="mobile-page-label hide-mobile-text">Create Order</span>
                   <button
@@ -3017,7 +3032,7 @@ const Orders = () => {
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '24px' }}>
                     <button type="submit" className="primary-btn" disabled={isSubmitting} style={{ padding: '12px' }}>
-                      💾 {isSubmitting ? 'Creating Order...' : 'Save Direct Order'}
+                      💾 {isSubmitting ? (isEditMode ? 'Saving...' : 'Creating Order...') : (isEditingPending ? 'Save Changes (stays pending)' : (isEditMode ? 'Save Order' : 'Save Direct Order'))}
                     </button>
                     <button type="button" className="logout-btn" onClick={() => { setView('list'); resetForm(); }} style={{ padding: '10px' }}>
                       Cancel
