@@ -34,7 +34,7 @@ const Dashboard = () => {
       if (err.response) {
         setError(`Server returned status ${err.response.status}: ${err.response.data?.message || 'Backend Server Error'}`);
       } else if (err.request) {
-        setError('Laravel Backend Server is not reachable at http://127.0.0.1:8000. Please ensure php artisan serve is running.');
+        setError(import.meta.env.DEV ? 'Laravel Backend Server is not reachable at http://127.0.0.1:8000. Please ensure php artisan serve is running.' : 'Could not reach the server. Please check your internet connection and tap Retry.');
       } else {
         setError(err.message || 'Error connecting to server.');
       }
@@ -99,6 +99,7 @@ const Dashboard = () => {
             {error}
           </p>
 
+          {import.meta.env.DEV && (
           <div style={{ background: theme.itemBg, padding: '14px', borderRadius: '10px', textAlign: 'left', marginBottom: '24px', border: `1px solid ${theme.itemBorder}`, fontSize: '13px', color: theme.textSub }}>
             <strong style={{ color: theme.textMain, display: 'block', marginBottom: '6px' }}>💡 How to start backend server:</strong>
             <ol style={{ margin: 0, paddingLeft: '20px', lineHeight: 1.6 }}>
@@ -106,6 +107,7 @@ const Dashboard = () => {
               <li>Open terminal in <code>becha-kena-erp</code> and run: <code>php artisan serve</code></li>
             </ol>
           </div>
+          )}
 
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
