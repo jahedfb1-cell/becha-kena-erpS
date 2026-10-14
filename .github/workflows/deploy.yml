@@ -1,0 +1,66 @@
+name: Deploy to dhakablinds.shop
+
+# Every push to main builds the frontend and ships it to the Hostinger
+# server, mirroring deploy-frontend.sh (same two destinations, no --delete,
+# same Laravel cache clears). Host/port/user/key live in GitHub Secrets.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npx vite build
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload and install
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          tar -czf dbdist.tar.gz -C frontend/dist .
+          OPTS="-i $HOME/.ssh/id_deploy -o IdentitiesOnly=yes"
+          scp $OPTS -P "$SSH_PORT" dbdist.tar.gz "$SSH_USER@$SSH_HOST:/tmp/dbdist.tar.gz"
+          ssh $OPTS -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" DOMAIN="/home/$SSH_USER/domains/dhakablinds.shop" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          STAGE=$(mktemp -d)
+          tar -xzf /tmp/dbdist.tar.gz -C "$STAGE"
+          for TARGET in "$DOMAIN/public_html" "$DOMAIN/laravel_app/public"; do
+            cp -r "$STAGE"/. "$TARGET"/
+          done
+          cd "$DOMAIN/laravel_app"
+          git stash push -q -- frontend/public/apple-touch-icon.png frontend/public/pwa-192x192.png frontend/public/pwa-512x512.png || true
+          git fetch origin main -q && git merge --ff-only origin/main
+          php artisan config:clear && php artisan route:clear && php artisan cache:clear && php artisan view:clear
+          grep -o 'assets/index-[A-Za-z0-9_-]*\.js' "$DOMAIN/laravel_app/public/index.html"
+          rm -rf "$STAGE" /tmp/dbdist.tar.gz
+          REMOTE

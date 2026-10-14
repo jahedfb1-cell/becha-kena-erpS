@@ -54,6 +54,9 @@ for TARGET in "$DOMAIN/public_html" "$DOMAIN/laravel_app/public"; do
 done
 
 cd "$DOMAIN/laravel_app"
+# Company Profile regenerates these icons from the logo straight into the
+# working tree, which blocks the fast-forward merge. Stash (not discard) them.
+git stash push -q -- frontend/public/apple-touch-icon.png frontend/public/pwa-192x192.png frontend/public/pwa-512x512.png || true
 git fetch origin main -q && git merge --ff-only origin/main
 php artisan config:clear && php artisan route:clear && php artisan cache:clear && php artisan view:clear
 
