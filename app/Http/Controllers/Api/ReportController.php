@@ -161,23 +161,25 @@ class ReportController extends Controller
             // Purchases and Expenses are typically company-wide, but we can hide them from salesman later
         }
 
-        // Today's Stats
+        // Today's Stats. The date columns are plain DATEs, so they are compared
+        // directly (where, not whereDate) - wrapping the column in DATE() stops the
+        // database using an index and scans the whole table instead.
         $todaySales = (float) (clone $invQuery)
-            ->whereDate('invoice_date', $todayDate)
+            ->where('invoice_date', $todayDate)
             ->sum('grand_total');
 
         $todayPurchases = (float) PurchaseEntry::where('is_archived', false)
             ->where('is_reversed', false)
-            ->whereDate('purchase_date', $todayDate)
+            ->where('purchase_date', $todayDate)
             ->sum('total_cost');
 
-        $todayExpenses = (float) Expense::whereDate('expense_date', $todayDate)
+        $todayExpenses = (float) Expense::where('expense_date', $todayDate)
             ->sum('amount');
 
         $todayProfit = $todaySales - ($todayPurchases + $todayExpenses);
 
         $todayCollection = (float) Payment::where('is_archived', false)
-            ->whereDate('payment_date', $todayDate)
+            ->where('payment_date', $todayDate)
             ->sum('amount');
 
         // Global Totals (Counts)
@@ -187,31 +189,32 @@ class ReportController extends Controller
         $totalProductsCount = \App\Models\Product::where('is_archived', false)->count();
         $totalSalesDues = (float) (clone $invQuery)->sum('due_amount');
 
-        // Chart Data: Sales & Purchases for the last 7 months
+        // Chart Data: Sales & Purchases for the last 7 months - two grouped
+        // queries for the whole window instead of fourteen one-month ones.
+        $windowStart = date('Y-m-01', strtotime('-6 months'));
+        $windowEnd = date('Y-m-t');
+
+        $salesByMonth = (clone $invQuery)
+            ->whereBetween('invoice_date', [$windowStart, $windowEnd])
+            ->selectRaw("DATE_FORMAT(invoice_date, '%Y-%m') as ym, SUM(grand_total) as total")
+            ->groupBy('ym')
+            ->pluck('total', 'ym');
+
+        $purchasesByMonth = PurchaseEntry::where('is_archived', false)
+            ->where('is_reversed', false)
+            ->whereBetween('purchase_date', [$windowStart, $windowEnd])
+            ->selectRaw("DATE_FORMAT(purchase_date, '%Y-%m') as ym, SUM(total_cost) as total")
+            ->groupBy('ym')
+            ->pluck('total', 'ym');
+
         $chartData = [];
         for ($i = 6; $i >= 0; $i--) {
-            $monthStart = date('Y-m-01', strtotime("-$i months"));
-            $monthEnd = date('Y-m-t', strtotime("-$i months"));
-            $monthLabel = date('M', strtotime("-$i months")); // e.g. "Jun"
-
-            $monthEnd = date('Y-m-t', strtotime("-$i months"));
-            $monthLabel = date('M', strtotime("-$i months")); // e.g. "Jun"
-
-            $mSales = (float) (clone $invQuery)
-                ->whereDate('invoice_date', '>=', $monthStart)
-                ->whereDate('invoice_date', '<=', $monthEnd)
-                ->sum('grand_total');
-
-            $mPurchases = (float) PurchaseEntry::where('is_archived', false)
-                ->where('is_reversed', false)
-                ->whereDate('purchase_date', '>=', $monthStart)
-                ->whereDate('purchase_date', '<=', $monthEnd)
-                ->sum('total_cost');
-
+            $ts = strtotime("-$i months");
+            $ym = date('Y-m', $ts);
             $chartData[] = [
-                'month' => strtoupper($monthLabel),
-                'sales' => $mSales,
-                'purchases' => $mPurchases,
+                'month' => strtoupper(date('M', $ts)),
+                'sales' => (float) ($salesByMonth[$ym] ?? 0),
+                'purchases' => (float) ($purchasesByMonth[$ym] ?? 0),
             ];
         }
 
