@@ -1,4 +1,5 @@
 import React from 'react';
+import { isPcsUnit } from '../utils/quotationSections';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
@@ -67,7 +68,7 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
         const h = parseFloat(field === 'height' ? value : updated.height) || 0;
         const pcs = parseInt(field === 'pcs' ? value : updated.pcs) || 1;
         const u = (updated.product?.unit || updated.unit || '').trim().toLowerCase();
-        const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
+        const isPcs = isPcsUnit(u);
         if (isPcs) {
           updated.billed_sqft = pcs;
         } else if (w > 0 && h > 0) {
@@ -196,7 +197,7 @@ const ChallanPrintModal = ({ isOpen, onClose, challan, onSendEmail }) => {
                   challanItems.map((item, idx) => {
                     const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
                     const isPvc = isPvcItem(item);
-                    const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
+                    const isPcs = isPcsUnit(u);
                     const width = parseFloat(item.width) || 0;
 
                     let tWidthVal = '-';

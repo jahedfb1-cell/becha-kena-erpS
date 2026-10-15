@@ -81,8 +81,47 @@ export const toggleBlockPrint = (sections, sectionId, blockId) =>
  * width/height), so a new line for one must start with a single row too -
  * not the four blank measurement rows a square-foot product gets.
  */
+const PCS_UNITS = ['pcs', 'pc', 'piece', 'pieces', 'box', 'set', 'nos', 'no'];
+
 export const isPcsUnit = (unit) =>
-  ['pcs', 'pieces', 'piece', 'box', 'set'].includes((unit || '').trim().toLowerCase());
+  PCS_UNITS.includes((unit || '').trim().toLowerCase());
+
+const hasEnteredSize = (size) => (parseFloat(size.width) > 0 || parseFloat(size.height) > 0);
+
+const blankMeasureRow = () => ({
+  id: newId(),
+  width: '',
+  height: '',
+  pcs: 1,
+  actual_sqft: 0,
+  billed_sqft: 0,
+  line_total: 0,
+});
+
+/**
+ * The size rows a line should carry after its product is swapped for another
+ * (the Add Item picker first drops in a placeholder product, then the real one
+ * is chosen). A square-foot / PVC product wants four blank measurement rows to
+ * fill in; a per-piece product wants one. Rows the user has already typed
+ * measurements into are never thrown away.
+ */
+export const sizesForProductChange = (block, newUnit) => {
+  const sizes = block.sizes || [];
+  const wasPcs = isPcsUnit(block.unit);
+  const nowPcs = isPcsUnit(newUnit);
+  const untouched = wasPcs || !sizes.some(hasEnteredSize);
+
+  if (nowPcs) {
+    return untouched && sizes.length > 1 ? [sizes[0]] : sizes;
+  }
+  if (wasPcs) {
+    return Array.from({ length: 4 }, blankMeasureRow);
+  }
+  if (untouched && sizes.length < 4) {
+    return [...sizes, ...Array.from({ length: 4 - sizes.length }, blankMeasureRow)];
+  }
+  return sizes;
+};
 
 /**
  * A blank size row.

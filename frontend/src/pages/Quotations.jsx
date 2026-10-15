@@ -20,6 +20,7 @@ import {
   appendMeasuredRows,
   createProductBlock,
   isPcsUnit,
+  sizesForProductChange,
   appendBlock,
   fallbackSpecification,
   OPTION_PREFIX,
@@ -687,6 +688,7 @@ const Quotations = () => {
               // for it, so fill in the 1x1 placeholder on any rows still
               // missing dimensions instead of leaving them blank (which would
               // otherwise fail the "valid size required" check on submit).
+              updatedBlock.sizes = sizesForProductChange(block, prod.unit);
               if (isPcsUnit(prod.unit)) {
                 updatedBlock.sizes = updatedBlock.sizes.map(size => ({
                   ...size,
@@ -811,9 +813,7 @@ const Quotations = () => {
           return;
         }
 
-        const isPcs = (block.unit || '').trim().toLowerCase().includes('pc') ||
-                      (block.unit || '').trim().toLowerCase().includes('piece') ||
-                      (block.unit || '').trim().toLowerCase().includes('no');
+        const isPcs = isPcsUnit(block.unit);
 
         let validSizeCount = 0;
         block.sizes.forEach((s) => {

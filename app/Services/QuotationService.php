@@ -147,7 +147,8 @@ class QuotationService
 
         // Pcs-unit products (hardware, accessories, remote controls, etc.)
         // have no meaningful width/height — bill by piece count instead.
-        $isPcsUnit = strtolower(trim($unit)) === 'pcs';
+        // Must stay in step with isPcsUnit() in frontend/src/utils/quotationSections.js.
+        $isPcsUnit = in_array(strtolower(trim($unit)), ['pcs', 'pc', 'piece', 'pieces', 'box', 'set', 'nos', 'no'], true);
 
         // Determine min_billing_sqft up front so it's always defined,
         // regardless of which branch below actually uses it.

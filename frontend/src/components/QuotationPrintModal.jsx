@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { isPcsUnit } from '../utils/quotationSections';
 import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
@@ -643,7 +644,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                             {isDetailed && (() => {
                               const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
                               const isPvc = isPvcItem(item);
-                              const isPcs = u === 'pcs' || u === 'pieces' || u === 'piece' || u === 'box' || u === 'set';
+                              const isPcs = isPcsUnit(u);
 
                               let tWidthVal = '-';
                               if (isPvc && width > 0) {
