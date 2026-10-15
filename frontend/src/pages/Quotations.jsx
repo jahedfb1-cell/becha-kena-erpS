@@ -2442,10 +2442,8 @@ const Quotations = () => {
                                   {/* Block Actions */}
                                   <td className={`cell-action ${sIdx > 0 ? 'mobile-hidden-action' : ''}`} style={{ verticalAlign: 'top', paddingTop: '8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                      {/* Add/Delete hidden on the first row per request - row 1
-                                          already has Excel/AI Scan for adding rows in bulk, so
-                                          its own +/- buttons were just clutter alongside those. */}
-                                      {(isPcsBlock ? sIdx === block.sizes.length - 1 : sIdx > 0) && (
+                                      {/* Add Size Row sits on every row of a measured line (and on the last row of a per-piece line); Delete appears once a line has more than one row — a single-row line is removed with "Remove Product". */}
+                                      {(!isPcsBlock || sIdx === block.sizes.length - 1) && (
                                         <button
                                           type="button"
                                           onClick={() => addSizeRowToBlock(sec.id, block.id)}
@@ -2456,7 +2454,7 @@ const Quotations = () => {
                                           ➕
                                         </button>
                                       )}
-                                      {sIdx > 0 && (
+                                      {block.sizes.length > 1 && (
                                         <button
                                           type="button"
                                           onClick={() => {
