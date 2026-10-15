@@ -81,7 +81,7 @@ export const toggleBlockPrint = (sections, sectionId, blockId) =>
  * width/height), so a new line for one must start with a single row too -
  * not the four blank measurement rows a square-foot product gets.
  */
-const PCS_UNITS = ['pcs', 'pc', 'piece', 'pieces', 'box', 'set', 'nos', 'no'];
+const PCS_UNITS = ['pcs', 'pc', 'piece', 'pieces', 'box', 'set', 'box / set', 'box/set', 'nos', 'no'];
 
 export const isPcsUnit = (unit) =>
   PCS_UNITS.includes((unit || '').trim().toLowerCase());
