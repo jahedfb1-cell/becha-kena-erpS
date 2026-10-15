@@ -37,8 +37,11 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          # Strip Windows line endings (\r) that sneak in when the key is copied on Windows
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
+          # Fail early with a clear message if the key is not a valid, passphrase-free private key
+          ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null || { echo "::error::SSH_PRIVATE_KEY is not a valid passphrase-free private key"; exit 1; }
           ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload and install
