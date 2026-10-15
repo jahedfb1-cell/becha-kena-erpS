@@ -27,6 +27,8 @@ import { describeSaveError } from '../utils/apiError';
 import NotApplicableCell from '../components/NotApplicableCell';
 import ItemLineHeader, { unitKindOf } from '../components/ItemLineHeader';
 import RichTextEditor from '../components/RichTextEditor';
+import renderRichText from '../utils/renderRichText';
+import { lineSpecification, hasSpecification } from '../utils/lineSpecification';
 import SearchableSelect from '../components/SearchableSelect';
 
 // The order item-builder columns, in render order. Unlike the quotation
@@ -126,6 +128,11 @@ const Orders = () => {
   // still waiting for approval must leave it waiting - approving is the separate
   // Approve action, not a side effect of saving corrected product details.
   const [editOrigStatus, setEditOrigStatus] = useState(null);
+  // Order view: which product line's details text is being edited, its draft
+  // HTML, and whether the save is in flight.
+  const [editingSpecKey, setEditingSpecKey] = useState(null);
+  const [specDraft, setSpecDraft] = useState('');
+  const [specSaving, setSpecSaving] = useState(false);
   const isEditingPending = isEditMode && (editOrigStatus === 'pending_approval' || editOrigStatus === 'pending_reapproval');
 
   // Advance payments taken against this order before it's been invoiced.
@@ -461,6 +468,25 @@ const Orders = () => {
 
     setCopiedDimensionsStatus(true);
     setTimeout(() => setCopiedDimensionsStatus(false), 3000);
+  };
+
+  // Saves the corrected details text for every size row of one product line,
+  // without touching anything else on the order (see QuotationController::
+  // updateItemNotes), so a pending order stays pending.
+  const saveSpecEdit = async (group) => {
+    try {
+      setSpecSaving(true);
+      const res = await api.put(`/quotations/${selectedOrder.id}/item-notes`, {
+        items: group.rows.map((row) => ({ id: row.id, notes: specDraft })),
+      });
+      const updated = res.data?.data;
+      if (updated) setSelectedOrder(updated);
+      setEditingSpecKey(null);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to save product details.');
+    } finally {
+      setSpecSaving(false);
+    }
   };
 
   const handleApprove = async (id) => {
@@ -1815,6 +1841,36 @@ const Orders = () => {
                             {rowInGroup === 0 && (
                               <td rowSpan={group.rows.length} style={{ verticalAlign: 'top' }}>
                                 <strong>{item.product?.product_code || item.variant?.name}</strong> - {item.product?.name || 'Blind Item'}
+                                {editingSpecKey === group.key ? (
+                                  <div style={{ marginTop: '8px', minWidth: '260px' }}>
+                                    <RichTextEditor value={specDraft} onChange={setSpecDraft} minHeight='120px' />
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                      <button type='button' className='primary-btn' disabled={specSaving} onClick={() => saveSpecEdit(group)} style={{ padding: '6px 14px', fontSize: '12px' }}>
+                                        💾 {specSaving ? 'Saving...' : 'Save details'}
+                                      </button>
+                                      <button type='button' className='logout-btn' disabled={specSaving} onClick={() => setEditingSpecKey(null)} style={{ padding: '6px 14px', fontSize: '12px' }}>
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div style={{ marginTop: '6px' }}>
+                                    {hasSpecification(item)
+                                      ? renderRichText(lineSpecification(item), { fontSize: '12px', color: '#475569', margin: 0 })
+                                      : <span style={{ fontSize: '12px', color: '#94a3b8' }}>No product details</span>}
+                                    {selectedOrder?.status !== 'invoiced' && (user?.role === 'admin' || user?.role === 'manager' || user?.role?.includes('account') || can('orders:edit') || can('quotations:edit')) && (
+                                      <div style={{ marginTop: '4px' }}>
+                                        <button
+                                          type='button'
+                                          onClick={() => { setSpecDraft(lineSpecification(item)); setEditingSpecKey(group.key); }}
+                                          style={{ fontSize: '11px', color: '#4f46e5', background: '#eff6ff', border: '1px solid #c7d2fe', borderRadius: '6px', padding: '3px 10px', cursor: 'pointer', fontWeight: '600' }}
+                                        >
+                                          ✏️ Edit details
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                             )}
                             <td style={{ textAlign: 'center', fontWeight: '600' }}>

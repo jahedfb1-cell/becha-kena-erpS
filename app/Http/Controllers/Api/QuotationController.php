@@ -432,6 +432,80 @@ class QuotationController extends Controller
     }
 
     /**
+     * PUT /api/quotations/{id}/item-notes
+     * Rewrites only the specification text of existing lines - used from the
+     * order view to correct product details before an order is approved (or
+     * after, until it is invoiced). Nothing else on the order is touched: no
+     * totals recalculated, no purchase entries reversed, status unchanged.
+     */
+    public function updateItemNotes(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $allowed = in_array($user->role, ['admin', 'manager'], true)
+            || str_contains((string) $user->role, 'account')
+            || $user->can('quotations:edit')
+            || $user->can('orders:edit');
+        if (!$allowed) {
+            return $this->errorResponse('Unauthorized action.', 403);
+        }
+
+        $quotation = Quotation::with('items')->find($id);
+        if (!$quotation) {
+            return $this->notFoundResponse('Quotation not found.');
+        }
+        if ($quotation->status === 'invoiced') {
+            return $this->errorResponse('Invoiced orders cannot be edited.', 422);
+        }
+
+        // Read the body untouched: the framework turns '' into null, but an
+        // emptied specification must stay '' - null means "never filled in" and
+        // would print the product's master text again (see lineSpecification.js).
+        $raw = json_decode($request->getContent(), true);
+        $submitted = is_array($raw['items'] ?? null) ? $raw['items'] : [];
+        if (count($submitted) === 0) {
+            return $this->errorResponse('No items supplied.', 422);
+        }
+
+        $byId = $quotation->items->keyBy('id');
+        $before = [];
+        $after = [];
+
+        return DB::transaction(function () use ($submitted, $byId, $quotation, $user, &$before, &$after) {
+            foreach ($submitted as $row) {
+                $itemId = (int) ($row['id'] ?? 0);
+                $notes = $row['notes'] ?? '';
+                if (!$byId->has($itemId) || !is_string($notes) || strlen($notes) > 20000) {
+                    return $this->errorResponse('Invalid item or text supplied.', 422);
+                }
+                $item = $byId->get($itemId);
+                if ((string) $item->notes !== $notes) {
+                    $before[$itemId] = $item->notes;
+                    $after[$itemId] = $notes;
+                    $item->update(['notes' => $notes]);
+                }
+            }
+
+            if ($after) {
+                AuditLog::record(
+                    $user->id,
+                    $user->name,
+                    'update',
+                    Quotation::class,
+                    $quotation->id,
+                    ['item_notes' => $before],
+                    ['item_notes' => $after],
+                    "Edited product details on {$quotation->quotation_number}"
+                );
+            }
+
+            return $this->successResponse(
+                $quotation->fresh(['items.product', 'items.variant', 'items.supplier', 'customer', 'salesman']),
+                'Product details updated.'
+            );
+        });
+    }
+
+    /**
      * POST /api/quotations/{id}/convert-to-order
      * Convert status to 'pending_approval' with optional discount update.
      */

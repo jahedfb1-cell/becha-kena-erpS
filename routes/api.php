@@ -57,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [QuotationController::class, 'store']);
         Route::get('/{id}', [QuotationController::class, 'show']);
         Route::put('/{id}', [QuotationController::class, 'update']);
+        Route::put('/{id}/item-notes', [QuotationController::class, 'updateItemNotes']);
         Route::delete('/{id}', [QuotationController::class, 'destroy']);
         Route::post('/{id}/restore', [QuotationController::class, 'restore']);
 
