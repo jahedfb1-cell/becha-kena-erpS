@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
-import { isPcsUnit } from '../utils/quotationSections';
+import { isPcsUnit, isRftUnit } from '../utils/quotationSections';
 import RichTextEditor from './RichTextEditor';
 
 /* ─── tiny inline styles object ─── */
@@ -532,7 +532,7 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                       {(() => {
                         // Each unit offered here has a pricing formula behind it in the
                         // quotation builder: sq.ft (W x H / 144), PVC sq.ft (slat-based
-                        // width first), per piece, and per yard (quantity x price).
+                        // width first), per piece, per yard (quantity x price) and running feet (feet x price).
                         // Extra per-piece units added in Settings (Nos, Set, Box / Set ...)
                         // are priced like pieces, so they are listed too. Units with no
                         // formula (Roll, Meter, Inch ...) are deliberately left out.
@@ -541,11 +541,12 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                           { name: 'PVC sq.ft', value: 'PVC sq.ft' },
                           { name: 'Pieces ( pcs )', value: 'Pcs' },
                           { name: 'Per Yard ( yd )', value: 'Yard' },
+                          { name: 'Running Feet ( RFT )', value: 'RFT' },
                         ];
                         const alreadyCovered = ['pcs', 'pc', 'piece', 'pieces', 'yard', 'yards', 'yd', 'yds', 'per yard'];
                         (unitsList || []).forEach((u) => {
                           const n = String(u.name || '').trim();
-                          if (n && isPcsUnit(n) && !alreadyCovered.includes(n.toLowerCase())
+                          if (n && isPcsUnit(n) && !isRftUnit(n) && !alreadyCovered.includes(n.toLowerCase())
                               && !baseUnits.some(x => x.value.toLowerCase() === n.toLowerCase())) {
                             baseUnits.push({ name: n, value: n });
                           }

@@ -84,6 +84,15 @@ export const toggleBlockPrint = (sections, sectionId, blockId) =>
 const YARD_UNITS = ['yard', 'yards', 'yd', 'yds', 'per yard'];
 const PCS_UNITS = ['pcs', 'pc', 'piece', 'pieces', 'box', 'set', 'box / set', 'box/set', 'nos', 'no', ...YARD_UNITS];
 
+// Running feet (rail and the like): the quantity is a length in feet, kept in the
+// width column so it can be fractional; pcs stays 1.
+const RFT_UNITS = ['rft', 'r.ft', 'running feet', 'running foot', 'running ft', 'feet', 'foot', 'ft', 'per feet', 'per ft', 'per foot'];
+export const isRftUnit = (unit) =>
+  RFT_UNITS.includes((unit || '').trim().toLowerCase());
+
+// Units entered as one quantity per line (no width x height): count-type units and running feet.
+export const isQtyUnit = (unit) => isPcsUnit(unit) || isRftUnit(unit);
+
 // Priced per yard of length: a quantity unit like pieces, but labelled in yards.
 export const isYardUnit = (unit) =>
   YARD_UNITS.includes((unit || '').trim().toLowerCase());
@@ -112,8 +121,8 @@ const blankMeasureRow = () => ({
  */
 export const sizesForProductChange = (block, newUnit) => {
   const sizes = block.sizes || [];
-  const wasPcs = isPcsUnit(block.unit);
-  const nowPcs = isPcsUnit(newUnit);
+  const wasPcs = isQtyUnit(block.unit);
+  const nowPcs = isQtyUnit(newUnit);
   const untouched = wasPcs || !sizes.some(hasEnteredSize);
 
   if (nowPcs) {
@@ -136,7 +145,7 @@ export const sizesForProductChange = (block, newUnit) => {
  * never come.
  */
 const createSizeRow = (block) => {
-  const isPcsBlock = isPcsUnit(block.unit);
+  const isPcsBlock = isQtyUnit(block.unit);
 
   return {
     id: newId(),
@@ -212,7 +221,7 @@ export const createProductBlock = (product, {
   const priorityLink = product.supplier_links?.find(link => link.priority_rank === 1);
   const minBillingSqft = priorityLink ? (parseFloat(priorityLink.min_billing_sqft) || 0) : 0;
   const unitPrice = parseFloat(product.default_unit_price) || 0;
-  const isPcsProduct = isPcsUnit(product.unit);
+  const isPcsProduct = isQtyUnit(product.unit);
 
   const stamp = Date.now();
 

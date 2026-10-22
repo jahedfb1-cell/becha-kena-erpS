@@ -157,7 +157,17 @@ class QuotationService
             $minBillingSqft = $preferredSupplier['min_billing_sqft'];
         }
 
-        if ($isPcsUnit) {
+        // Running feet (rail and the like): the length in feet is kept in the width
+        // column (so it can be fractional) and priced per foot - no height, no
+        // minimum billing. Must stay in step with isRftUnit() in
+        // frontend/src/utils/quotationSections.js.
+        $isRftUnit = in_array(strtolower(trim($unit)), ['rft', 'r.ft', 'running feet', 'running foot', 'running ft', 'feet', 'foot', 'ft', 'per feet', 'per ft', 'per foot'], true);
+
+        if ($isRftUnit) {
+            $actualSqft = $width;
+            $minBillingSqft = 0;
+            $billedSqft = round($width * $pcs, 2);
+        } elseif ($isPcsUnit) {
             $actualSqft = $pcs;
             $minBillingSqft = 0;
             $billedSqft = $pcs;

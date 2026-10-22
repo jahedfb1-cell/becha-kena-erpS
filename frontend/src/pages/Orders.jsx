@@ -21,6 +21,8 @@ import {
   createProductBlock,
   isPcsUnit,
   isYardUnit,
+  isRftUnit,
+  isQtyUnit,
   sizesForProductChange,
   appendBlock,
 } from '../utils/quotationSections';
@@ -800,11 +802,12 @@ const Orders = () => {
             const h = parseFloat(updatedSize.height) || 0;
             const pcs = parseInt(updatedSize.pcs) || 1;
 
-            const isPcs = isPcsUnit(block.unit);
+            const isRft = isRftUnit(block.unit);
+            const isPcs = isQtyUnit(block.unit);
             const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
             let billedSqft = 0;
             if (isPcs) {
-              billedSqft = pcs;
+              billedSqft = isRft ? w : pcs;
             } else if (w > 0 && h > 0) {
               const _blockUnitO = (block.unit || '').toLowerCase().trim();
               const isPvc = _blockUnitO.includes('pvc');
@@ -822,7 +825,7 @@ const Orders = () => {
 
             return {
               ...updatedSize,
-              actual_sqft: isPcs ? pcs : singlePieceSqft,
+              actual_sqft: isPcs ? (isRft ? w : pcs) : singlePieceSqft,
               billed_sqft: billedSqft,
               line_total: lineTotal
             };
@@ -869,7 +872,7 @@ const Orders = () => {
               // missing dimensions instead of leaving them blank (which would
               // otherwise fail the "valid size required" check on submit).
               updatedBlock.sizes = sizesForProductChange(block, prod.unit);
-              if (isPcsUnit(prod.unit)) {
+              if (isQtyUnit(prod.unit)) {
                 updatedBlock.sizes = updatedBlock.sizes.map(size => ({
                   ...size,
                   width: parseFloat(size.width) > 0 ? size.width : 1,
@@ -882,7 +885,8 @@ const Orders = () => {
           if (field === 'unit_price' || field === 'product_id') {
             const unitPrice = parseFloat(updatedBlock.unit_price) || 0;
             const minSqft = parseFloat(updatedBlock.min_billing_sqft) || 0;
-            const isPcs = isPcsUnit(updatedBlock.unit);
+            const isRft = isRftUnit(updatedBlock.unit);
+            const isPcs = isQtyUnit(updatedBlock.unit);
 
             updatedBlock.sizes = updatedBlock.sizes.map(size => {
               const w = parseFloat(size.width) || 0;
@@ -892,7 +896,7 @@ const Orders = () => {
               const singlePieceSqft = (w > 0 && h > 0) ? Math.round(((w * h) / 144) * 100) / 100 : 0;
               let billedSqft = 0;
               if (isPcs) {
-                billedSqft = pcs;
+                billedSqft = isRft ? w : pcs;
               } else if (w > 0 && h > 0) {
                 const _updUnitO = (updatedBlock.unit || '').toLowerCase().trim();
                 const isPvc = _updUnitO.includes('pvc');
@@ -908,7 +912,7 @@ const Orders = () => {
               }
               const lineTotal = Math.round((billedSqft * unitPrice) * 100) / 100;
 
-              return { ...size, actual_sqft: isPcs ? pcs : singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
+              return { ...size, actual_sqft: isPcs ? (isRft ? w : pcs) : singlePieceSqft, billed_sqft: billedSqft, line_total: lineTotal };
             });
           }
 
@@ -1196,7 +1200,8 @@ const Orders = () => {
           return;
         }
 
-        const isPcs = isPcsUnit(block.unit);
+        const isRft = isRftUnit(block.unit);
+            const isPcs = isQtyUnit(block.unit);
 
         let validSizeCount = 0;
         block.sizes.forEach((s) => {
@@ -1204,7 +1209,7 @@ const Orders = () => {
           const h = parseFloat(s.height) || 0;
           const pcs = parseInt(s.pcs) || 1;
 
-          if (isPcs ? (pcs > 0) : (w > 0 && h > 0 && pcs > 0)) {
+          if (isRft ? (w > 0 && pcs > 0) : (isPcs ? (pcs > 0) : (w > 0 && h > 0 && pcs > 0))) {
             validSizeCount++;
             items.push({
               section_name: sec.name,
@@ -1227,7 +1232,7 @@ const Orders = () => {
         });
 
         if (validSizeCount === 0) {
-          raiseFormError(`[${sec.name}] Product "${block.product_name}": ${isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
+          raiseFormError(`[${sec.name}] Product "${block.product_name}": ${isRft ? 'Running feet length greater than 0 is required.' : isPcs ? 'At least 1 Pcs quantity is required.' : 'At least 1 valid size (Width & Height greater than 0) is required.'}`);
           return;
         }
       }
@@ -2306,7 +2311,7 @@ const Orders = () => {
                         const totalPrice = block.sizes.reduce((sum, s) => sum + (parseFloat(s.line_total) || 0), 0);
                         const isOptionGroup = Boolean(block.option_group_id);
                         const isSelected = block.is_selected !== false;
-                        const isPcsBlock = isPcsUnit(block.unit);
+                        const isPcsBlock = isQtyUnit(block.unit);
                         const _blkUnitO = (block.unit || '').toLowerCase().trim();
                         const isPvcBlock = _blkUnitO.includes('pvc');
                           
@@ -2417,7 +2422,7 @@ const Orders = () => {
                                   <ItemLineHeader
                                     productCode={block.product_code}
                                     productName={block.product_name}
-                                    kind={unitKindOf({ isPcsBlock, isPvcBlock, isYardBlock: isYardUnit(block.unit) })}
+                                    kind={unitKindOf({ isPcsBlock, isPvcBlock, isYardBlock: isYardUnit(block.unit), isRftBlock: isRftUnit(block.unit) })}
                                     columns={columnTitles}
                                     changeProductUI={changeProductUI}
                                   />
@@ -2443,7 +2448,7 @@ const Orders = () => {
                                           )}
                                           <div className="mobile-size-header-item">
                                             <span className="mobile-size-header-icon icon-pcs">📦</span>
-                                            <span>{isYardUnit(block.unit) ? 'YARDS' : (isPcsBlock ? 'PCS / SET' : 'PCS/NOS')}</span>
+                                            <span>{isRftUnit(block.unit) ? 'RUNNING FEET' : (isYardUnit(block.unit) ? 'YARDS' : (isPcsBlock ? 'PCS / SET' : 'PCS/NOS'))}</span>
                                           </div>
                                         </div>
                                         <div className="mobile-size-rows">
@@ -2471,10 +2476,11 @@ const Orders = () => {
                                               )}
                                               <input
                                                 type="number"
-                                                inputMode="numeric"
+                                                inputMode={isRftUnit(block.unit) ? 'decimal' : 'numeric'}
+                                                step={isRftUnit(block.unit) ? 'any' : undefined}
                                                 className="mobile-size-box"
-                                                value={sz.pcs}
-                                                onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, 'pcs', e.target.value)}
+                                                value={isRftUnit(block.unit) ? sz.width : sz.pcs}
+                                                onChange={(e) => handleSizeChange(sec.id, block.id, sz.id, isRftUnit(block.unit) ? 'width' : 'pcs', e.target.value)}
                                               />
                                               {/* This row's own billed sqft — the totals bar below
                                                   the block only ever showed the combined total,
@@ -2551,15 +2557,16 @@ const Orders = () => {
                                             <span style={{ fontSize: '12px', fontWeight: '700', color: '#0369a1' }}>Quantity:</span>
                                             <input
                                               type="number"
-                                              inputMode="numeric"
-                                              min="1"
-                                              value={sizeRow.pcs}
-                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, 'pcs', e.target.value)}
-                                              placeholder="Pcs"
+                                              inputMode={isRftUnit(block.unit) ? 'decimal' : 'numeric'}
+                                              min={isRftUnit(block.unit) ? '0' : '1'}
+                                              step={isRftUnit(block.unit) ? 'any' : undefined}
+                                              value={isRftUnit(block.unit) ? sizeRow.width : sizeRow.pcs}
+                                              onChange={(e) => handleSizeChange(sec.id, block.id, sizeRow.id, isRftUnit(block.unit) ? 'width' : 'pcs', e.target.value)}
+                                              placeholder={isRftUnit(block.unit) ? 'Feet' : 'Pcs'}
                                               className="modern-form-control"
                                               style={{ width: '80px', textAlign: 'center', fontWeight: '700', fontSize: '13px', padding: '5px' }}
                                             />
-                                            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>{isYardUnit(block.unit) ? 'YDS' : 'PCS'}</span>
+                                            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>{isRftUnit(block.unit) ? 'FT' : (isYardUnit(block.unit) ? 'YDS' : 'PCS')}</span>
                                           </div>
                                         </td>
                                       ) : (
