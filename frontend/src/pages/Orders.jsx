@@ -20,6 +20,7 @@ import {
   appendMeasuredRows,
   createProductBlock,
   isPcsUnit,
+  isYardUnit,
   sizesForProductChange,
   appendBlock,
 } from '../utils/quotationSections';
@@ -2416,7 +2417,7 @@ const Orders = () => {
                                   <ItemLineHeader
                                     productCode={block.product_code}
                                     productName={block.product_name}
-                                    kind={unitKindOf({ isPcsBlock, isPvcBlock })}
+                                    kind={unitKindOf({ isPcsBlock, isPvcBlock, isYardBlock: isYardUnit(block.unit) })}
                                     columns={columnTitles}
                                     changeProductUI={changeProductUI}
                                   />
@@ -2442,7 +2443,7 @@ const Orders = () => {
                                           )}
                                           <div className="mobile-size-header-item">
                                             <span className="mobile-size-header-icon icon-pcs">📦</span>
-                                            <span>{isPcsBlock ? 'PCS / SET' : 'PCS/NOS'}</span>
+                                            <span>{isYardUnit(block.unit) ? 'YARDS' : (isPcsBlock ? 'PCS / SET' : 'PCS/NOS')}</span>
                                           </div>
                                         </div>
                                         <div className="mobile-size-rows">
@@ -2558,7 +2559,7 @@ const Orders = () => {
                                               className="modern-form-control"
                                               style={{ width: '80px', textAlign: 'center', fontWeight: '700', fontSize: '13px', padding: '5px' }}
                                             />
-                                            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>PCS</span>
+                                            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>{isYardUnit(block.unit) ? 'YDS' : 'PCS'}</span>
                                           </div>
                                         </td>
                                       ) : (

@@ -87,6 +87,19 @@ class SettingController extends Controller
             ]);
         }
 
+        // Same for the per-yard unit, which the product form and quotation
+        // builder price as quantity x price.
+        $hasYard = DB::table('units')->whereIn('name', ['Yard', 'Per Yard'])->orWhere('code', 'Yd')->exists();
+        if (!$hasYard) {
+            DB::table('units')->insert([
+                'name' => 'Yard',
+                'code' => 'Yd',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         $units = DB::table('units')->orderBy('id', 'asc')->get();
         return $this->successResponse($units, 'Units retrieved.');
     }

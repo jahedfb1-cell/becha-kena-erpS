@@ -13,6 +13,14 @@ import React from 'react';
  * being dropped, because the cells still have to line up with the row below.
  */
 const TITLES = {
+  yard: {
+    product: 'Product Code / Name *',
+    unit_price: 'Price / Yard',
+    pcs: 'Yards',
+    billing: 'Total Yards',
+    total: 'Total Price',
+    action: 'Action',
+  },
   pvc: {
     product: 'Product Code / Name *',
     unit_price: 'Unit Price',
@@ -46,8 +54,8 @@ const TITLES = {
   },
 };
 
-export const unitKindOf = ({ isPcsBlock, isPvcBlock }) =>
-  (isPcsBlock ? 'pcs' : (isPvcBlock ? 'pvc' : 'sqft'));
+export const unitKindOf = ({ isPcsBlock, isPvcBlock, isYardBlock }) =>
+  (isYardBlock ? 'yard' : (isPcsBlock ? 'pcs' : (isPvcBlock ? 'pvc' : 'sqft')));
 
 /**
  * Titles for one line, in the order the caller's table actually renders its
@@ -66,7 +74,7 @@ export const itemColumnTitles = (columns, kind) =>
  * it scrolls out of view and leaves a row of numbers with nothing naming them.
  */
 const ItemLineHeader = ({ productCode, productName, kind, columns, changeProductUI }) => {
-  const isPcs = kind === 'pcs';
+  const isPcs = kind === 'pcs' || kind === 'yard';
   const sizeColsCount = columns.filter(c => !['product', 'unit_price', 'billing', 'total', 'action'].includes(c)).length;
   const titles = itemColumnTitles(columns, kind);
 
@@ -101,7 +109,7 @@ const ItemLineHeader = ({ productCode, productName, kind, columns, changeProduct
                 always exactly one size row, so "Total Pcs" was just repeating this
                 same Quantity value under a second heading. */}
             <th scope="col" colSpan={sizeColsCount + 1} style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#0369a1', background: '#e0f2fe', borderBottom: '1px solid #bae6fd', whiteSpace: 'nowrap' }}>
-              Quantity (Pcs / Set)
+              {kind === 'yard' ? 'Quantity (Yards)' : 'Quantity (Pcs / Set)'}
             </th>
             <th scope="col" style={{ padding: '6px 8px', fontSize: '11px', fontWeight: '700', textAlign: 'center', color: '#475569', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' }}>
               Total Price

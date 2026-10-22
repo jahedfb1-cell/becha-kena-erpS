@@ -81,7 +81,12 @@ export const toggleBlockPrint = (sections, sectionId, blockId) =>
  * width/height), so a new line for one must start with a single row too -
  * not the four blank measurement rows a square-foot product gets.
  */
-const PCS_UNITS = ['pcs', 'pc', 'piece', 'pieces', 'box', 'set', 'box / set', 'box/set', 'nos', 'no'];
+const YARD_UNITS = ['yard', 'yards', 'yd', 'yds', 'per yard'];
+const PCS_UNITS = ['pcs', 'pc', 'piece', 'pieces', 'box', 'set', 'box / set', 'box/set', 'nos', 'no', ...YARD_UNITS];
+
+// Priced per yard of length: a quantity unit like pieces, but labelled in yards.
+export const isYardUnit = (unit) =>
+  YARD_UNITS.includes((unit || '').trim().toLowerCase());
 
 export const isPcsUnit = (unit) =>
   PCS_UNITS.includes((unit || '').trim().toLowerCase());

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../api/axios';
+import { isPcsUnit } from '../utils/quotationSections';
 import RichTextEditor from './RichTextEditor';
 
 /* ─── tiny inline styles object ─── */
@@ -529,16 +530,26 @@ const ProductModal = ({ isOpen, onClose, onProductSaved, initialData = null, isV
                       disabled={loading || isViewOnly}
                     >
                       {(() => {
-                        // Quotations bill against exactly three measurement units, one
-                        // per pricing formula: sq.ft (W x H / 144), PVC sq.ft (slat-based
-                        // width first) and per-piece. Units coming from Settings are
-                        // deliberately NOT merged in here — an extra unit would have no
-                        // calculation behind it in the quotation builder.
+                        // Each unit offered here has a pricing formula behind it in the
+                        // quotation builder: sq.ft (W x H / 144), PVC sq.ft (slat-based
+                        // width first), per piece, and per yard (quantity x price).
+                        // Extra per-piece units added in Settings (Nos, Set, Box / Set ...)
+                        // are priced like pieces, so they are listed too. Units with no
+                        // formula (Roll, Meter, Inch ...) are deliberately left out.
                         const baseUnits = [
                           { name: 'Square Feet ( sq.ft )', value: 'Square feet' },
                           { name: 'PVC sq.ft', value: 'PVC sq.ft' },
                           { name: 'Pieces ( pcs )', value: 'Pcs' },
+                          { name: 'Per Yard ( yd )', value: 'Yard' },
                         ];
+                        const alreadyCovered = ['pcs', 'pc', 'piece', 'pieces', 'yard', 'yards', 'yd', 'yds', 'per yard'];
+                        (unitsList || []).forEach((u) => {
+                          const n = String(u.name || '').trim();
+                          if (n && isPcsUnit(n) && !alreadyCovered.includes(n.toLowerCase())
+                              && !baseUnits.some(x => x.value.toLowerCase() === n.toLowerCase())) {
+                            baseUnits.push({ name: n, value: n });
+                          }
+                        });
                         // Keep a legacy product's saved unit selectable so opening an old
                         // record for edit does not silently re-assign its unit on save.
                         if (unit && !baseUnits.some(b => b.value.toLowerCase() === unit.toLowerCase())) {
