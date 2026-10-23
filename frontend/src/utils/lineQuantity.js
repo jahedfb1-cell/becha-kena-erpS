@@ -28,3 +28,20 @@ export const quantityText = (item) => {
   if (isYardUnit(unit)) return `${pcs} yd`;
   return String(pcs);
 };
+
+/** Quantity with its unit, spelled out for on-screen lists: "4 yd", "12.5 ft", "3 Pcs". */
+export const quantityLabel = (item) => {
+  const unit = lineUnit(item);
+  if (isRftUnit(unit) || isYardUnit(unit)) return quantityText(item);
+  return `${parseInt(item?.pcs, 10) || 1} Pcs`;
+};
+
+/** The billed amount of a line followed by the unit it is billed in. */
+export const billedText = (item) => {
+  const unit = lineUnit(item);
+  const billed = item?.billed_sqft ?? 0;
+  if (isRftUnit(unit)) return `${billed} ft`;
+  if (isYardUnit(unit)) return `${billed} yd`;
+  if (isQtyUnit(unit)) return `${billed} pcs`;
+  return `${billed} sqft`;
+};

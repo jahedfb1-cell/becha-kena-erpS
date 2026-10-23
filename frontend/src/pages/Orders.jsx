@@ -32,6 +32,7 @@ import ItemLineHeader, { unitKindOf } from '../components/ItemLineHeader';
 import RichTextEditor from '../components/RichTextEditor';
 import renderRichText from '../utils/renderRichText';
 import { lineSpecification, hasSpecification } from '../utils/lineSpecification';
+import { isQuantityLine, quantityLabel, billedText } from '../utils/lineQuantity';
 import SearchableSelect from '../components/SearchableSelect';
 
 // The order item-builder columns, in render order. Unlike the quotation
@@ -441,7 +442,7 @@ const Orders = () => {
         const pcs = parseInt(item.pcs) || 1;
         const billedSqft = parseFloat(item.billed_sqft) || 0;
 
-        if (w > 0 && h > 0) {
+        if (!isQuantityLine(item) && w > 0 && h > 0) {
           // A lone piece (qty 1) doesn't need "- 1" spelled out, and the
           // billed sqft is internal billing detail this copy is not meant
           // to carry — this is meant to read as a plain cutting-list line,
@@ -450,7 +451,7 @@ const Orders = () => {
           // a single one.
           textLines.push(pcs > 1 ? `${item.width} x ${item.height} - ${pcs}` : `${item.width} x ${item.height}`);
         } else {
-          textLines.push(`${pcs} Pcs = ${billedSqft}`);
+          textLines.push(isQuantityLine(item) ? quantityLabel(item) : `${pcs} Pcs = ${billedSqft}`);
         }
       });
       textLines.push('');
@@ -1880,12 +1881,12 @@ const Orders = () => {
                               </td>
                             )}
                             <td style={{ textAlign: 'center', fontWeight: '600' }}>
-                              {(parseFloat(item.width) > 0 && parseFloat(item.height) > 0)
+                              {(!isQuantityLine(item) && parseFloat(item.width) > 0 && parseFloat(item.height) > 0)
                                 ? `${item.width} x ${item.height} - ${item.pcs} = ${item.billed_sqft}`
-                                : `${item.pcs} Pcs = ${item.billed_sqft}`
+                                : `${quantityLabel(item)} = ${item.billed_sqft}`
                               }
                             </td>
-                            <td style={{ textAlign: 'center', fontWeight: '600' }}>{item.billed_sqft} sqft</td>
+                            <td style={{ textAlign: 'center', fontWeight: '600' }}>{billedText(item)}</td>
                           </tr>
                         ))
                       ))}
@@ -2255,7 +2256,7 @@ const Orders = () => {
                   <button
                     type="button"
                     onClick={addSection}
-                    className="builder-add-section-btn"
+                    className="builder-add-section-btn hide-mobile-text"
                   >
                     ➕ Add Section
                   </button>
@@ -2523,8 +2524,8 @@ const Orders = () => {
                                           <div className="mobile-size-total-pill">
                                             <span className="mobile-size-total-icon">▦</span>
                                             <span className="mobile-size-total-text">
-                                              <span className="mobile-size-total-label">Total Sqft</span>
-                                              <span className="mobile-size-total-value">{totalBilledSqft.toFixed(1)} sqft</span>
+                                              <span className="mobile-size-total-label">{isPcsBlock ? 'Total Billing' : 'Total Sqft'}</span>
+                                              <span className="mobile-size-total-value">{isRftUnit(block.unit) ? `${totalBilledSqft.toFixed(2)} ft` : isPcsBlock ? `${totalBilledSqft} ${isYardUnit(block.unit) ? 'yd' : 'pcs'}` : `${totalBilledSqft.toFixed(1)} sqft`}</span>
                                             </span>
                                           </div>
                                         </div>
