@@ -33,15 +33,37 @@ jobs:
       - name: Set up SSH
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY_B64 }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
+          # Say exactly which secret is missing instead of failing later with a vague message.
+          missing=""
+          [ -n "$SSH_HOST" ] || missing="$missing SSH_HOST"
+          [ -n "$SSH_PORT" ] || missing="$missing SSH_PORT"
+          [ -n "$SSH_USER" ] || missing="$missing SSH_USER"
+          [ -n "$SSH_KEY" ] || [ -n "$SSH_KEY_B64" ] || missing="$missing SSH_PRIVATE_KEY(or SSH_PRIVATE_KEY_B64)"
+          if [ -n "$missing" ]; then echo "::error::Missing GitHub secret(s):$missing"; exit 1; fi
+
           install -m 700 -d ~/.ssh
-          # Strip Windows line endings (\r) that sneak in when the key is copied on Windows
-          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          if [ -n "$SSH_KEY_B64" ]; then
+            # One-line base64 form of the key: immune to the line-break and clipboard
+            # problems that make a pasted multi-line private key come out invalid.
+            printf '%s' "$SSH_KEY_B64" | tr -d ' \r\n' | base64 -d > ~/.ssh/id_deploy
+          else
+            # Strip Windows line endings (\r) that sneak in when the key is copied on Windows
+            printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+          fi
           chmod 600 ~/.ssh/id_deploy
-          # Fail early with a clear message if the key is not a valid, passphrase-free private key
-          ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null || { echo "::error::SSH_PRIVATE_KEY is not a valid passphrase-free private key"; exit 1; }
+
+          # Describe the key without revealing it, so a bad paste can be diagnosed from this log.
+          lines=$(wc -l < ~/.ssh/id_deploy)
+          if head -1 ~/.ssh/id_deploy | grep -q 'BEGIN OPENSSH PRIVATE KEY'; then header=yes; else header=no; fi
+          if tail -1 ~/.ssh/id_deploy | grep -q 'END OPENSSH PRIVATE KEY'; then footer=yes; else footer=no; fi
+          echo "key source: $([ -n "$SSH_KEY_B64" ] && echo base64 || echo plain), lines: $lines, BEGIN line: $header, END line: $footer"
+
+          ssh-keygen -y -f ~/.ssh/id_deploy > /dev/null || { echo "::error::SSH private key is not valid (lines=$lines, BEGIN line=$header, END line=$footer). Re-copy the whole key file, or use the single-line SSH_PRIVATE_KEY_B64 secret."; exit 1; }
           ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts
 
       - name: Upload and install
