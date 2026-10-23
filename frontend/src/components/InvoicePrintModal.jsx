@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { isPcsUnit } from '../utils/quotationSections';
+import { isQtyUnit } from '../utils/quotationSections';
+import { quantityText } from '../utils/lineQuantity';
 import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
@@ -461,7 +462,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                             {isDetailed && (() => {
                               const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
                               const isPvc = isPvcItem(item);
-                              const isPcs = isPcsUnit(u);
+                              const isPcs = isQtyUnit(u);
 
                               let tWidthVal = '-';
                               if (isPvc && width > 0) {
@@ -477,7 +478,7 @@ const InvoicePrintModal = ({ isOpen, onClose, invoice, printType = 'detailed' })
                                     <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{isPcs ? '—' : (isPvc ? tWidthVal : width)}</td>
                                   )}
                                   <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{isPcs ? '—' : height}</td>
-                                  <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{pcs}</td>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px' }}>{quantityText(item)}</td>
                                 </>
                               );
                             })()}

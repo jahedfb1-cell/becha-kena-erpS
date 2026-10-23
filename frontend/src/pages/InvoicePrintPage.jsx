@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
+import { isQuantityLine, quantityText } from '../utils/lineQuantity';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
@@ -669,9 +670,9 @@ const InvoicePrintPage = () => {
 
                         {isDetailed && (
                           <>
-                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{getDisplayWidth(item)}</td>
-                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{height}</td>
-                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{pcs}</td>
+                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{isQuantityLine(item) ? '—' : getDisplayWidth(item)}</td>
+                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{isQuantityLine(item) ? '—' : height}</td>
+                            <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>{quantityText(item)}</td>
                           </>
                         )}
 

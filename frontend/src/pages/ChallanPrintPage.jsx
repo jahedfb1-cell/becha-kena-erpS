@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { formatDate } from '../utils/format';
+import { isQuantityLine, quantityText } from '../utils/lineQuantity';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
@@ -524,13 +525,13 @@ const ChallanPrintPage = () => {
                         {isFirst ? (item.product?.product_code || item.variant?.name || '-') : ''}
                       </td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                        {getDisplayWidth(item)}
+                        {isQuantityLine(item) ? '—' : getDisplayWidth(item)}
                       </td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                        {item.height}
+                        {isQuantityLine(item) ? '—' : item.height}
                       </td>
                       <td style={{ textAlign: 'center', verticalAlign: 'top', paddingTop: '8px', border: '1px solid #cbd5e1' }}>
-                        {item.pcs}
+                        {quantityText(item)}
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', ...mergedCell }}>
                         {isFirst ? `${groupTotalSqft.toFixed(2)} Square feet` : ''}

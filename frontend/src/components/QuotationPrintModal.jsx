@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { isPcsUnit } from '../utils/quotationSections';
+import { isQtyUnit } from '../utils/quotationSections';
+import { quantityText } from '../utils/lineQuantity';
 import api from '../api/axios';
 import { formatDate, numberToWords } from '../utils/format';
 import { pvcSlatCount, isPvcItem } from '../utils/billing';
@@ -644,7 +645,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                             {isDetailed && (() => {
                               const u = (item.product?.unit || item.unit || '').trim().toLowerCase();
                               const isPvc = isPvcItem(item);
-                              const isPcs = isPcsUnit(u);
+                              const isPcs = isQtyUnit(u);
 
                               let tWidthVal = '-';
                               if (isPvc && width > 0) {
@@ -660,7 +661,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                                     <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{isPcs ? '—' : (isPvc ? tWidthVal : width)}</td>
                                   )}
                                   <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{isPcs ? '—' : height}</td>
-                                  <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{pcs}</td>
+                                  <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '15px' : '12px', fontWeight: 700, color: '#000' }}>{quantityText(item)}</td>
                                   <td style={{ textAlign: 'center', verticalAlign: 'middle', paddingTop: '8px', fontSize: isOrder ? '14px' : '12px', fontWeight: 700, color: '#000' }}>
                                     {isPcs ? `${pcs} pcs` : (parseFloat(item.billed_sqft) || (Math.round(((width * height) / 144) * 100) / 100 * pcs)).toFixed(2)}
                                   </td>
