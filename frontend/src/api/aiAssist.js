@@ -82,6 +82,9 @@ function readError(err) {
   if (message) return message;
   if (status === 401) return 'সেশন শেষ হয়ে গেছে। আবার লগইন করুন।';
   if (status === 413) return 'ফাইলটি অনেক বড়।';
+  // No response at all: the request never reached the server (or the connection
+  // dropped on the way) - a phone network problem, not an AI one.
+  if (!err?.response) return 'ইন্টারনেট সংযোগে সমস্যা। নেট চেক করে আবার চেষ্টা করুন।';
   return 'AI সার্ভিস এখন কাজ করছে না।';
 }
 
@@ -94,7 +97,7 @@ export async function parseCustomer({ image, text, mode }) {
   try {
     const res = await api.post('/ai/parse-customer', body, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 90000, // model calls routinely take 10-30s on a card image
+      timeout: 75000, // the server gives up on a stuck model after at most ~60s (see GeminiService)
     });
     return { ok: true, data: res.data?.data || {}, logId: res.data?.log_id || null };
   } catch (err) {

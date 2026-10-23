@@ -133,7 +133,8 @@ class AiAssistController extends Controller
             : 'Extract the customer details from this visiting card image.'];
 
         try {
-            $draft = $this->gemini->generateJson($parts, $this->extractionPrompt(), self::RESPONSE_SCHEMA);
+            // Pasted text is quick work for the small fast model; a card photo still gets the stronger one first.
+            $draft = $this->gemini->generateJson($parts, $this->extractionPrompt(), self::RESPONSE_SCHEMA, !$hasImage);
         } catch (RuntimeException $e) {
             return $this->mapFailure($e);
         }
@@ -358,6 +359,7 @@ class AiAssistController extends Controller
             'QUOTA'          => $this->errorResponse('এই মুহূর্তে লিমিট শেষ। কিছুক্ষণ পর চেষ্টা করুন বা হাতে লিখুন।', 429),
             'MODEL_RETIRED'  => $this->errorResponse('AI মডেল আপডেট দরকার। ডেভেলপারকে জানান।', 502),
             'BUSY'           => $this->errorResponse('AI এখন ব্যস্ত। কয়েক সেকেন্ড পর আবার চেষ্টা করুন।', 503),
+            'TIMEOUT'        => $this->errorResponse('AI উত্তর দিতে দেরি করছে। আবার চেষ্টা করুন।', 504),
             'UNPARSEABLE'    => $this->errorResponse('ডেটা পড়া যায়নি।', 422),
             default          => $this->errorResponse('AI সার্ভিস এখন কাজ করছে না।', 502),
         };
