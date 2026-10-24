@@ -4,60 +4,15 @@ import api from '../api/axios';
 import { formatDate } from '../utils/format';
 import { isQuantityLine, quantityText } from '../utils/lineQuantity';
 import { fetchProfileForRecord, brandFields } from '../utils/brandProfile';
-import { pvcSlatCount, isPvcItem } from '../utils/billing';
+import { isPvcItem } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import { buildPrintGroups } from '../utils/printGroups';
 import { OptionHeadingRow, RoomHeadingRow, OptionTotalRow } from '../components/PrintOptionRows';
 import { downloadPrintPdf } from '../utils/pdfDownload';
+import { downloadQuotationPadExcel } from '../utils/exportQuotationExcel';
+import { numberToWords, getDisplayWidth, groupTotals, quotationNetTotal } from '../utils/quotationPrintMath';
 
-const numberToWords = (num) => {
-  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
-  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-  
-  const inWords = (n) => {
-    if ((n = n.toString()).length > 9) return 'overflow';
-    let n_array = ('000000000' + n).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-    if (!n_array) return '';
-    let str = '';
-    str += (n_array[1] != 0) ? (a[Number(n_array[1])] || b[n_array[1][0]] + ' ' + a[n_array[1][1]]) + 'Crore ' : '';
-    str += (n_array[2] != 0) ? (a[Number(n_array[2])] || b[n_array[2][0]] + ' ' + a[n_array[2][1]]) + 'Lakh ' : '';
-    str += (n_array[3] != 0) ? (a[Number(n_array[3])] || b[n_array[3][0]] + ' ' + a[n_array[3][1]]) + 'Thousand ' : '';
-    str += (n_array[4] != 0) ? (a[Number(n_array[4])] || b[n_array[4][0]] + ' ' + a[n_array[4][1]]) + 'Hundred ' : '';
-    str += (n_array[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n_array[5])] || b[n_array[5][0]] + ' ' + a[n_array[5][1]]) : '';
-    return str;
-  };
-
-  const amount = parseFloat(num) || 0;
-  const taka = Math.floor(amount);
-  const paisa = Math.round((amount - taka) * 100);
-
-  let result = inWords(taka) ? inWords(taka) + 'Taka ' : 'Zero Taka ';
-  if (paisa > 0) {
-    result += 'and ' + inWords(paisa) + 'Paisa ';
-  }
-  return result.trim() + ' Only.';
-};
-
-// PVC strip-curtain items (e.g. "PVC Strip Door Curtain" / "2mm Clear Water
-// Co") are billed by total width — slat count × each slat's width — rather
-// than the customer's requested opening width. The printed Width column
-// shows that total-width figure for these items instead of the raw width,
-// matching the "T. Width (in)" figure shown for the same products in the
-// quotation builder.
-const getDisplayWidth = (item) => {
-  const width = parseFloat(item.width) || 0;
-  if (!isPvcItem(item)) return width;
-  const slatSize = parseFloat(item.product?.product_size) || 8;
-  // Falls back to the shared pvcSlatCount() rule (round up only past the
-  // 3/4-slat mark) rather than a plain Math.ceil, so an item whose slat
-  // count wasn't already saved on the record still bills the same width
-  // here as it would in the quotation builder or on the PVC Challan.
-  const slats = (item.slats !== undefined && item.slats !== null && item.slats !== '')
-    ? parseInt(item.slats)
-    : pvcSlatCount(width);
-  return Math.round(slats * slatSize * 100) / 100;
-};
 
 /**
  * Roughly how tall the product's specification block will render, in lines -
@@ -80,6 +35,7 @@ const QuotationPrintPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
 
   const printType = searchParams.get('type') || 'detailed';
 
@@ -175,6 +131,20 @@ const QuotationPrintPage = () => {
     }
   };
 
+  // Excel copy of the Pad Print (simple) layout - same figures and wording as the
+  // page, built from the same record (see utils/exportQuotationExcel.js).
+  const handleDownloadExcel = async () => {
+    setDownloadingExcel(true);
+    try {
+      await downloadQuotationPadExcel({ quotation, companyProfile, fileName: getCustomTitle() });
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      alert('Could not create the Excel file. Please try again.');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
+
   const setType = (newType) => {
     setSearchParams({ type: newType });
   };
@@ -210,20 +180,7 @@ const QuotationPrintPage = () => {
   // Entered order, quotation options and room headings: see printGroups.js.
   const buildGroups = (rawItems) => buildPrintGroups(rawItems, { specificationKey, displayWidth: getDisplayWidth });
 
-  const calculatedNetTotal = (quotation.items || []).reduce((sum, item) => {
-    if (item.is_selected === false) return sum;
-    // getDisplayWidth() is the item's own raw width for a non-PVC row, so
-    // this fallback is unchanged for those - only a PVC row's total-width
-    // (slat count × slat width) now feeds the sq.ft math here instead of
-    // the doorway width, matching what the printed T. Width column shows.
-    const w = getDisplayWidth(item);
-    const h = parseFloat(item.height) || 0;
-    const fallbackSqft = Math.round(((w * h) / 144) * 100) / 100;
-    const billedSqft = parseFloat(item.billed_sqft) || fallbackSqft;
-    const unitPrice = parseFloat(item.unit_price) || 0;
-    const lineTotal = parseFloat(item.line_total) || Math.round(billedSqft * unitPrice * 100) / 100;
-    return sum + lineTotal;
-  }, 0) + (parseFloat(quotation.convenience_charge) || 0) + (parseFloat(quotation.other_charge) || 0) + (parseFloat(quotation.vat_amount) || 0);
+  const calculatedNetTotal = quotationNetTotal(quotation);
 
   const hasMultipleSectionsOrOptions = items.some(i => i.option_group_id || i.group_id);
 
@@ -368,6 +325,31 @@ const QuotationPrintPage = () => {
           >
             <span>⬇️</span> {downloadingPdf ? 'Generating...' : 'Download PDF'}
           </button>
+          {(printType === 'pad' || printType === 'pad-simplified') && (
+            <button
+              type="button"
+              onClick={handleDownloadExcel}
+              disabled={downloadingExcel}
+              title="Downloads this Pad Print as an Excel file"
+              style={{
+                background: '#16a34a',
+                color: '#ffffff',
+                border: 'none',
+                padding: '10px 28px',
+                borderRadius: '6px',
+                fontWeight: 700,
+                fontSize: '14px',
+                cursor: downloadingExcel ? 'wait' : 'pointer',
+                opacity: downloadingExcel ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
+              }}
+            >
+              <span>📊</span> {downloadingExcel ? 'Generating...' : 'Download Excel'}
+            </button>
+          )}
           <button
             onClick={() => navigate('/quotations')}
             style={{
@@ -590,26 +572,7 @@ const QuotationPrintPage = () => {
               const optionLabel = group.optionLabel;
               const isSelectedChoice = firstItem && firstItem.is_selected !== false;
 
-              // Both fallbacks use getDisplayWidth() rather than the raw
-              // item width, so a PVC row's total-width figure (what the
-              // T. Width column actually shows) drives the sq.ft math here
-              // too, not the doorway width.
-              const groupTotalSqft = group.rows.reduce((sum, e) => {
-                const w = getDisplayWidth(e.item);
-                const h = parseFloat(e.item.height) || 0;
-                const fallback = Math.round(((w * h) / 144) * 100) / 100;
-                return sum + (parseFloat(e.item.billed_sqft) || fallback);
-              }, 0);
-
-              const groupTotalAmount = group.rows.reduce((sum, e) => {
-                const w = getDisplayWidth(e.item);
-                const h = parseFloat(e.item.height) || 0;
-                const fallbackSqft = Math.round(((w * h) / 144) * 100) / 100;
-                const billedSqft = parseFloat(e.item.billed_sqft) || fallbackSqft;
-                const unitPrice = parseFloat(e.item.unit_price) || 0;
-                const lineTotal = parseFloat(e.item.line_total) || Math.round(billedSqft * unitPrice * 100) / 100;
-                return sum + lineTotal;
-              }, 0);
+              const { sqft: groupTotalSqft, amount: groupTotalAmount } = groupTotals(group);
 
               return (
                 <React.Fragment key={`grp_${groupIdx}`}>
