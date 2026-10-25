@@ -5020,3 +5020,111 @@ a, button, select, input, textarea, .nav-item {
   font-size: 12.5px;
   line-height: 1.45;
 }
+
+
+/* ── Compact section card (quotation + order builders) ──────────────────────
+   "Section A: Main Items" with its Add Item button used to take ~190px of an
+   otherwise empty form. Tighter header, smaller buttons and hint; on a phone
+   the name and the buttons share one row and "Delete Section" is just the bin
+   icon. Written with !important because the cards style themselves inline. */
+.form-card-section.mobile-simple-section {
+  margin-bottom: 12px !important;
+}
+
+.form-card-section .section-header-row {
+  padding: 6px 10px !important;
+  margin-bottom: 8px !important;
+  row-gap: 6px;
+  border-radius: 6px !important;
+  border-bottom-width: 1px !important;
+}
+
+.form-card-section .section-header-row > div:first-child {
+  gap: 8px !important;
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.form-card-section .section-header-row > div:first-child > span {
+  font-size: 14px !important;
+}
+
+.form-card-section .section-name-input {
+  font-size: 14px !important;
+  padding: 2px 6px !important;
+  width: 100% !important;
+  max-width: 340px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Orders' name input sits directly in the header row, not inside a wrapper */
+.form-card-section .section-header-row > .section-name-input {
+  flex: 1 1 180px;
+}
+
+.form-card-section .section-toolbar {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.form-card-section .section-header-row .section-tool-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  gap: 4px;
+  border-radius: 6px;
+}
+
+.section-empty-hint {
+  padding: 10px 12px !important;
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .form-card-section.mobile-simple-section {
+    padding: 6px 0 !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* name + buttons on one line instead of stacked */
+  .form-card-section .section-header-row {
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+    align-items: center !important;
+    gap: 6px;
+    padding: 5px 8px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .form-card-section .section-header-row > div:first-child,
+  .form-card-section .section-header-row > .section-name-input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .form-card-section .section-header-row > div:last-child {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  .form-card-section .section-header-row .section-tool-btn {
+    flex: 0 0 auto;
+    padding: 6px 9px;
+  }
+
+  /* the bin keeps its icon only */
+  .form-card-section .section-toolbar .section-tool-btn--danger {
+    padding: 6px 8px;
+  }
+
+  /* no room for the folder icon next to the name on a phone */
+  .form-card-section .section-header-row > div:first-child > span {
+    display: none;
+  }
+
+  .form-card-section .section-name-input {
+    max-width: none;
+    font-size: 13px !important;
+  }
+}

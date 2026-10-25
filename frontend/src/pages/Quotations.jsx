@@ -2661,14 +2661,14 @@ const Quotations = () => {
                             onClick={() => removeSection(sec.id)}
                             className="section-tool-btn section-tool-btn--danger"
                           >
-                            🗑️ Delete Section
+                            🗑️ <span className="hide-mobile-text">Delete Section</span>
                           </button>
                         )}
                       </div>
                     </div>
 
                     {sec.blocks.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic', background: 'var(--bg-base)', borderRadius: '8px' }}>
+                      <div className="section-empty-hint" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic', background: 'var(--bg-base)', borderRadius: '8px' }}>
                         No items in this section yet. Click <strong>"+ Add Item"</strong> above, or pick a product from <strong>Select Product</strong>.
                       </div>
                     ) : (

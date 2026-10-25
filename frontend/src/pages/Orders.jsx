@@ -2296,14 +2296,14 @@ const Orders = () => {
                             onClick={() => removeSection(sec.id)}
                             className="section-tool-btn section-tool-btn--danger"
                           >
-                            🗑️ Delete Section
+                            🗑️ <span className="hide-mobile-text">Delete Section</span>
                           </button>
                         )}
                       </div>
                     </div>
 
                     {sec.blocks.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '24px', background: '#f8fafc', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
+                      <div className="section-empty-hint" style={{ textAlign: 'center', padding: '24px', background: '#f8fafc', borderRadius: '8px', color: '#64748b', fontSize: '13px' }}>
                         No items in this section. Click <strong>"+ Add Item"</strong> above.
                       </div>
                     ) : (
