@@ -8,6 +8,7 @@ use App\Services\GeminiService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use App\Http\Requests\ParseCustomerTextRequest;
 use App\Http\Requests\LogAiSuggestionAppliedRequest;
@@ -114,6 +115,17 @@ class AiAssistController extends Controller
         $text = trim((string) ($validated['text'] ?? ''));
         $hasImage = $request->hasFile('image');
 
+        // Breadcrumbs for support: whether a phone's request arrives at all, how big the
+        // photo is, and how it ended - see laravel.log lines starting "AI parse-customer".
+        $startedAt = microtime(true);
+        Log::info('AI parse-customer: request received', [
+            'user'       => $request->user()?->id,
+            'mode'       => $request->input('mode'),
+            'image_kb'   => $hasImage ? (int) round($request->file('image')->getSize() / 1024) : 0,
+            'image_mime' => $hasImage ? $request->file('image')->getMimeType() : null,
+            'text_chars' => mb_strlen($text),
+        ]);
+
         if (!$hasImage && $text === '') {
             return $this->errorResponse('text, image or audio required', 422);
         }
@@ -136,6 +148,8 @@ class AiAssistController extends Controller
             // Pasted text is quick work for the small fast model; a card photo still gets the stronger one first.
             $draft = $this->gemini->generateJson($parts, $this->extractionPrompt(), self::RESPONSE_SCHEMA, !$hasImage);
         } catch (RuntimeException $e) {
+            Log::warning('AI parse-customer: failed', ['user' => $request->user()?->id, 'code' => $e->getMessage(), 'seconds' => round(microtime(true) - $startedAt, 1)]);
+
             return $this->mapFailure($e);
         }
 
@@ -164,6 +178,13 @@ class AiAssistController extends Controller
             $result['confidence'] = min($result['confidence'], 0.6);
         }
 
+        Log::info('AI parse-customer: done', [
+            'user'    => $request->user()?->id,
+            'tier'    => $this->gemini->lastTier(),
+            'blank'   => $this->isBlankDraft($result),
+            'seconds' => round(microtime(true) - $startedAt, 1),
+        ]);
+
         $log = AiAssistLog::create([
             'user_id'    => $request->user()?->id,
             'mode'       => $validated['mode'] ?? ($hasImage ? 'card' : 'text'),
@@ -172,6 +193,36 @@ class AiAssistController extends Controller
         ]);
 
         return response()->json(['data' => $result, 'log_id' => $log->id, 'verify_numbers' => $verifyNumbers]);
+    }
+
+    /**
+     * POST /api/ai/client-error
+     *
+     * The phone reports what it saw when an AI request failed on its side (no
+     * answer, timeout, odd status) - the one thing the server cannot know. Only
+     * written to the log, never to the database; every field is cut short.
+     */
+    public function clientError(Request $request): JsonResponse
+    {
+        $clean = fn ($v, int $max = 200) => is_scalar($v) ? mb_substr((string) $v, 0, $max) : null;
+
+        Log::warning('AI Assist client error', [
+            'user'         => $request->user()?->id,
+            'stage'        => $clean($request->input('stage'), 40),
+            'status'       => $clean($request->input('status'), 10),
+            'code'         => $clean($request->input('code'), 40),
+            'message'      => $clean($request->input('message')),
+            'seconds'      => $clean($request->input('seconds'), 10),
+            'online'       => $clean($request->input('online'), 10),
+            'network'      => $clean($request->input('network'), 20),
+            'sent_kb'      => $clean($request->input('sent_kb'), 10),
+            'sent_type'    => $clean($request->input('sent_type'), 40),
+            'original_kb'  => $clean($request->input('original_kb'), 10),
+            'original_type' => $clean($request->input('original_type'), 40),
+            'agent'        => $clean($request->userAgent(), 160),
+        ]);
+
+        return response()->json(['ok' => true]);
     }
 
     /**

@@ -143,6 +143,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/parse-customer', [AiAssistController::class, 'parseCustomer']);
         Route::post('/transcribe', [AiAssistController::class, 'transcribe']);
         Route::post('/log-applied', [AiAssistController::class, 'logApplied']);
+        Route::post('/client-error', [AiAssistController::class, 'clientError']);
         Route::post('/parse-sizes', [AiAssistController::class, 'parseSizes']);
     });
 

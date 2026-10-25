@@ -74,6 +74,7 @@ const S = {
 const AIAssistModal = ({ isOpen, onClose, onApply }) => {
   const [tab, setTab] = useState('text');
   const [text, setText] = useState('');
+  const [originalFile, setOriginalFile] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [busy, setBusy] = useState(false);
@@ -105,6 +106,7 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
     if (!file) return;
     setError('');
     const compressed = await compressImage(file);
+    setOriginalFile(file); // kept only so a failed request can report what the phone really picked
     setImageFile(compressed);
     setImagePreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(compressed); });
   };
@@ -120,6 +122,7 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
       image: tab === 'screenshot' ? imageFile : null,
       text: tab === 'screenshot' ? '' : text,
       mode: fromVoice ? 'voice' : (tab === 'screenshot' ? 'card' : 'text'),
+      originalFile: tab === 'screenshot' ? originalFile : null,
     });
 
     setBusy(false);

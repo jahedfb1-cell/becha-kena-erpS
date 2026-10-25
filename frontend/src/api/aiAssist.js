@@ -110,12 +110,35 @@ async function postWithRetry(path, body, config) {
   }
 }
 
-export async function parseCustomer({ image, text, mode }) {
+/**
+ * Tells the server what a failed AI request looked like from the phone's side
+ * (see AiAssistController::clientError). Fire and forget: it must never get in
+ * the way, and if the connection is the very thing that is down it is simply lost.
+ */
+function reportClientError(err, extra = {}) {
+  try {
+    const conn = typeof navigator !== 'undefined' ? navigator.connection : null;
+    api.post('/ai/client-error', {
+      stage: 'parse-customer',
+      status: err?.response?.status ?? '',
+      code: err?.code ?? '',
+      message: err?.message ?? '',
+      online: typeof navigator !== 'undefined' ? String(navigator.onLine) : '',
+      network: conn ? `${conn.effectiveType || ''}${conn.saveData ? '+saveData' : ''}` : '',
+      ...extra,
+    }, { timeout: 8000 }).catch(() => {});
+  } catch {
+    /* never block the form */
+  }
+}
+
+export async function parseCustomer({ image, text, mode, originalFile }) {
   const body = new FormData();
   if (image) body.append('image', image);
   if (text) body.append('text', text);
   if (mode) body.append('mode', mode);
 
+  const startedAt = Date.now();
   try {
     const res = await postWithRetry('/ai/parse-customer', body, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -123,6 +146,13 @@ export async function parseCustomer({ image, text, mode }) {
     });
     return { ok: true, data: res.data?.data || {}, logId: res.data?.log_id || null, verifyNumbers: !!res.data?.verify_numbers };
   } catch (err) {
+    reportClientError(err, {
+      seconds: Math.round((Date.now() - startedAt) / 1000),
+      sent_kb: image ? Math.round(image.size / 1024) : 0,
+      sent_type: image?.type || '',
+      original_kb: originalFile ? Math.round(originalFile.size / 1024) : '',
+      original_type: originalFile?.type || '',
+    });
     return { ok: false, error: readError(err) };
   }
 }

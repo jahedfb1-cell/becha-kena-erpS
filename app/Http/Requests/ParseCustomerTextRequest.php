@@ -7,6 +7,18 @@ namespace App\Http\Requests;
  */
 class ParseCustomerTextRequest extends ApiFormRequest
 {
+    protected function failedValidation(\Illuminate\Contracts\Validation\Validator $validator): void
+    {
+        \Illuminate\Support\Facades\Log::warning('AI parse-customer: rejected by validation', [
+            'user'   => $this->user()?->id,
+            'errors' => $validator->errors()->all(),
+            'kb'     => $this->hasFile('image') ? (int) round($this->file('image')->getSize() / 1024) : 0,
+            'mime'   => $this->hasFile('image') ? $this->file('image')->getMimeType() : null,
+        ]);
+
+        parent::failedValidation($validator);
+    }
+
     public function authorize(): bool
     {
         // No permission of its own: the route's middleware / the controller decides
