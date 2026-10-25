@@ -27,6 +27,16 @@ DOMAIN=/home/$USER/domains/dhakablinds.shop
 DIST="frontend/dist"
 [ -d "$DIST/assets" ] || { echo "No build at $DIST — run: cd frontend && npx vite build"; exit 1; }
 
+# The home-screen icons ship from the repository (git HEAD), never from whatever
+# the local app last wrote into frontend/public: opening Company Profile on a
+# dev machine regenerates those files from the dev database's logo, and a build
+# made in that state once put tiny placeholder icons on the live site.
+for icon in apple-touch-icon.png pwa-192x192.png pwa-512x512.png pwa-maskable-512x512.png; do
+  if git cat-file -e "HEAD:frontend/public/$icon" 2>/dev/null; then
+    git show "HEAD:frontend/public/$icon" > "$DIST/$icon"
+  fi
+done
+
 echo "==> Packaging $DIST"
 TARBALL=$(mktemp -t dbdist.XXXXXX).tar.gz
 tar -czf "$TARBALL" -C "$DIST" .
