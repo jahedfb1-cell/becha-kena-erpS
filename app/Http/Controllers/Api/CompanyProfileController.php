@@ -267,12 +267,18 @@ class CompanyProfileController extends Controller
             // claimed 192x192, which is exactly what was silently failing
             // the "beforeinstallprompt" criteria and blocking the Install
             // App button on Android with no visible error.
+            //
+            // A wide logo (mark + company name) is trimmed to its mark rather than
+            // centre-cropped to half a word - see AppIconRenderer.
             $square192 = $this->squareIconFrom($targetLogo, 192);
             $square512 = $this->squareIconFrom($targetLogo, 512);
-            $square180 = $this->squareIconFrom($targetLogo, 180); // apple-touch-icon convention
+            $square180 = $this->squareIconFrom($targetLogo, 180, 'opaque'); // apple-touch-icon convention, no transparency
+            $maskable512 = $this->squareIconFrom($targetLogo, 512, 'maskable'); // Android may round or circle this
 
-            if ($square192 && $square512 && $square180) {
+            if ($square192 && $square512 && $square180 && $maskable512) {
                 $writes = [
+                    [public_path('pwa-maskable-512x512.png'), $maskable512],
+                    [base_path('frontend/public/pwa-maskable-512x512.png'), $maskable512],
                     [public_path('pwa-192x192.png'), $square192],
                     [public_path('pwa-512x512.png'), $square512],
                     [public_path('apple-touch-icon.png'), $square180],
@@ -289,63 +295,33 @@ class CompanyProfileController extends Controller
                 $this->mirrorBlobToPublicHtml($square192, 'pwa-192x192.png');
                 $this->mirrorBlobToPublicHtml($square512, 'pwa-512x512.png');
                 $this->mirrorBlobToPublicHtml($square180, 'apple-touch-icon.png');
+                $this->mirrorBlobToPublicHtml($maskable512, 'pwa-maskable-512x512.png');
             } else {
                 // GD couldn't read the source (corrupt file, unsupported
                 // format) — fall back to the old raw copy rather than leave
                 // stale icons, even though it repeats the size mismatch.
                 foreach ([
-                    public_path('pwa-192x192.png'), public_path('pwa-512x512.png'), public_path('apple-touch-icon.png'),
-                    base_path('frontend/public/pwa-192x192.png'), base_path('frontend/public/pwa-512x512.png'), base_path('frontend/public/apple-touch-icon.png'),
+                    public_path('pwa-192x192.png'), public_path('pwa-512x512.png'), public_path('apple-touch-icon.png'), public_path('pwa-maskable-512x512.png'),
+                    base_path('frontend/public/pwa-192x192.png'), base_path('frontend/public/pwa-512x512.png'), base_path('frontend/public/apple-touch-icon.png'), base_path('frontend/public/pwa-maskable-512x512.png'),
                 ] as $dest) {
                     @copy($targetLogo, $dest);
                 }
                 $this->mirrorToPublicHtml($targetLogo, 'pwa-192x192.png');
                 $this->mirrorToPublicHtml($targetLogo, 'pwa-512x512.png');
                 $this->mirrorToPublicHtml($targetLogo, 'apple-touch-icon.png');
+                $this->mirrorToPublicHtml($targetLogo, 'pwa-maskable-512x512.png');
             }
         }
     }
 
     /**
-     * Center-crops the source image to a square and resizes it to exactly
-     * $size x $size, returning the encoded PNG bytes (or null if the source
-     * couldn't be read — e.g. GD lacks the relevant format support).
+     * Renders the source image as a $size x $size PNG icon ('any', 'opaque' or
+     * 'maskable' - see AppIconRenderer), or null if it can't be read (e.g. GD is
+     * missing the format). Never crops a wide logo down to half a word.
      */
-    private function squareIconFrom(string $sourcePath, int $size): ?string
+    private function squareIconFrom(string $sourcePath, int $size, string $style = 'any'): ?string
     {
-        if (!function_exists('imagecreatefromstring')) {
-            return null; // GD extension not available
-        }
-
-        $bytes = @file_get_contents($sourcePath);
-        $source = $bytes ? @imagecreatefromstring($bytes) : false;
-        if (!$source) {
-            return null;
-        }
-
-        $width = imagesx($source);
-        $height = imagesy($source);
-        $cropSize = min($width, $height);
-        $srcX = (int) (($width - $cropSize) / 2);
-        $srcY = (int) (($height - $cropSize) / 2);
-
-        $square = imagecreatetruecolor($size, $size);
-        // Preserve transparency instead of compositing onto black - a
-        // transparent-background app icon is the common case.
-        imagealphablending($square, false);
-        imagesavealpha($square, true);
-        $transparent = imagecolorallocatealpha($square, 0, 0, 0, 127);
-        imagefill($square, 0, 0, $transparent);
-
-        imagecopyresampled($square, $source, 0, 0, $srcX, $srcY, $size, $size, $cropSize, $cropSize);
-        imagedestroy($source);
-
-        ob_start();
-        imagepng($square);
-        $out = ob_get_clean();
-        imagedestroy($square);
-
-        return $out ?: null;
+        return app(\App\Services\AppIconRenderer::class)->render($sourcePath, $size, $style);
     }
 
     /** Same as mirrorToPublicHtml(), but for already-in-memory image bytes. */
