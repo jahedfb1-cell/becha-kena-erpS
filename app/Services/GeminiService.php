@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use GuzzleHttp\Promise\AggregateException;
+use GuzzleHttp\Promise\Utils;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -18,32 +22,35 @@ use RuntimeException;
  *   NOT_CONFIGURED  — no API key set
  *   QUOTA           — free-tier limit hit (429)
  *   MODEL_RETIRED   — configured model no longer exists (404)
- *   BUSY            — model overloaded (503), retries exhausted
+ *   BUSY            — model overloaded (503)
+ *   TIMEOUT         — the model did not answer in time
  *   UPSTREAM        — anything else from the provider
  *   UNPARSEABLE     — provider replied, but not with usable JSON
- *   TIMEOUT         — the model did not answer in time (treated like BUSY: the
- *                     next model is tried instead of waiting on a stuck one)
+ *
+ * Why the models are raced: on the free tier any single Gemini model is, at
+ * any moment, either fast, overloaded (503, sometimes only after 20+ seconds)
+ * or silent until the timeout - and which one it is changes from minute to
+ * minute. Asking one model, waiting, then asking the next turned a bad minute
+ * into a one-minute wait followed by an error. Asking several at once and
+ * taking the first usable answer makes the request as fast as the fastest
+ * healthy model, and only fails when all of them fail together.
  */
 class GeminiService
 {
-    /**
-     * A 503 from Gemini means "this model is busy right now", not "your
-     * request is wrong" — the free tier returns it regularly under load. One
-     * retry with a short backoff turns most of them into a normal answer
-     * instead of an error the salesman has to work around.
-     */
-    private const RETRY_DELAY_MS = [800, 2500];
+    /** Longest the whole request may take; the browser gives up at 75 seconds. */
+    private const TOTAL_BUDGET_SECONDS = 58;
 
-    /**
-     * Attempts on the model of last resort. The earlier models get exactly one:
-     * if one is busy or stuck, waiting on it only makes the salesman wait -
-     * the next model answers sooner than a retry would.
-     */
-    private const LAST_MODEL_ATTEMPTS = 2;
-
-    /** Text-only requests are small and quick; a model that has not answered in this long is stuck. */
-    private const TEXT_TIMEOUT_SECONDS = 25;
+    /** Text-only requests are small; a model silent for this long is stuck. */
+    private const TEXT_TIMEOUT_SECONDS = 20;
+    private const MEDIA_TIMEOUT_SECONDS = 30;
     private const CONNECT_TIMEOUT_SECONDS = 8;
+
+    /** A second round is only worth starting if there is time for it to finish. */
+    private const MIN_SECONDS_FOR_RETRY = 12;
+    private const RETRY_PAUSE_MS = 1200;
+
+    /** When every model failed, report the most useful reason first. */
+    private const FAILURE_PRIORITY = ['BUSY', 'TIMEOUT', 'QUOTA', 'UNPARSEABLE', 'UPSTREAM', 'MODEL_RETIRED'];
 
     public function isConfigured(): bool
     {
@@ -56,27 +63,52 @@ class GeminiService
     }
 
     /**
+     * The models asked for each request, raced against each other.
+     *
+     * @return string[]
+     */
+    protected function models(): array
+    {
+        $raceCount = max(1, (int) config('services.gemini.race_count', 3));
+
+        $models = array_merge(
+            (array) config('services.gemini.models', []),
+            [$this->model(), (string) config('services.gemini.fallback_model')]
+        );
+
+        $models = array_values(array_unique(array_filter(array_map('trim', $models), fn ($m) => $m !== '')));
+
+        return array_slice($models, 0, $raceCount);
+    }
+
+    /**
      * Ask the model to return JSON matching $responseSchema.
      *
      * @param  array  $parts  Gemini "parts" array (text and/or inlineData)
+     * @param  bool   $preferFast  kept for callers; every model is raced now, so order no longer matters
      * @return array  decoded JSON object
      */
     public function generateJson(array $parts, string $systemPrompt, array $responseSchema, bool $preferFast = false): array
     {
+        // A model that answers with something that is not JSON must not win the
+        // race - the next model's answer is used instead.
+        $accept = function (string $raw): bool {
+            if (!is_array(json_decode($raw, true))) {
+                Log::warning('Gemini returned unparseable JSON', ['raw' => mb_substr($raw, 0, 500)]);
+
+                return false;
+            }
+
+            return true;
+        };
+
         $raw = $this->call($parts, [
             'responseMimeType' => 'application/json',
             'responseSchema'   => $responseSchema,
             'temperature'      => 0.1,
-        ], $systemPrompt, $preferFast);
+        ], $systemPrompt, $accept);
 
-        $decoded = json_decode($raw, true);
-
-        if (!is_array($decoded)) {
-            Log::warning('Gemini returned unparseable JSON', ['raw' => mb_substr($raw, 0, 500)]);
-            throw new RuntimeException('UNPARSEABLE');
-        }
-
-        return $decoded;
+        return json_decode($raw, true);
     }
 
     /**
@@ -101,15 +133,11 @@ class GeminiService
     }
 
     /**
-     * Runs the request against the primary model, then the fallback model if
-     * the primary is out of free-tier quota or overloaded.
+     * Races the request across the models and returns the first usable answer.
      *
-     * The free tier caps the good flash model at 20 requests per minute and
-     * returns 503 whenever Google is busy. Both are temporary conditions that
-     * a smaller sibling model can serve immediately, and a slightly weaker
-     * extraction the salesman reviews anyway beats an error message.
+     * @param  callable|null  $accept  receives the raw answer text; false rejects it
      */
-    protected function call(array $parts, array $generationConfig, string $systemPrompt, bool $preferFast = false): string
+    protected function call(array $parts, array $generationConfig, string $systemPrompt, ?callable $accept = null): string
     {
         if (!$this->isConfigured()) {
             throw new RuntimeException('NOT_CONFIGURED');
@@ -131,98 +159,86 @@ class GeminiService
             'generationConfig' => $generationConfig,
         ];
 
-        $primary  = $this->model();
-        $fallback = (string) config('services.gemini.fallback_model');
+        $models = $this->models();
+        $perCallTimeout = $this->hasInlineData($parts) ? self::MEDIA_TIMEOUT_SECONDS : self::TEXT_TIMEOUT_SECONDS;
+        $perCallTimeout = min($perCallTimeout, (int) config('services.gemini.timeout', 45));
 
-        // Pulling a name out of plain pasted text is easy work, so for text-only
-        // requests the small fast model goes first and the stronger one is the
-        // backup. Images and audio keep the stronger model first.
-        $ordered = ($preferFast && $fallback !== '') ? [$fallback, $primary] : [$primary, $fallback];
-        $models  = array_values(array_unique(array_filter($ordered, fn ($m) => $m !== '')));
+        $started = microtime(true);
+        $failures = [];
 
-        $hasMedia = $this->hasInlineData($parts);
-        $timeout  = $hasMedia
-            ? (int) config('services.gemini.timeout', 45)
-            : min(self::TEXT_TIMEOUT_SECONDS, (int) config('services.gemini.timeout', 45));
-
-        $lastFailure = 'UPSTREAM';
-
-        foreach ($models as $index => $model) {
-            $isLast = $index === count($models) - 1;
+        for ($round = 1; $round <= 2; $round++) {
+            $remaining = self::TOTAL_BUDGET_SECONDS - (int) (microtime(true) - $started);
+            $timeout = max(5, min($perCallTimeout, $remaining));
 
             try {
-                return $this->callModel($model, $payload, $isLast ? self::LAST_MODEL_ATTEMPTS : 1, $timeout);
+                return $this->race($models, $payload, $timeout, $accept);
             } catch (RuntimeException $e) {
-                $lastFailure = $e->getMessage();
-
-                // Only capacity problems are worth another model's time. A bad
-                // request or an unreadable answer will fail identically twice.
-                if (!in_array($lastFailure, ['QUOTA', 'BUSY', 'MODEL_RETIRED', 'TIMEOUT'], true)) {
-                    throw $e;
-                }
-
-                if ($index < count($models) - 1) {
-                    Log::info('Gemini falling back to secondary model', [
-                        'from'   => $model,
-                        'reason' => $lastFailure,
-                    ]);
-                }
-            }
-        }
-
-        throw new RuntimeException($lastFailure);
-    }
-
-    /**
-     * One model, with a short retry on 503 before giving up on it.
-     */
-    protected function callModel(string $model, array $payload, int $maxAttempts = 2, int $timeout = 45): string
-    {
-        $url = rtrim((string) config('services.gemini.base_url'), '/')
-            . '/models/' . $model . ':generateContent';
-
-        $response = null;
-
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            try {
-                $response = Http::timeout($timeout)
-                    ->connectTimeout(self::CONNECT_TIMEOUT_SECONDS)
-                    ->withHeaders(['x-goog-api-key' => (string) config('services.gemini.key')])
-                    ->asJson()
-                    ->post($url, $payload);
-            } catch (\Throwable $e) {
-                // No answer within the time limit: the model is stuck, so do not
-                // wait on it again - hand over to the next model straight away.
-                if (str_contains($e->getMessage(), 'cURL error 28')) {
-                    Log::warning('Gemini timed out', ['model' => $model, 'seconds' => $timeout]);
-                    throw new RuntimeException('TIMEOUT');
-                }
-
-                // A dropped connection mid-upload is common with the multi-megabyte
-                // audio payloads this sends, and is exactly as transient as a 503.
-                if ($attempt < $maxAttempts) {
-                    Log::info('Gemini request dropped, retrying', [
-                        'model'   => $model,
-                        'attempt' => $attempt,
-                        'error'   => $e->getMessage(),
-                    ]);
-                    usleep(self::RETRY_DELAY_MS[$attempt - 1] * 1000);
-                    continue;
-                }
-
-                Log::error('Gemini request failed to send', ['error' => $e->getMessage()]);
-                throw new RuntimeException('UPSTREAM');
+                $failures[] = $e->getMessage();
             }
 
-            // 503 is transient overload; anything else is decided on first sight.
-            if ($response->status() !== 503 || $attempt === $maxAttempts) {
+            $left = self::TOTAL_BUDGET_SECONDS - (int) (microtime(true) - $started);
+            // Quota and retired-model failures are not going to clear in a second.
+            $retryable = !in_array(end($failures), ['QUOTA', 'MODEL_RETIRED', 'NOT_CONFIGURED'], true);
+            if ($round === 2 || !$retryable || $left < self::MIN_SECONDS_FOR_RETRY) {
                 break;
             }
 
-            Log::info('Gemini overloaded, retrying', ['model' => $model, 'attempt' => $attempt]);
-            usleep(self::RETRY_DELAY_MS[$attempt - 1] * 1000);
+            Log::info('Gemini: every model failed, trying once more', ['failures' => $failures, 'left' => $left]);
+            usleep(self::RETRY_PAUSE_MS * 1000);
         }
 
+        throw new RuntimeException($this->mostUsefulFailure($failures));
+    }
+
+    /**
+     * One round: send the request to every model at the same time and return
+     * the first answer that is usable. Throws the most useful failure code when
+     * none is.
+     */
+    protected function race(array $models, array $payload, int $timeout, ?callable $accept): string
+    {
+        $base = rtrim((string) config('services.gemini.base_url'), '/');
+        $key = (string) config('services.gemini.key');
+
+        $promises = [];
+        foreach ($models as $model) {
+            $promises[$model] = Http::timeout($timeout)
+                ->connectTimeout(self::CONNECT_TIMEOUT_SECONDS)
+                ->withHeaders(['x-goog-api-key' => $key])
+                ->asJson()
+                ->async()
+                ->post($base . '/models/' . $model . ':generateContent', $payload)
+                ->then(function ($response) use ($model, $accept) {
+                    if (!$response instanceof Response) {
+                        // The async client hands back the exception itself on a dropped connection.
+                        throw $this->failureFromThrowable($response, $model);
+                    }
+
+                    return $this->usableText($response, $model, $accept);
+                });
+        }
+
+        try {
+            $winner = Utils::any($promises)->wait();
+        } catch (AggregateException $e) {
+            $codes = [];
+            foreach ((array) $e->getReason() as $model => $reason) {
+                $codes[] = $reason instanceof RuntimeException
+                    ? $reason->getMessage()
+                    : $this->failureFromThrowable($reason, (string) $model)->getMessage();
+            }
+            throw new RuntimeException($this->mostUsefulFailure($codes));
+        }
+
+        return $winner['text'] ?? (string) $winner;
+    }
+
+    /**
+     * The answer text of a successful response, or an exception carrying the
+     * failure code for this model.
+     */
+    protected function usableText(Response $response, string $model, ?callable $accept): array
+    {
         if ($response->status() === 429) {
             throw new RuntimeException('QUOTA');
         }
@@ -230,14 +246,12 @@ class GeminiService
         if ($response->status() === 404) {
             // A retired model name is an outage that looks like a bug — make
             // it loud and distinct so it is not mistaken for a bad request.
-            Log::critical('Gemini model not found — the configured model may have been retired', [
-                'model' => $model,
-            ]);
+            Log::critical('Gemini model not found — the configured model may have been retired', ['model' => $model]);
             throw new RuntimeException('MODEL_RETIRED');
         }
 
         if ($response->status() === 503) {
-            Log::warning('Gemini still overloaded after retries', ['model' => $model]);
+            Log::info('Gemini model overloaded', ['model' => $model]);
             throw new RuntimeException('BUSY');
         }
 
@@ -260,7 +274,42 @@ class GeminiService
             throw new RuntimeException('UNPARSEABLE');
         }
 
-        return $text;
+        if ($accept !== null && $accept($text) === false) {
+            throw new RuntimeException('UNPARSEABLE');
+        }
+
+        Log::info('Gemini answered', ['model' => $model]);
+
+        return ['text' => $text, 'model' => $model];
+    }
+
+    protected function failureFromThrowable(\Throwable $e, string $model): RuntimeException
+    {
+        if ($e instanceof RuntimeException && in_array($e->getMessage(), self::FAILURE_PRIORITY, true)) {
+            return $e;
+        }
+
+        if (str_contains($e->getMessage(), 'cURL error 28')) {
+            Log::info('Gemini timed out', ['model' => $model]);
+
+            return new RuntimeException('TIMEOUT');
+        }
+
+        Log::warning('Gemini request failed to send', ['model' => $model, 'error' => $e->getMessage()]);
+
+        return new RuntimeException('UPSTREAM');
+    }
+
+    /** @param string[] $codes */
+    protected function mostUsefulFailure(array $codes): string
+    {
+        foreach (self::FAILURE_PRIORITY as $code) {
+            if (in_array($code, $codes, true)) {
+                return $code;
+            }
+        }
+
+        return 'UPSTREAM';
     }
 
     /** Whether the request carries an image or audio payload (slower to send and to read). */

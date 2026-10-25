@@ -54,6 +54,18 @@ return [
          */
         'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite'),
 
+        /*
+         | The models every request is raced across (first usable answer wins) -
+         | see GeminiService. Comma separated, best first; the primary and
+         | fallback models above are appended if they are not already listed.
+         | Google retires and renames models often, so these are config, not code.
+         */
+        'models' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'GEMINI_MODELS',
+            'gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.1-flash-lite'
+        ))))),
+        'race_count' => (int) env('GEMINI_RACE_COUNT', 3),
+
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 45),
 

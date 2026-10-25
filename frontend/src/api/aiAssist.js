@@ -82,9 +82,13 @@ function readError(err) {
   if (message) return message;
   if (status === 401) return 'সেশন শেষ হয়ে গেছে। আবার লগইন করুন।';
   if (status === 413) return 'ফাইলটি অনেক বড়।';
-  // No response at all: the request never reached the server (or the connection
-  // dropped on the way) - a phone network problem, not an AI one.
-  if (!err?.response) return 'ইন্টারনেট সংযোগে সমস্যা। নেট চেক করে আবার চেষ্টা করুন।';
+  // No answer arrived. Most often the server was still waiting on Google's AI
+  // (which is sometimes overloaded) when the browser gave up - that is not an
+  // internet problem, so do not blame the user's connection for it.
+  if (!err?.response) {
+    if (err?.code === 'ECONNABORTED') return 'AI উত্তর দিতে অনেক দেরি করছে (Google-এর AI এখন ব্যস্ত)। কিছুক্ষণ পর আবার চেষ্টা করুন, অথবা হাতে লিখুন।';
+    return 'সার্ভার থেকে উত্তর আসেনি। আবার চেষ্টা করুন। বারবার হলে নেট চেক করুন বা হাতে লিখুন।';
+  }
   return 'AI সার্ভিস এখন কাজ করছে না।';
 }
 
