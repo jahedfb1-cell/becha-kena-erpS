@@ -66,7 +66,7 @@ const S = {
     textAlign: 'center', background: '#fff', cursor: 'pointer',
   },
   reviewRow: {
-    display: 'grid', gridTemplateColumns: '130px 1fr', gap: '10px',
+    display: 'grid', gridTemplateColumns: 'minmax(96px, 130px) minmax(0, 1fr)', gap: '10px',
     padding: '9px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px',
   },
 };
@@ -183,7 +183,7 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
               {rows.map(([k, v]) => (
                 <div key={k} style={S.reviewRow}>
                   <span style={{ color: '#64748b', fontWeight: 600 }}>{FIELD_LABELS[k]}</span>
-                  <span style={{ color: '#0f172a', fontWeight: 700, whiteSpace: 'pre-line' }}>{v}</span>
+                  <span style={{ color: '#0f172a', fontWeight: 700, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{v}</span>
                 </div>
               ))}
             </div>

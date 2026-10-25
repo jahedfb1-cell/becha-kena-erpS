@@ -92,6 +92,24 @@ function readError(err) {
   return 'AI সার্ভিস এখন কাজ করছে না।';
 }
 
+/**
+ * POST that tries once more when no answer came back at all because the
+ * connection dropped (typical on a phone moving between cells or Wi-Fi). It is
+ * not repeated after a timeout - the server was already working on it - nor
+ * after any real answer, whatever its status. Every AI endpoint only reads and
+ * drafts, so asking twice is harmless.
+ */
+async function postWithRetry(path, body, config) {
+  try {
+    return await api.post(path, body, config);
+  } catch (err) {
+    const connectionDropped = !err?.response && err?.code !== 'ECONNABORTED';
+    if (!connectionDropped) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return api.post(path, body, config);
+  }
+}
+
 export async function parseCustomer({ image, text, mode }) {
   const body = new FormData();
   if (image) body.append('image', image);
@@ -99,7 +117,7 @@ export async function parseCustomer({ image, text, mode }) {
   if (mode) body.append('mode', mode);
 
   try {
-    const res = await api.post('/ai/parse-customer', body, {
+    const res = await postWithRetry('/ai/parse-customer', body, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 75000, // the server gives up on a stuck model after at most ~60s (see GeminiService)
     });
@@ -158,7 +176,7 @@ export async function transcribeAudio(audioBlob, filename = 'voice.webm') {
   body.append('audio', audioBlob, filename);
 
   try {
-    const res = await api.post('/ai/transcribe', body, {
+    const res = await postWithRetry('/ai/transcribe', body, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 90000,
     });
@@ -179,7 +197,7 @@ export async function parseSizes(imageFile) {
   body.append('image', imageFile);
 
   try {
-    const res = await api.post('/ai/parse-sizes', body, {
+    const res = await postWithRetry('/ai/parse-sizes', body, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 90000,
     });
