@@ -27,22 +27,32 @@ use RuntimeException;
  *   UPSTREAM        — anything else from the provider
  *   UNPARSEABLE     — provider replied, but not with usable JSON
  *
- * Why the models are raced: on the free tier any single Gemini model is, at
- * any moment, either fast, overloaded (503, sometimes only after 20+ seconds)
- * or silent until the timeout - and which one it is changes from minute to
- * minute. Asking one model, waiting, then asking the next turned a bad minute
- * into a one-minute wait followed by an error. Asking several at once and
- * taking the first usable answer makes the request as fast as the fastest
- * healthy model, and only fails when all of them fail together.
+ * Why the models are asked together: on the free tier any single Gemini model
+ * is, at any moment, either fast, overloaded (503, sometimes only after 20+
+ * seconds) or silent until the timeout - and which one it is changes from
+ * minute to minute. Asking one model, waiting, then asking the next turned a
+ * bad minute into a one-minute wait followed by an error.
+ *
+ * But the fastest model is not the best one: measured on a card with Bengali
+ * digits, the small fast model answers in ~2 seconds and misreads a digit of
+ * the phone number almost every time, while the slower model reads it right.
+ * A wrong phone number is the worst possible mistake here, so the requests go
+ * out together in two tiers - accurate models first, fast models as the
+ * fallback - and a fast model's answer is only used when every accurate model
+ * has failed. The caller is told which tier answered (lastTier()) so the
+ * salesman can be asked to double-check the numbers in that case.
  */
 class GeminiService
 {
     /** Longest the whole request may take; the browser gives up at 75 seconds. */
     private const TOTAL_BUDGET_SECONDS = 58;
 
-    /** Text-only requests are small; a model silent for this long is stuck. */
-    private const TEXT_TIMEOUT_SECONDS = 20;
-    private const MEDIA_TIMEOUT_SECONDS = 30;
+    /** A model silent for this long is stuck (the accurate one usually answers a card in 8-12 s). */
+    private const TEXT_TIMEOUT_SECONDS = 18;
+    private const MEDIA_TIMEOUT_SECONDS = 24;
+
+    /** Which tier produced the last answer: 'accurate' or 'fast'. */
+    private ?string $lastTier = null;
     private const CONNECT_TIMEOUT_SECONDS = 8;
 
     /** A second round is only worth starting if there is time for it to finish. */
@@ -63,22 +73,30 @@ class GeminiService
     }
 
     /**
-     * The models asked for each request, raced against each other.
+     * Accurate models (preferred) and fast models (fallback), as two lists.
      *
-     * @return string[]
+     * @return array{accurate: string[], fast: string[]}
      */
-    protected function models(): array
+    protected function tiers(): array
     {
-        $raceCount = max(1, (int) config('services.gemini.race_count', 3));
+        $clean = fn (array $list) => array_values(array_unique(array_filter(array_map('trim', $list), fn ($m) => $m !== '')));
 
-        $models = array_merge(
-            (array) config('services.gemini.models', []),
-            [$this->model(), (string) config('services.gemini.fallback_model')]
-        );
+        $accurate = $clean((array) config('services.gemini.models', []));
+        $fast = $clean((array) config('services.gemini.fast_models', []));
+        // A model must not sit in both tiers.
+        $fast = array_values(array_diff($fast, $accurate));
 
-        $models = array_values(array_unique(array_filter(array_map('trim', $models), fn ($m) => $m !== '')));
+        if ($accurate === [] && $fast === []) {
+            $accurate = $clean([$this->model(), (string) config('services.gemini.fallback_model')]);
+        }
 
-        return array_slice($models, 0, $raceCount);
+        return ['accurate' => $accurate, 'fast' => $fast];
+    }
+
+    /** The tier that produced the most recent answer ('accurate' or 'fast'), or null. */
+    public function lastTier(): ?string
+    {
+        return $this->lastTier;
     }
 
     /**
@@ -159,7 +177,7 @@ class GeminiService
             'generationConfig' => $generationConfig,
         ];
 
-        $models = $this->models();
+        $tiers = $this->tiers();
         $perCallTimeout = $this->hasInlineData($parts) ? self::MEDIA_TIMEOUT_SECONDS : self::TEXT_TIMEOUT_SECONDS;
         $perCallTimeout = min($perCallTimeout, (int) config('services.gemini.timeout', 45));
 
@@ -171,7 +189,7 @@ class GeminiService
             $timeout = max(5, min($perCallTimeout, $remaining));
 
             try {
-                return $this->race($models, $payload, $timeout, $accept);
+                return $this->race($tiers, $payload, $timeout, $accept);
             } catch (RuntimeException $e) {
                 $failures[] = $e->getMessage();
             }
@@ -191,11 +209,49 @@ class GeminiService
     }
 
     /**
-     * One round: send the request to every model at the same time and return
-     * the first answer that is usable. Throws the most useful failure code when
-     * none is.
+     * One round: send the request to every model at the same time, then use the
+     * best answer - an accurate model's if any of them answers, otherwise a fast
+     * model's. Throws the most useful failure code when none does.
+     *
+     * @param  array{accurate: string[], fast: string[]}  $tiers
      */
-    protected function race(array $models, array $payload, int $timeout, ?callable $accept): string
+    protected function race(array $tiers, array $payload, int $timeout, ?callable $accept): string
+    {
+        $start = fn (array $models) => $this->startRequests($models, $payload, $timeout, $accept);
+
+        // Everything is started before anything is waited on, so the fast models
+        // are already working while the accurate ones are awaited.
+        $accurate = $start($tiers['accurate']);
+        $fast = $start($tiers['fast']);
+
+        $codes = [];
+        foreach (['accurate' => $accurate, 'fast' => $fast] as $tier => $promises) {
+            if ($promises === []) {
+                continue;
+            }
+            try {
+                $winner = Utils::any($promises)->wait();
+                $this->lastTier = $tier;
+
+                return $winner['text'];
+            } catch (AggregateException $e) {
+                foreach ((array) $e->getReason() as $model => $reason) {
+                    $codes[] = $reason instanceof RuntimeException
+                        ? $reason->getMessage()
+                        : $this->failureFromThrowable($reason, (string) $model)->getMessage();
+                }
+            }
+        }
+
+        throw new RuntimeException($this->mostUsefulFailure($codes));
+    }
+
+    /**
+     * Sends the request to each model without waiting; returns one promise per model.
+     *
+     * @param  string[]  $models
+     */
+    protected function startRequests(array $models, array $payload, int $timeout, ?callable $accept): array
     {
         $base = rtrim((string) config('services.gemini.base_url'), '/');
         $key = (string) config('services.gemini.key');
@@ -218,19 +274,7 @@ class GeminiService
                 });
         }
 
-        try {
-            $winner = Utils::any($promises)->wait();
-        } catch (AggregateException $e) {
-            $codes = [];
-            foreach ((array) $e->getReason() as $model => $reason) {
-                $codes[] = $reason instanceof RuntimeException
-                    ? $reason->getMessage()
-                    : $this->failureFromThrowable($reason, (string) $model)->getMessage();
-            }
-            throw new RuntimeException($this->mostUsefulFailure($codes));
-        }
-
-        return $winner['text'] ?? (string) $winner;
+        return $promises;
     }
 
     /**

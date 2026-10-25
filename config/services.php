@@ -55,16 +55,22 @@ return [
         'fallback_model' => env('GEMINI_FALLBACK_MODEL', 'gemini-3.1-flash-lite'),
 
         /*
-         | The models every request is raced across (first usable answer wins) -
-         | see GeminiService. Comma separated, best first; the primary and
-         | fallback models above are appended if they are not already listed.
-         | Google retires and renames models often, so these are config, not code.
+         | Two tiers, asked together for every request (see GeminiService):
+         |  - models:      accurate, preferred. Read Bengali phone digits correctly
+         |                 in testing, but can be slow or busy on the free tier.
+         |  - fast_models: answer in ~2 s but misread phone digits often; only
+         |                 used when every accurate model has failed.
+         | Comma separated. Google retires and renames models often, so these are
+         | config, not code.
          */
         'models' => array_values(array_filter(array_map('trim', explode(',', (string) env(
             'GEMINI_MODELS',
-            'gemini-3.5-flash-lite,gemini-3.8-flash,gemini-3.1-flash-lite'
+            'gemini-3.1-flash-lite,gemini-3.8-flash'
         ))))),
-        'race_count' => (int) env('GEMINI_RACE_COUNT', 3),
+        'fast_models' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'GEMINI_FAST_MODELS',
+            'gemini-3.5-flash-lite'
+        ))))),
 
         'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
         'timeout' => (int) env('GEMINI_TIMEOUT', 45),

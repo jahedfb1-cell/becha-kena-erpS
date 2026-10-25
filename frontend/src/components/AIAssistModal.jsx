@@ -81,6 +81,8 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
   const [error, setError] = useState('');
   const [draft, setDraft] = useState(null);
   const [logId, setLogId] = useState(null);
+  // The draft came from the small fast model, whose phone digits are the least reliable part.
+  const [verifyNumbers, setVerifyNumbers] = useState(false);
   const [fromVoice, setFromVoice] = useState(false);
 
   const fileRef = useRef(null);
@@ -91,7 +93,7 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
     if (!isOpen) {
       setTab('text'); setText(''); setImageFile(null);
       setImagePreview((p) => { if (p) URL.revokeObjectURL(p); return ''; });
-      setBusy(false); setError(''); setDraft(null); setLogId(null); setFromVoice(false);
+      setBusy(false); setError(''); setDraft(null); setLogId(null); setVerifyNumbers(false); setFromVoice(false);
       recorder.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,6 +129,7 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
     if (!hasAnything) { setError('কোনো তথ্য পাওয়া যায়নি। পরিষ্কার ছবি বা বেশি তথ্য দিন।'); return; }
 
     setLogId(res.logId);
+    setVerifyNumbers(!!res.verifyNumbers);
     setDraft(res.data);
   };
 
@@ -184,6 +187,12 @@ const AIAssistModal = ({ isOpen, onClose, onApply }) => {
                 </div>
               ))}
             </div>
+
+            {verifyNumbers && (
+              <div style={{ marginTop: '14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '12px 14px', color: '#991b1b', fontSize: '13px', fontWeight: 700 }}>
+                ⚠️ এবার দ্রুত (ছোট) AI উত্তর দিয়েছে — ফোন নম্বরের প্রতিটি অঙ্ক কার্ডের সাথে মিলিয়ে নিন।
+              </div>
+            )}
 
             <div style={{ marginTop: '14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '12px 14px' }}>
               <div style={{ fontWeight: 800, color: '#92400e', fontSize: '13px' }}>

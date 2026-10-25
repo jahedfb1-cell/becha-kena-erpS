@@ -157,6 +157,13 @@ class AiAssistController extends Controller
             }
         }
 
+        // Only the fast fallback model answered: its phone digits are the least
+        // trustworthy part, so say so on the review screen and cap the confidence.
+        $verifyNumbers = $this->gemini->lastTier() === 'fast';
+        if ($verifyNumbers) {
+            $result['confidence'] = min($result['confidence'], 0.6);
+        }
+
         $log = AiAssistLog::create([
             'user_id'    => $request->user()?->id,
             'mode'       => $validated['mode'] ?? ($hasImage ? 'card' : 'text'),
@@ -164,7 +171,7 @@ class AiAssistController extends Controller
             'applied'    => false,
         ]);
 
-        return response()->json(['data' => $result, 'log_id' => $log->id]);
+        return response()->json(['data' => $result, 'log_id' => $log->id, 'verify_numbers' => $verifyNumbers]);
     }
 
     /**
@@ -312,6 +319,10 @@ class AiAssistController extends Controller
             $out[$key] = is_scalar($value) ? trim((string) $value) : '';
         }
 
+        foreach (['contact_number_1', 'contact_number_2', 'contact_number_3'] as $phoneKey) {
+            $out[$phoneKey] = $this->cleanPhone($out[$phoneKey]);
+        }
+
         // PRD §6.1 — Company Name must not be empty when any name was found.
         if ($out['company_name'] === '' && $out['contact_person_name'] !== '') {
             $out['company_name'] = $out['contact_person_name'];
@@ -368,6 +379,28 @@ class AiAssistController extends Controller
      * Translates a provider failure code into the user-facing message and
      * HTTP status defined in PRD §8.3.
      */
+    /**
+     * Tidies a phone number without ever changing a digit: Bengali digits to
+     * English, spaces / hyphens / dots / brackets removed, and a Bangladeshi
+     * mobile (01XXXXXXXXX or 8801XXXXXXXXX) written as +8801XXXXXXXXX. Anything
+     * else - a landline, a number with an extension - is returned as printed.
+     */
+    private function cleanPhone(string $value): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        $digits = strtr($value, ['০' => '0', '১' => '1', '২' => '2', '৩' => '3', '৪' => '4', '৫' => '5', '৬' => '6', '৭' => '7', '৮' => '8', '৯' => '9']);
+        $compact = preg_replace('/[\s\-.()]+/u', '', $digits);
+
+        if (preg_match('/^(?:\+?88)?(01\d{9})$/', $compact, $m)) {
+            return '+88' . $m[1];
+        }
+
+        return $digits;
+    }
+
     /** True when none of the customer fields has any text. */
     private function isBlankDraft(array $result): bool
     {
@@ -450,6 +483,15 @@ and nobody notices.
 CONFIDENCE
 Set confidence between 0 and 1 for how reliable this extraction is overall.
 Lower it for blurry images, partial text, or ambiguous layouts.
+
+DIGIT ACCURACY
+- Read every phone number one digit at a time, left to right, exactly as
+  printed. Never guess, round, or "fix" a number.
+- Bengali digits map one to one: ০=0 ১=1 ২=2 ৩=3 ৪=4 ৫=5 ৬=6 ৭=7 ৮=8 ৯=9. A
+  Bengali digit becomes exactly one English digit, so a number keeps the same
+  number of digits it has on the card.
+- A Bangladeshi mobile number has 11 digits (01XXXXXXXXX). If what you read has
+  a different count, look at the image again before answering.
 PROMPT;
     }
 

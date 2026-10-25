@@ -103,7 +103,7 @@ export async function parseCustomer({ image, text, mode }) {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 75000, // the server gives up on a stuck model after at most ~60s (see GeminiService)
     });
-    return { ok: true, data: res.data?.data || {}, logId: res.data?.log_id || null };
+    return { ok: true, data: res.data?.data || {}, logId: res.data?.log_id || null, verifyNumbers: !!res.data?.verify_numbers };
   } catch (err) {
     return { ok: false, error: readError(err) };
   }
