@@ -3,6 +3,7 @@ import api from '../api/axios';
 import PhoneContactField from './PhoneContactField';
 import AIAssistModal from './AIAssistModal';
 import { toFormPatch, findCustomerByPhone } from '../api/aiAssist';
+import { describeSaveError } from '../utils/apiError';
 import { useAuth } from '../store/AuthContext';
 
 
@@ -262,11 +263,21 @@ const CustomerModal = ({ isOpen, onClose, onCustomerCreated, isAdmin = true, ini
       }
       handleClose();
     } catch (err) {
-      const errors = err.response?.data?.errors;
-      if (errors) {
-        setError(Object.values(errors).flat().join('\n'));
+      const data = err.response?.data;
+      const errors = data?.errors;
+
+      // The server refuses a phone that already belongs to a customer (409) and
+      // sends that customer back as an object - show the message and the card
+      // of the existing customer instead of printing the object.
+      if (errors?.duplicate_customer) {
+        setDuplicate(errors.duplicate_customer);
+        setError(data?.message || 'এই ফোন নম্বরে আগেই একজন কাস্টমার আছেন।');
+      } else if (!err.response) {
+        setError('ইন্টারনেট সংযোগে সমস্যা। নেট চেক করে আবার চেষ্টা করুন।');
+      } else if (errors && typeof errors === 'object') {
+        setError(describeSaveError(err, 'Failed to save customer.').replace(/  \|  /g, '\n'));
       } else {
-        setError(err.response?.data?.message || 'Failed to save customer.');
+        setError(data?.message || 'Failed to save customer.');
       }
     } finally {
       setLoading(false);

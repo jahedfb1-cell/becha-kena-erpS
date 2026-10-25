@@ -141,6 +141,22 @@ class AiAssistController extends Controller
 
         $result = $this->normalise($draft);
 
+        // A reply with every field blank means this model read nothing from a
+        // card or text that has details in it - the other model often does
+        // better, and one more try costs far less than sending the salesman
+        // back to type everything by hand.
+        if ($this->isBlankDraft($result)) {
+            try {
+                $second = $this->gemini->generateJson($parts, $this->extractionPrompt(), self::RESPONSE_SCHEMA, $hasImage);
+                $secondResult = $this->normalise($second);
+                if (!$this->isBlankDraft($secondResult)) {
+                    $result = $secondResult;
+                }
+            } catch (RuntimeException $e) {
+                // The first answer stands; the client reports "nothing found".
+            }
+        }
+
         $log = AiAssistLog::create([
             'user_id'    => $request->user()?->id,
             'mode'       => $validated['mode'] ?? ($hasImage ? 'card' : 'text'),
@@ -352,6 +368,18 @@ class AiAssistController extends Controller
      * Translates a provider failure code into the user-facing message and
      * HTTP status defined in PRD §8.3.
      */
+    /** True when none of the customer fields has any text. */
+    private function isBlankDraft(array $result): bool
+    {
+        foreach (self::OUTPUT_KEYS as $key) {
+            if (trim((string) ($result[$key] ?? '')) !== '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function mapFailure(RuntimeException $e): JsonResponse
     {
         return match ($e->getMessage()) {
