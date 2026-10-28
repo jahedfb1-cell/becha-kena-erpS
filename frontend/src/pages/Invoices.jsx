@@ -38,6 +38,9 @@ const Invoices = () => {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [entriesPerPage, setEntriesPerPage] = useState(15);
+  // Phone: the filter panel folds away behind a "Filters" button. On a wide screen the CSS
+  // keeps it open inline, so this flag only matters below 769px.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Payment Modal State
@@ -268,6 +271,18 @@ const Invoices = () => {
 
   const totalPages = Math.ceil(invoiceRows.length / entriesPerPage) || 1;
 
+  // Filters other than the search box (the search box shows its own text).
+  const activeFilterCount = [filterStatus, filterDateFrom || filterDateTo, showArchived].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setFilterSearch('');
+    setFilterStatus('');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setShowArchived(false);
+    setCurrentPage(1);
+  };
+
   const paginatedInvoices = useMemo(() => {
     const start = (currentPage - 1) * entriesPerPage;
     return invoiceRows.slice(start, start + entriesPerPage);
@@ -284,48 +299,74 @@ const Invoices = () => {
             </div>
           </div>
 
-          {/* Filters Banner */}
-          <div className="welcome-banner list-filter-row" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', padding: '16px', marginBottom: '16px', alignItems: 'flex-end' }}>
-            <div className="form-group" style={{ margin: 0, flex: '2 1 220px', minWidth: '200px' }}>
-              <label style={{ fontSize: '12px' }}>Search Invoice / Customer / Phone</label>
-              <input type="text" placeholder="Invoice number, customer name, or mobile no..." value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px' }} />
-            </div>
-
-            <div className="form-group" style={{ margin: 0, flex: '1 1 150px', minWidth: '150px' }}>
-              <label style={{ fontSize: '12px' }}>Payment Status</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }}>
-                <option value="">All Statuses</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="partial">Partial</option>
-                <option value="paid">Paid</option>
-              </select>
-            </div>
-
-            <div className="form-group" style={{ margin: 0, flex: '1 1 140px', minWidth: '140px' }}>
-              <label style={{ fontSize: '12px' }}>Date From</label>
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }} />
-            </div>
-
-            <div className="form-group" style={{ margin: 0, flex: '1 1 140px', minWidth: '140px' }}>
-              <label style={{ fontSize: '12px' }}>Date To</label>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px', width: '100%', border: '1px solid var(--border)', borderRadius: '6px', backgroundColor: 'var(--bg-base)' }} />
-            </div>
-
-            <button className="logout-btn" onClick={() => { setFilterSearch(''); setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); }} style={{ height: '34px' }}>
-              Reset Filters
-            </button>
-
-            <div className="form-group" style={{ margin: 0 }}>
-              <label style={{ fontSize: '12px', display: 'block', visibility: 'hidden' }}>&nbsp;</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer', height: '34px' }}>
+          {/* Filters: search always visible; the rest folds away on a phone */}
+          <div className="inv-filter-bar">
+            <div className="inv-filter-top">
+              <div className="inv-search">
+                <span className="inv-search-icon" aria-hidden="true">🔍</span>
                 <input
-                  type="checkbox"
-                  checked={showArchived}
-                  onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); }}
-                  style={{ width: 'auto', margin: 0, cursor: 'pointer' }}
+                  type="search"
+                  placeholder="Search invoices..." title="Search by invoice number, customer name or mobile number"
+                  value={filterSearch}
+                  onChange={(e) => { setFilterSearch(e.target.value); setCurrentPage(1); }}
+                  aria-label="Search invoice, customer or phone"
                 />
-                Show Archived
+              </div>
+              <button
+                type="button"
+                className={`inv-filter-toggle ${filtersOpen ? 'is-open' : ''}`}
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                aria-controls="inv-filter-panel"
+              >
+                <span aria-hidden="true">⚙️</span> Filters
+                {activeFilterCount > 0 && <span className="inv-badge">{activeFilterCount}</span>}
+                <span className="inv-chevron" aria-hidden="true">▾</span>
+              </button>
+            </div>
+
+            <div id="inv-filter-panel" className={`inv-filter-panel ${filtersOpen ? 'is-open' : ''}`}>
+              <div className="inv-field inv-field--status">
+                <span className="inv-label">Payment</span>
+                <div className="inv-pills" role="radiogroup" aria-label="Payment status">
+                  {[['', 'All'], ['unpaid', 'Unpaid'], ['partial', 'Partial'], ['paid', 'Paid']].map(([value, label]) => (
+                    <button
+                      key={value || 'all'}
+                      type="button"
+                      role="radio"
+                      aria-checked={filterStatus === value}
+                      className={`inv-pill ${filterStatus === value ? 'is-active' : ''} ${value ? 'is-' + value : ''}`}
+                      onClick={() => { setFilterStatus(value); setCurrentPage(1); }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="inv-field">
+                <span className="inv-label">From</span>
+                <input type="date" value={filterDateFrom} max={filterDateTo || undefined} onChange={(e) => { setFilterDateFrom(e.target.value); setCurrentPage(1); }} />
               </label>
+
+              <label className="inv-field">
+                <span className="inv-label">To</span>
+                <input type="date" value={filterDateTo} min={filterDateFrom || undefined} onChange={(e) => { setFilterDateTo(e.target.value); setCurrentPage(1); }} />
+              </label>
+
+              <div className="inv-panel-actions">
+                <label className="inv-archived">
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); }}
+                  />
+                  Archived
+                </label>
+                {(activeFilterCount > 0 || filterSearch) && (
+                  <button type="button" className="inv-reset" onClick={resetFilters}>✕ Reset</button>
+                )}
+              </div>
             </div>
           </div>
 

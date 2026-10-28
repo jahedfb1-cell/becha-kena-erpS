@@ -5128,3 +5128,84 @@ a, button, select, input, textarea, .nav-item {
     font-size: 13px !important;
   }
 }
+
+
+/* ── Invoices & Billings filter bar ──────────────────────────────────────────
+   Wide screens: search plus the other filters in one short row.
+   Phones: only the search box and a "Filters" button; the rest folds open
+   under the button, with a badge counting what is switched on. */
+.inv-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+}
+
+.inv-filter-top { display: flex; gap: 8px; align-items: center; flex: 2 1 260px; min-width: 0; }
+
+.inv-search { position: relative; flex: 1; min-width: 0; }
+.inv-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; opacity: 0.6; pointer-events: none; }
+.inv-search input {
+  width: 100%; box-sizing: border-box; height: 36px; padding: 0 10px 0 32px;
+  font-size: 13px; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; background: var(--bg-base, #fff);
+}
+
+.inv-filter-toggle {
+  display: none; align-items: center; gap: 6px; height: 36px; padding: 0 12px;
+  border: 1px solid var(--border, #cbd5e1); border-radius: 8px; background: var(--bg-base, #fff);
+  font-size: 13px; font-weight: 700; color: var(--text-main, #0f172a); cursor: pointer; white-space: nowrap;
+}
+.inv-filter-toggle.is-open { background: #eef2ff; border-color: #a5b4fc; color: #3730a3; }
+.inv-chevron { font-size: 11px; transition: transform 0.15s ease; }
+.inv-filter-toggle.is-open .inv-chevron { transform: rotate(180deg); }
+.inv-badge {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #4f46e5; color: #fff;
+  font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+}
+
+.inv-filter-panel { display: flex; flex: 3 1 auto; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; min-width: 0; }
+
+.inv-field { display: flex; flex-direction: column; gap: 3px; margin: 0; min-width: 0; }
+.inv-label { font-size: 11px; font-weight: 700; color: var(--text-muted, #64748b); text-transform: uppercase; letter-spacing: 0.3px; }
+.inv-field input[type="date"] {
+  height: 34px; padding: 0 8px; font-size: 13px; width: 138px; box-sizing: border-box;
+  border: 1px solid var(--border, #cbd5e1); border-radius: 8px; background: var(--bg-base, #fff);
+}
+
+.inv-pills { display: flex; gap: 4px; }
+.inv-pill {
+  height: 34px; padding: 0 12px; border: 1px solid var(--border, #cbd5e1); border-radius: 17px;
+  background: var(--bg-base, #fff); font-size: 12.5px; font-weight: 700; color: #475569; cursor: pointer;
+}
+.inv-pill.is-active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.inv-pill.is-active.is-unpaid { background: #dc2626; border-color: #dc2626; }
+.inv-pill.is-active.is-partial { background: #d97706; border-color: #d97706; }
+.inv-pill.is-active.is-paid { background: #16a34a; border-color: #16a34a; }
+
+.inv-panel-actions { display: flex; align-items: center; gap: 10px; height: 34px; margin-left: auto; }
+.inv-archived { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 600; color: var(--text-main, #0f172a); cursor: pointer; }
+.inv-archived input { width: auto; margin: 0; cursor: pointer; }
+.inv-reset { background: none; border: none; padding: 4px 6px; font-size: 12.5px; font-weight: 700; color: #dc2626; cursor: pointer; }
+
+@media (max-width: 768px) {
+  .inv-filter-bar { display: block; padding: 8px; }
+  .inv-filter-top { flex: none; }
+  .inv-search input { height: 40px; font-size: 16px; } /* 16px stops iOS zooming into the field */
+  .inv-filter-toggle { display: inline-flex; height: 40px; }
+
+  .inv-filter-panel { display: none; }
+  .inv-filter-panel.is-open {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--border, #e2e8f0);
+  }
+  .inv-field--status { grid-column: 1 / -1; }
+  .inv-pills { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .inv-pill { padding: 0 4px; }
+  .inv-field input[type="date"] { width: 100%; height: 40px; font-size: 16px; }
+  .inv-panel-actions { grid-column: 1 / -1; margin-left: 0; justify-content: space-between; height: auto; }
+}
