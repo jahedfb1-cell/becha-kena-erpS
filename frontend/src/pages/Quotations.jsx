@@ -78,6 +78,8 @@ const Quotations = () => {
   const [filterCustomer, setFilterCustomer] = useState('');
   const [filterEmployee, setFilterEmployee] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  // Archived quotations are a separate server-side list (?archived=1).
+  const [showArchived, setShowArchived] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [filterSearch, setFilterSearch] = useState('');
   const [employees, setEmployees] = useState([]);
@@ -212,7 +214,7 @@ const Quotations = () => {
     setError('');
     try {
       const [quotesRes, empRes] = await Promise.all([
-        api.get('/quotations?all=1').catch(err => { console.warn('Quotations load error:', err); return { data: { data: [] } }; }),
+        api.get(showArchived ? '/quotations?all=1&archived=1' : '/quotations?all=1').catch(err => { console.warn('Quotations load error:', err); return { data: { data: [] } }; }),
         api.get('/users').catch(err => { console.warn('Users load error:', err); return { data: { data: [] } }; })
       ]);
 
@@ -228,7 +230,7 @@ const Quotations = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     loadData();
@@ -1436,6 +1438,13 @@ const Quotations = () => {
                 </select>
               </div>
 
+              <div style={{ flex: '0 0 auto', alignSelf: 'flex-end', paddingBottom: '8px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={showArchived} onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); }} />
+                  Show Archived
+                </label>
+              </div>
+
               <div style={{ flex: '0 0 auto' }}>
                 <button
                   type="button"
@@ -1591,6 +1600,11 @@ const Quotations = () => {
                           </span>
                         </td>
                         <td>
+                          {showArchived ? (
+                            <button className="text-btn" onClick={() => handleRestore(q.id)} style={{ color: 'var(--success)', fontWeight: 700 }}>
+                              ♻️ Restore
+                            </button>
+                          ) : (<>
                           <button className="text-btn" onClick={() => handleEditClick(q)} disabled={q.status === 'invoiced'}>
                             View/Edit
                           </button>
@@ -1633,6 +1647,7 @@ const Quotations = () => {
                               Archive
                             </button>
                           )}
+                          </>)}
                         </td>
                       </tr>
                     ))
@@ -1650,6 +1665,11 @@ const Quotations = () => {
                     <div className="invoice-mobile-card" key={q.id}>
                       {/* Horizontal Action Pills Bar matching reference screenshot */}
                       <div className="mobile-card-actions-scroll">
+                        {showArchived ? (
+                          <button type="button" className="mobile-action-pill pill-green" onClick={() => handleRestore(q.id)}>
+                            ♻️ Restore
+                          </button>
+                        ) : (<>
                         <button
                           type="button"
                           className="mobile-action-pill pill-purple"
@@ -1708,6 +1728,7 @@ const Quotations = () => {
                             🗑 Archive
                           </button>
                         )}
+                        </>)}
                       </div>
 
                       <div className="invoice-mobile-card-header">
