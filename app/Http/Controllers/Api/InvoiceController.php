@@ -99,12 +99,16 @@ class InvoiceController extends Controller
 
         $user = $request->user();
         $poNumber = $request->input('po_number');
+        $request->validate(['invoice_date' => 'nullable|date']);
+        $invoiceDate = $request->filled('invoice_date')
+            ? \Carbon\Carbon::parse($request->input('invoice_date'))->toDateString()
+            : null;
         // The Sales step generates the Delivery Challan alongside the invoice
         // in one action; pass with_challan=false to create the invoice only.
         $withChallan = $request->boolean('with_challan', true);
 
-        return DB::transaction(function () use ($quotation, $user, $poNumber, $withChallan) {
-            $invoice = $this->invoiceService->generate($quotation, $user->id, $poNumber);
+        return DB::transaction(function () use ($quotation, $user, $poNumber, $withChallan, $invoiceDate) {
+            $invoice = $this->invoiceService->generate($quotation, $user->id, $poNumber, $invoiceDate);
 
             $quotation->update(['status' => 'invoiced']);
 

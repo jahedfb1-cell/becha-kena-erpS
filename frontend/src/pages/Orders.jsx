@@ -137,6 +137,11 @@ const Orders = () => {
   const [editingSpecKey, setEditingSpecKey] = useState(null);
   const [specDraft, setSpecDraft] = useState('');
   const [specSaving, setSpecSaving] = useState(false);
+  // "Generate Invoice" opens the order form in this mode so discount, VAT,
+  // products and the invoice date can be reviewed before the invoice exists.
+  const [invoiceMode, setInvoiceMode] = useState(false);
+  const [invoiceSourceOrder, setInvoiceSourceOrder] = useState(null);
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().substring(0, 10));
   const isEditingPending = isEditMode && (editOrigStatus === 'pending_approval' || editOrigStatus === 'pending_reapproval');
 
   // Advance payments taken against this order before it's been invoiced.
@@ -344,26 +349,37 @@ const Orders = () => {
    * refuses — but it only interrupts the flow when there's actually
    * something to warn about, to keep the normal case a single confirm.
    */
-  const handleGenerateInvoice = async (order) => {
-    const { hasPurchase, allReceived } = purchaseStatusOf(order);
-    const orderNo = order.quotation_number;
+  const handleGenerateInvoice = (order) => {
+    // Opens the order form in invoice mode instead of generating blindly.
+    handleEditClick(order, true);
+  };
 
-    const prompt = hasPurchase && !allReceived
-      ? `⚠️ Supplier purchase for this order has not been marked "Received" yet.\n\nGenerate Sales Invoice + Delivery Challan for Order ${orderNo} anyway?`
-      : `Generate Sales Invoice + Delivery Challan for Order ${orderNo}?`;
+  // Posts the actual generation. Used by the form's two invoice buttons.
+  const generateInvoiceNow = async (id, orderNo, date) => {
+    const res = await api.post(`/invoices/generate/${id}`, { invoice_date: date || undefined });
+    alert(res.data?.message || 'Invoice and Delivery Challan generated successfully.');
+    // The order moves to 'invoiced' and a new invoice exists, so both
+    // cached lists are now out of date.
+    resetForm();
+    setView('list');
+    fetchOrders();
+    invalidateInvoices(queryClient);
+    navigate(`/invoices?search=${encodeURIComponent(orderNo)}`);
+  };
 
-    if (!confirm(prompt)) return;
-
+  // "Generate as-is": no edits, so the order and its purchase entries are
+  // left untouched. Warns first if the supplier purchase isn't received.
+  const handleGenerateWithoutChanges = async () => {
+    const { hasPurchase, allReceived } = purchaseStatusOf(invoiceSourceOrder || {});
+    if (hasPurchase && !allReceived &&
+        !confirm('⚠️ Supplier purchase for this order has not been marked "Received" yet.\n\nGenerate Sales Invoice + Delivery Challan anyway?')) return;
     try {
-      const res = await api.post(`/invoices/generate/${order.id}`, {});
-      alert(res.data?.message || 'Invoice and Delivery Challan generated successfully.');
-      // The order moves to 'invoiced' and a new invoice exists, so both
-      // cached lists are now out of date.
-      fetchOrders();
-      invalidateInvoices(queryClient);
-      navigate(`/invoices?search=${encodeURIComponent(orderNo)}`);
+      setIsSubmitting(true);
+      await generateInvoiceNow(editId, editOrderNumber, invoiceDate);
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to generate invoice.');
+      raiseFormError(err.response?.data?.message || 'Failed to generate invoice.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -526,27 +542,8 @@ const Orders = () => {
     }
   };
 
-  const handleGenerateInvoiceFromDetail = async (id) => {
-    // selectedOrder (loaded via GET /quotations/:id) already carries the
-    // full, unfiltered purchaseEntries relation — same warning rule as the
-    // list-row action, just reading from the already-open detail record.
-    const { hasPurchase, allReceived } = purchaseStatusOf(selectedOrder);
-    if (hasPurchase && !allReceived) {
-      const proceed = confirm(
-        '⚠️ Supplier purchase for this order has not been marked "Received" yet.\n\nGenerate Sales Invoice + Delivery Challan anyway?'
-      );
-      if (!proceed) return;
-    }
-
-    try {
-      const res = await api.post(`/invoices/generate/${id}`);
-      alert(res.data?.message || 'Invoice generated successfully.');
-      fetchOrders();
-      invalidateInvoices(queryClient);
-      navigate('/invoices');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to generate invoice.');
-    }
+  const handleGenerateInvoiceFromDetail = (id) => {
+    handleEditClick(selectedOrder, true);
   };
 
   const filteredOrders = useMemo(() => {
@@ -984,6 +981,9 @@ const Orders = () => {
   };
 
   const resetForm = () => {
+    setInvoiceMode(false);
+    setInvoiceSourceOrder(null);
+    setInvoiceDate(new Date().toISOString().substring(0, 10));
     setIsEditMode(false);
     setEditId(null);
     setEditOrigStatus(null);
@@ -1013,7 +1013,7 @@ const Orders = () => {
     setFormError('');
   };
 
-  const handleEditClick = async (o) => {
+  const handleEditClick = async (o, forInvoice = false) => {
     // Backend rejects this outright once an order has an invoice (see
     // QuotationController::update — "Invoiced quotations cannot be
     // edited"), which is why the Edit button itself is hidden once
@@ -1037,6 +1037,9 @@ const Orders = () => {
       }
 
       setIsEditMode(true);
+      setInvoiceMode(forInvoice);
+      setInvoiceSourceOrder(forInvoice ? fullQ : null);
+      setInvoiceDate(new Date().toISOString().substring(0, 10));
       setEditId(fullQ.id);
       setEditOrigStatus(fullQ.status || null);
       setEditOrderNumber(fullQ.quotation_number || '');
@@ -1270,6 +1273,11 @@ const Orders = () => {
       setIsSubmitting(true);
       if (isEditMode && editId) {
         await api.put(`/quotations/${editId}`, payload);
+        if (invoiceMode) {
+          // Changes saved (order stays approved, purchase re-raised) - now invoice it.
+          await generateInvoiceNow(editId, editOrderNumber, invoiceDate);
+          return;
+        }
         alert(isEditingPending ? 'Order updated. It is still pending approval.' : 'Order updated successfully!');
       } else {
         await api.post('/quotations', payload);
@@ -3092,8 +3100,22 @@ const Orders = () => {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '24px' }}>
+                    {invoiceMode && (
+                      <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', padding: '12px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>🧾 Invoice Date</label>
+                        <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+                          Review products, qty, price, discount and VAT above, then generate. Saving changes re-raises the supplier purchase entries.
+                        </div>
+                        <button type="button" className="secondary-btn" disabled={isSubmitting} onClick={handleGenerateWithoutChanges} style={{ padding: '10px', width: '100%', marginTop: '10px' }}>
+                          Generate Invoice (no changes)
+                        </button>
+                      </div>
+                    )}
                     <button type="submit" className="primary-btn" disabled={isSubmitting} style={{ padding: '12px' }}>
-                      💾 {isSubmitting ? (isEditMode ? 'Saving...' : 'Creating Order...') : (isEditingPending ? 'Save Changes (stays pending)' : (isEditMode ? 'Save Order' : 'Save Direct Order'))}
+                      {invoiceMode
+                        ? (isSubmitting ? 'Working...' : '🧾 Save Changes & Generate Invoice')
+                        : <>💾 {isSubmitting ? (isEditMode ? 'Saving...' : 'Creating Order...') : (isEditingPending ? 'Save Changes (stays pending)' : (isEditMode ? 'Save Order' : 'Save Direct Order'))}</>}
                     </button>
                     <button type="button" className="logout-btn" onClick={() => { setView('list'); resetForm(); }} style={{ padding: '10px' }}>
                       Cancel

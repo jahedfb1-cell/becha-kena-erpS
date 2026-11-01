@@ -28,8 +28,9 @@ class InvoiceService
     /**
      * Generate Invoice from Approved Quotation
      */
-    public function generate(Quotation $quotation, int $userId, ?string $poNumber = null): Invoice
+    public function generate(Quotation $quotation, int $userId, ?string $poNumber = null, ?string $invoiceDate = null): Invoice
     {
+        $invoiceDate ??= now()->toDateString();
         $invoiceNumber = $this->generateInvoiceNumber();
 
         $invoice = Invoice::create([
@@ -45,7 +46,7 @@ class InvoiceService
             'paid_amount'     => 0,
             'due_amount'      => $quotation->net_amount,
             'payment_status'  => 'unpaid',
-            'invoice_date'    => now()->toDateString(),
+            'invoice_date'    => $invoiceDate,
             'created_by'      => $userId,
         ]);
 
@@ -67,7 +68,7 @@ class InvoiceService
             'debit'            => $netAmount,
             'credit'           => 0,
             'balance'          => $previousBalance + $netAmount, // debit increases customer balance
-            'transaction_date' => now()->toDateString(),
+            'transaction_date' => $invoiceDate,
             'created_by'       => $userId,
         ]);
 
