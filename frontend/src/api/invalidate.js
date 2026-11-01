@@ -38,7 +38,7 @@ export const invalidateSuppliers = (queryClient) =>
  * rejected, archived, restored). Orders and Quotations read the same feed.
  */
 export const invalidateOrders = (queryClient) =>
-  invalidate(queryClient, [listKeys.quotations()]);
+  invalidate(queryClient, [listKeys.quotations(), listKeys.quotationsArchived()]);
 
 /** An invoice was created, archived, or its paid/due amounts moved. */
 export const invalidateInvoices = (queryClient) =>

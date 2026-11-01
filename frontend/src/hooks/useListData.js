@@ -16,6 +16,10 @@ export const listKeys = {
   // Orders and Quotations both read `/quotations?all=1` and only differ in how
   // they filter it, so they share one cache entry and filter client-side.
   quotations: () => ['list', 'quotations', 'all'],
+  // Archived quotations/orders are a separate server-side result set
+  // (`?archived=1`), shared by the Orders page, the Quotations page and the
+  // "Archived (n)" badges so one fetch serves all three.
+  quotationsArchived: () => ['list', 'quotations', 'archived'],
 };
 
 const unwrapList = (response) => {
@@ -41,11 +45,23 @@ export function useInvoicesList({ enabled = true, archived = false } = {}) {
  * Confirmed orders = every quotation that has moved past the 'quotation'
  * stage. `select` filters the shared cache without duplicating the fetch.
  */
-export function useOrdersList({ enabled = true } = {}) {
+export function useOrdersList({ enabled = true, archived = false } = {}) {
   return withArrayData(useQuery({
-    queryKey: listKeys.quotations(),
-    queryFn: async () => unwrapList(await api.get('/quotations?all=1')),
+    queryKey: archived ? listKeys.quotationsArchived() : listKeys.quotations(),
+    queryFn: async () => unwrapList(await api.get(`/quotations?all=1${archived ? '&archived=1' : ''}`)),
     select: (rows) => rows.filter((q) => q && q.status !== 'quotation'),
+    enabled,
+  }));
+}
+
+/**
+ * Every archived quotation/order (all statuses). Used for the "Archived (n)"
+ * badges and as the archived feed of the Quotations page.
+ */
+export function useArchivedQuotations({ enabled = true } = {}) {
+  return withArrayData(useQuery({
+    queryKey: listKeys.quotationsArchived(),
+    queryFn: async () => unwrapList(await api.get('/quotations?all=1&archived=1')),
     enabled,
   }));
 }

@@ -5,7 +5,7 @@ import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
 import { useCustomers, useProducts, masterDataKeys, productsQueryOptions } from '../hooks/useMasterData';
-import { useOrdersList } from '../hooks/useListData';
+import { useOrdersList, useArchivedQuotations } from '../hooks/useListData';
 import { invalidateOrders, invalidateInvoices } from '../api/invalidate';
 import { formatCurrency, formatDate } from '../utils/format';
 import { pvcSlatCount, billableSqft } from '../utils/billing';
@@ -56,7 +56,12 @@ const Orders = () => {
   const [view, setView] = useState('list'); // 'list', 'detail', 'form'
 
   // Confirmed orders come from the shared quotations cache (filtered).
-  const { data: orders, isLoading: listLoading, error: ordersError } = useOrdersList();
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: orders, isLoading: listLoading, error: ordersError } = useOrdersList({ archived: showArchived });
+  // Same cache entry as the archived orders list above; only used for the
+  // "Archived (n)" badge, which counts archived orders (not plain quotations).
+  const { data: archivedAll } = useArchivedQuotations();
+  const archivedOrdersCount = archivedAll.filter((q) => q && q.status !== 'quotation').length;
 
   // Shared master-data cache — fetched once for the whole app rather than
   // on every form open.
@@ -551,7 +556,10 @@ const Orders = () => {
     return orders.filter(o => {
       if (!o) return false;
 
-      if (activeTab === 'confirmed') {
+      // Archived view lists every archived order regardless of tab.
+      if (showArchived) {
+        // fall through to the search / status filters only
+      } else if (activeTab === 'confirmed') {
         if (o.status === 'pending_approval' || o.status === 'pending_reapproval' || o.status === 'quotation' || o.status === 'rejected') return false;
       } else if (activeTab === 'pending') {
         if (o.status !== 'pending_approval' && o.status !== 'pending_reapproval') return false;
@@ -567,7 +575,16 @@ const Orders = () => {
         : true;
       return matchesStatus && matchesSearch;
     });
-  }, [orders, filterStatus, filterSearch, activeTab]);
+  }, [orders, filterStatus, filterSearch, activeTab, showArchived]);
+
+  const handleRestoreOrder = async (id) => {
+    try {
+      await api.post(`/quotations/${id}/restore`);
+      invalidateOrders(queryClient);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to restore order.');
+    }
+  };
 
   const selectedCustomerObj = useMemo(() => {
     return customers.find(c => c.id === parseInt(selectedCustomerId));
@@ -1379,7 +1396,15 @@ const Orders = () => {
               style={{ width: '200px' }}
             >
               <option value="">All Statuses</option>
-              {activeTab === 'confirmed' ? (
+              {showArchived ? (
+                <>
+                  <option value="approved">Approved</option>
+                  <option value="invoiced">Invoiced</option>
+                  <option value="pending_approval">Pending Approval</option>
+                  <option value="pending_reapproval">Pending Reapproval</option>
+                  <option value="rejected">Rejected</option>
+                </>
+              ) : activeTab === 'confirmed' ? (
                 <>
                   <option value="approved">Approved</option>
                   <option value="invoiced">Invoiced</option>
@@ -1391,6 +1416,28 @@ const Orders = () => {
                 </>
               )}
             </select>
+
+            <button
+              type="button"
+              onClick={() => { setShowArchived((v) => !v); setFilterStatus(''); }}
+              title={showArchived ? 'Back to active orders' : 'Show archived orders'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '8px 16px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+                borderRadius: '8px',
+                border: showArchived ? '2px solid #b45309' : '1px solid #cbd5e1',
+                background: showArchived ? '#fef3c7' : '#ffffff',
+                color: showArchived ? '#92400e' : '#334155',
+              }}
+            >
+              🗄️ {showArchived ? 'Viewing Archived — click to go back' : 'Show Archived'}
+              <span style={{
+                background: archivedOrdersCount > 0 ? '#dc2626' : '#94a3b8', color: '#fff',
+                borderRadius: '999px', padding: '1px 9px', fontSize: '12px', fontWeight: 800,
+              }}>
+                {archivedOrdersCount}
+              </span>
+            </button>
           </div>
 
           {loading ? (
@@ -1415,7 +1462,7 @@ const Orders = () => {
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="9" style={{ textAlign: 'center' }}>No confirmed orders found.</td>
+                      <td colSpan="9" style={{ textAlign: 'center' }}>{showArchived ? 'No archived orders found.' : 'No confirmed orders found.'}</td>
                     </tr>
                   ) : (
                     filteredOrders.map((o) => (
@@ -1500,6 +1547,19 @@ const Orders = () => {
                           >
                             👁️
                           </button>
+
+                          {showArchived && (
+                            <button
+                              type="button"
+                              className="text-btn"
+                              onClick={() => handleRestoreOrder(o.id)}
+                              style={{ color: 'var(--success)', fontWeight: 700 }}
+                            >
+                              ♻️ Restore
+                            </button>
+                          )}
+
+                          {!showArchived && (<>
 
                           {/* Purchase status shortcut — NOT a step to perform here. The
                               Purchase Entry is auto-created AND auto-marked received
@@ -1620,6 +1680,7 @@ const Orders = () => {
                           >
                             🖨️
                           </button>
+                          </>)}
                         </td>
                       </tr>
                     ))
@@ -1631,7 +1692,7 @@ const Orders = () => {
             {/* Mobile card list — same data as the desktop table, actions menu beside the order number */}
             <div className="orders-mobile-list">
               {filteredOrders.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>No confirmed orders found.</div>
+                <div style={{ textAlign: 'center', color: 'var(--text-main)', padding: '30px' }}>{showArchived ? 'No archived orders found.' : 'No confirmed orders found.'}</div>
               ) : (
                 filteredOrders.map((o, idx) => (
                   <div className="order-mobile-card" key={o.id}>
@@ -1644,6 +1705,16 @@ const Orders = () => {
                       >
                         👁 View
                       </button>
+                      {showArchived && (
+                        <button
+                          type="button"
+                          className="mobile-action-pill pill-green"
+                          onClick={() => handleRestoreOrder(o.id)}
+                        >
+                          ♻️ Restore
+                        </button>
+                      )}
+                      {!showArchived && (<>
                       <button
                         type="button"
                         className="mobile-action-pill pill-cyan"
@@ -1695,6 +1766,7 @@ const Orders = () => {
                           📦 Courier
                         </button>
                       )}
+                      </>)}
                     </div>
 
                     <div className="order-mobile-card-header">

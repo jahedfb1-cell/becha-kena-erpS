@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { useArchivedQuotations } from '../hooks/useListData';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
 import { usePermission } from '../hooks/usePermission';
@@ -59,6 +60,8 @@ const Quotations = () => {
   const { user } = useAuth();
   const { can } = usePermission();
   const queryClient = useQueryClient();
+  const { data: archivedAll } = useArchivedQuotations();
+  const archivedCount = archivedAll.length;
   const [view, setView] = useState('list'); // 'list' or 'form'
   const [quotations, setQuotations] = useState([]);
 
@@ -1439,10 +1442,33 @@ const Quotations = () => {
               </div>
 
               <div style={{ flex: '0 0 auto', alignSelf: 'flex-end', paddingBottom: '8px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={showArchived} onChange={(e) => { setShowArchived(e.target.checked); setCurrentPage(1); }} />
-                  Show Archived
-                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !showArchived;
+                    setShowArchived(next);
+                    setCurrentPage(1);
+                    // Leftover filters would silently hide archived rows.
+                    if (next) { setFilterStatus(''); setFilterCustomer(''); setFilterEmployee(''); setFilterSearch(''); }
+                  }}
+                  title={showArchived ? 'Back to active quotations' : 'Show archived quotations'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '8px 16px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+                    borderRadius: '8px',
+                    border: showArchived ? '2px solid #b45309' : '1px solid #cbd5e1',
+                    background: showArchived ? '#fef3c7' : '#ffffff',
+                    color: showArchived ? '#92400e' : '#334155',
+                  }}
+                >
+                  🗄️ {showArchived ? 'Viewing Archived — click to go back' : 'Show Archived'}
+                  <span style={{
+                    background: archivedCount > 0 ? '#dc2626' : '#94a3b8', color: '#fff',
+                    borderRadius: '999px', padding: '1px 9px', fontSize: '12px', fontWeight: 800,
+                  }}>
+                    {archivedCount}
+                  </span>
+                </button>
               </div>
 
               <div style={{ flex: '0 0 auto' }}>
