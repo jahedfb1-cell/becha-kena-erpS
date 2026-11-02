@@ -1205,7 +1205,9 @@ class ReportController extends Controller
             $query->whereDate('transaction_date', '<=', $request->to_date);
         }
 
-        $ledgers = $query->orderBy('transaction_date', 'asc')->orderBy('id', 'asc')->get();
+        $ledgers = CustomerLedger::attachPaymentDetails(
+            $query->orderBy('transaction_date', 'asc')->orderBy('id', 'asc')->get()
+        );
 
         // Fallback: If customer_ledgers table is empty, generate dynamic ledger from Invoices & Payments
         if ($ledgers->isEmpty()) {

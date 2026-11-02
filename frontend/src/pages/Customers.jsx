@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { buildStatement, ledgerTypeLabel } from '../utils/ledgerStatement';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../api/axios';
 import { useAuth } from '../store/AuthContext';
@@ -272,9 +273,23 @@ const Customers = () => {
 
 /* ─── Customer Detail View ─── */
 const CustomerDetailView = ({ customer, isAdmin, onBack, onEdit }) => {
-  const ledgers = customer.ledgers || [];
-  const lastLedger = ledgers[ledgers.length - 1];
+  const navigate = useNavigate();
+  const allLedgers = useMemo(() => customer.ledgers || [], [customer.ledgers]);
+  const lastLedger = allLedgers[allLedgers.length - 1];
   const currentDue = lastLedger ? parseFloat(lastLedger.balance) : 0;
+
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const statement = useMemo(() => buildStatement(allLedgers, fromDate, toDate), [allLedgers, fromDate, toDate]);
+  const ledgers = statement.rows;
+
+  const openPrint = () => {
+    const params = new URLSearchParams();
+    if (fromDate) params.set('from_date', fromDate);
+    if (toDate) params.set('to_date', toDate);
+    const qs = params.toString();
+    navigate(`/customers/${customer.id}/ledger-print${qs ? `?${qs}` : ''}`);
+  };
 
   return (
     <div className="animate-fade-in">
@@ -284,6 +299,7 @@ const CustomerDetailView = ({ customer, isAdmin, onBack, onEdit }) => {
           <p>Profile info, opening balances, and chronological account ledger</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="primary-btn" onClick={openPrint}>🖨️ Print Statement</button>
           <button className="primary-btn" onClick={onEdit}>Edit Customer</button>
           <button className="logout-btn" onClick={onBack}>Back to List</button>
         </div>
@@ -364,9 +380,27 @@ const CustomerDetailView = ({ customer, isAdmin, onBack, onEdit }) => {
 
         {/* Right side ledger */}
         <div className="welcome-banner" style={{ padding: '20px' }}>
-          <h3 style={{ margin: '0 0 16px', color: 'var(--text-heading)' }}>Chronological Account Statement</h3>
+          <h3 style={{ margin: '0 0 12px', color: 'var(--text-heading)' }}>Chronological Account Statement</h3>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '14px' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '11px' }}>From</label>
+              <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px' }} />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ fontSize: '11px' }}>To</label>
+              <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} style={{ padding: '6px 10px', fontSize: '13px' }} />
+            </div>
+            {(fromDate || toDate) && (
+              <button className="text-btn" onClick={() => { setFromDate(''); setToDate(''); }}>Clear</button>
+            )}
+          </div>
+          {statement.broughtForward !== null && (
+            <p style={{ margin: '0 0 10px', fontSize: '13px' }}>
+              Balance brought forward: <strong>{formatCurrency(statement.broughtForward)}</strong>
+            </p>
+          )}
           {ledgers.length === 0 ? (
-            <p style={{ margin: 0, fontStyle: 'italic' }}>No ledger transactions found for this customer.</p>
+            <p style={{ margin: 0, fontStyle: 'italic' }}>No ledger transactions found for this period.</p>
           ) : (
             <table className="data-table">
               <thead>
@@ -387,20 +421,25 @@ const CustomerDetailView = ({ customer, isAdmin, onBack, onEdit }) => {
                       <span className={`badge ${
                         ledger.transaction_type === 'opening_balance' ? 'badge-warning' :
                         ledger.transaction_type === 'invoice' ? 'badge-outline' :
-                        ledger.transaction_type === 'payment' ? 'badge-success' :
+                        ledger.transaction_type === 'payment' || ledger.transaction_type === 'advance_payment' ? 'badge-success' :
                         ledger.transaction_type === 'discount' ? 'badge-info' : 'badge-warning'
                       }`} style={{ textTransform: 'uppercase', fontSize: '10px' }}>
-                        {ledger.transaction_type === 'opening_balance' ? '★ Opening Bal.' : ledger.transaction_type}
+                        {ledger.transaction_type === 'opening_balance' ? '★ Opening Bal.' : ledgerTypeLabel(ledger.transaction_type)}
                       </span>
                     </td>
-                    <td style={{ fontSize: '13px' }}>{ledger.description}</td>
+                    <td style={{ fontSize: '13px' }}>
+                      {ledger.description}
+                      {ledger.payment_note && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-main)', fontStyle: 'italic' }}>Note: {ledger.payment_note}</div>
+                      )}
+                    </td>
                     <td style={{ color: ledger.debit > 0 ? 'var(--danger)' : 'inherit' }}>
                       {ledger.debit > 0 ? formatCurrency(ledger.debit) : '—'}
                     </td>
                     <td style={{ color: ledger.credit > 0 ? 'var(--success)' : 'inherit' }}>
                       {ledger.credit > 0 ? formatCurrency(ledger.credit) : '—'}
                     </td>
-                    <td style={{ fontWeight: '600' }}>{formatCurrency(ledger.balance)}</td>
+                    <td style={{ fontWeight: '600' }}>{formatCurrency(ledger.runningBalance)}</td>
                   </tr>
                 ))}
               </tbody>

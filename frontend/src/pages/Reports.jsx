@@ -1778,7 +1778,10 @@ const Reports = () => {
                       <td style={{ color: 'var(--danger)' }}>{formatCurrency(l.debit || 0)}</td>
                       <td style={{ color: 'var(--success)' }}>{formatCurrency(l.credit || 0)}</td>
                       <td style={{ fontWeight: 700 }}>{formatCurrency(l.balance || 0)}</td>
-                      <td>{l.description || l.notes || '-'}</td>
+                      <td>
+                        {l.description || l.notes || '-'}
+                        {l.payment_note && <div style={{ fontSize: '12px', fontStyle: 'italic' }}>Note: {l.payment_note}</div>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

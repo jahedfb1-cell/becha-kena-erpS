@@ -182,6 +182,8 @@ class CustomerController extends Controller
             }
         }
 
+        \App\Models\CustomerLedger::attachPaymentDetails($customer->ledgers);
+
         // Append current_due
         $lastLedger = $customer->ledgers->last();
         $customer->current_due = $lastLedger ? (float) $lastLedger->balance : 0.0;

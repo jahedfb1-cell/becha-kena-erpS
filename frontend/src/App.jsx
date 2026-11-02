@@ -60,6 +60,7 @@ const CourierBookingPrintPage = lazy(() => import('./pages/CourierBookingPrintPa
 const MoneyReceiptPage = lazy(() => import('./pages/MoneyReceiptPage'));
 const PriceListPrintPage = lazy(() => import('./pages/PriceListPrintPage'));
 const SalesDuePrintPage = lazy(() => import('./pages/SalesDuePrintPage'));
+const CustomerLedgerPrintPage = lazy(() => import('./pages/CustomerLedgerPrintPage'));
 
 function App() {
   return (
@@ -82,6 +83,16 @@ function App() {
             <ProtectedRoute>
               <Suspense fallback={null}>
                 <SalesDuePrintPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customers/:id/ledger-print"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={null}>
+                <CustomerLedgerPrintPage />
               </Suspense>
             </ProtectedRoute>
           }

@@ -64,7 +64,7 @@ class InvoiceService
             'transaction_type' => 'invoice',
             'reference_type'   => Invoice::class,
             'reference_id'     => $invoice->id,
-            'description'      => "Generated invoice {$invoiceNumber} for quotation {$quotation->quotation_number}",
+            'description'      => CustomerLedger::invoiceText($invoice),
             'debit'            => $netAmount,
             'credit'           => 0,
             'balance'          => $previousBalance + $netAmount, // debit increases customer balance
@@ -194,7 +194,7 @@ class InvoiceService
             'transaction_type' => 'invoice',
             'reference_type'   => Invoice::class,
             'reference_id'     => $invoice->id,
-            'description'      => "Restored invoice {$invoice->invoice_number}",
+            'description'      => CustomerLedger::invoiceText($invoice),
             'debit'            => $grandTotal,
             'credit'           => 0,
             'balance'          => $previousBalance + $grandTotal,
