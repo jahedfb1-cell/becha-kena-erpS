@@ -7,6 +7,8 @@ import { pvcSlatCount, isPvcItem } from '../utils/billing';
 import renderRichText from '../utils/renderRichText';
 import { lineSpecification, hasSpecification, specificationKey } from '../utils/lineSpecification';
 import { brandFields } from '../utils/brandProfile';
+import { isDefaultSectionName } from '../utils/printGroups';
+import { RoomHeadingRow } from './PrintOptionRows';
 
 const DEMO_LOGO = '/logo-demo.svg';
 
@@ -185,6 +187,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
 
   const isDetailed = activePrintType === 'detailed' || activePrintType === 'pad-detailed';
   const isPad = activePrintType === 'pad-detailed' || activePrintType === 'pad-simplified';
+  const printGroupList = buildGroups(items);
 
   const documentTitle = isOrder ? (hidePrices ? 'Work Order Sheet' : 'Sales Order') : 'Quotation';
   const documentNoLabel = isOrder ? 'Order No.' : 'Quotation No.';
@@ -529,7 +532,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                 )}
               </thead>
               <tbody>
-                {buildGroups(items).map((group, groupIdx) => {
+                {printGroupList.map((group, groupIdx) => {
                   const firstItem = group.rows[0]?.item;
                   const optionLabel = group.optionLabel;
                   const isSelectedChoice = firstItem && firstItem.is_selected !== false;
@@ -558,6 +561,10 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
 
                   return (
                     <React.Fragment key={`grp_${groupIdx}`}>
+                      {/* Section heading: only for a section the user renamed */}
+                      {!isDefaultSectionName(group.sectionName) && (groupIdx === 0 || printGroupList[groupIdx - 1].sectionName !== group.sectionName) && (
+                        <RoomHeadingRow colSpan={colSpanVal} name={group.sectionName} />
+                      )}
                       {/* Option Header Row */}
                       {optionLabel && (
                         <tr className="option-header-row">

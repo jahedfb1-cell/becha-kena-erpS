@@ -25,6 +25,14 @@
  */
 const PKG = 'pkg:';
 
+/**
+ * True for the names the builders hand out themselves ("Section A: Main
+ * Items", "Section B: New Category", ...). A section still carrying one of
+ * those was never renamed, so it prints no heading; a renamed one does.
+ */
+export const isDefaultSectionName = (name) =>
+  !name || name === 'Main Items' || /^Section [A-Z]: (Main Items|New Category)$/.test(name);
+
 const lineAmount = (item, displayWidth) => {
   const w = displayWidth ? displayWidth(item) : (parseFloat(item.width) || 0);
   const h = parseFloat(item.height) || 0;
@@ -93,12 +101,9 @@ export function buildPrintGroups(rawItems, { specificationKey, displayWidth } = 
   });
 
   // Headings and option totals.
-  // Room headings print when the quotation really is split into rooms: more
-  // than one distinct section name, or a section renamed from the builder's
-  // default ("Section A: Main Items", "Section B: New Category", ...).
-  const isDefaultName = (name) => /^Section [A-Z]: (Main Items|New Category)$/.test(name);
-  const names = new Set(groups.map((g) => g.section).filter(Boolean));
-  const showRooms = names.size > 1 || [...names].some((n) => !isDefaultName(n));
+  // A section prints its name only when it was renamed from the builder's
+  // default ("Section A: Main Items", "Section B: New Category", ...);
+  // untouched sections print no heading, as a one-room quotation always has.
 
   groups.forEach((g, i) => {
     const prev = groups[i - 1];
@@ -107,7 +112,7 @@ export function buildPrintGroups(rawItems, { specificationKey, displayWidth } = 
       g.optionHeader = { no: g.pkg, selected: !g.isAlternative };
     }
     const newRoom = !prev || prev.pkg !== g.pkg || prev.section !== g.section;
-    if (newRoom && g.section && showRooms) {
+    if (newRoom && g.section && !isDefaultSectionName(g.section)) {
       g.sectionHeader = g.section;
     }
     if (usesPkg && (!next || next.pkg !== g.pkg)) {
