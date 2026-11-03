@@ -60,6 +60,8 @@ export function buildQuotationPadWorkbook(ExcelJS, { quotation, companyProfile }
   const items = quotation.items || [];
   const groups = buildPrintGroups(items, { specificationKey, displayWidth: getDisplayWidth });
   const netTotal = quotationNetTotal(quotation);
+  // With Option 1 / 2 / 3 there is no single total until the customer picks one.
+  const hasOptions = items.some((i) => i.option_group_id || i.group_id);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = brand.footerName;
@@ -245,7 +247,7 @@ export function buildQuotationPadWorkbook(ExcelJS, { quotation, companyProfile }
     const isSelectedChoice = firstItem && firstItem.is_selected !== false;
 
     if (group.optionHeader) {
-      headingRow(`Option ${group.optionHeader.no}: ${group.optionHeader.selected ? '✔ Selected Choice' : '◯ Alternative Choice'}`, {
+      headingRow(`Option ${group.optionHeader.no}`, {
         size: 11,
         fill: group.optionHeader.selected ? 'FFEEF2FF' : 'FFF1F5F9',
         color: group.optionHeader.selected ? 'FF111827' : 'FF475569',
@@ -257,7 +259,7 @@ export function buildQuotationPadWorkbook(ExcelJS, { quotation, companyProfile }
       headingRow(group.sectionHeader, { size: 10, fill: GREY_LIGHT });
     }
     if (group.optionLabel) {
-      headingRow(`${group.optionLabel}: ${isSelectedChoice ? '✔ Selected Choice' : '⚪ Alternative Choice'}`, {
+      headingRow(`${group.optionLabel}`, {
         size: 11,
         align: 'center',
         fill: isSelectedChoice ? 'FFFFFFFF' : 'FFF8FAFC',
@@ -273,7 +275,6 @@ export function buildQuotationPadWorkbook(ExcelJS, { quotation, companyProfile }
 
     const runs = [{ text: name, font: { name: FONT, size: 10, bold: true, color: { argb: 'FF111111' } } }];
     if (spec) runs.push({ text: `\n${spec}`, font: { name: FONT, size: 9, color: { argb: 'FF333333' } } });
-    if (!isSelectedChoice) runs.push({ text: '\n(Alternative Choice)', font: { name: FONT, size: 8, italic: true, color: { argb: 'FF64748B' } } });
 
     const cells = [
       { value: groupIdx + 1, align: 'center', bold: true },
@@ -298,7 +299,7 @@ export function buildQuotationPadWorkbook(ExcelJS, { quotation, companyProfile }
     if (group.optionFooter) {
       const { no, selected, total } = group.optionFooter;
       const label = mergedRow(r, 1, LAST_COL - 1);
-      label.value = `Option ${no} Total${selected ? '' : ' (Alternative - not included in Sub Total)'}`;
+      label.value = `Option ${no} Total`;
       setFont(label, { bold: true, size: 10, color: { argb: selected ? 'FF111827' : 'FF64748B' } });
       label.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
       const val = ws.getCell(r, LAST_COL);
@@ -357,6 +358,7 @@ export function buildQuotationPadWorkbook(ExcelJS, { quotation, companyProfile }
     r++;
   }
 
+  if (!hasOptions) {
   const subLabel = mergedRow(r, 1, LAST_COL - 1);
   subLabel.value = 'Sub Total';
   setFont(subLabel, { bold: true, size: 11 });
@@ -388,6 +390,7 @@ export function buildQuotationPadWorkbook(ExcelJS, { quotation, companyProfile }
   allBorders(r, 1, LAST_COL, 'FFD1D5DB');
   ws.getRow(r).height = Math.max(22, lineCount(words, 50) * 14 + 6);
   r++;
+  }
 
   // ── remarks ───────────────────────────────────────────────────────────────
   if (quotation.note) {

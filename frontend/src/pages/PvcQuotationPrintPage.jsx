@@ -183,6 +183,8 @@ const PvcQuotationPrintPage = () => {
 
   const customer = quotation.customer || {};
   const items = quotation.items || [];
+  // With Option 1 / 2 / 3 there is no single total until the customer picks one.
+  const hasOptions = items.some((i) => Boolean(i.option_group_id) || Boolean(i.group_id));
   const pvcItems = items.filter(i => i.is_selected !== false && isPvcItem(i));
 
   // Entered order, quotation options and room headings: see printGroups.js.
@@ -394,8 +396,8 @@ const PvcQuotationPrintPage = () => {
                   {group.sectionHeader && <RoomHeadingRow colSpan={6} name={group.sectionHeader} />}
                   {optionLabel && (
                     <tr className="option-header-row">
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '8px 12px', fontSize: '14px', fontWeight: '700', color: isSelectedChoice ? '#111827' : '#475569', border: '1px solid #cbd5e1', background: isSelectedChoice ? '#ffffff' : '#f8fafc' }}>
-                        {optionLabel}: {isSelectedChoice ? '✔ Selected Choice' : '⚪ Alternative Choice'}
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '8px 12px', fontSize: '14px', fontWeight: '700', color: '#111827', border: '1px solid #cbd5e1', background: '#ffffff' }}>
+                        {optionLabel}
                       </td>
                     </tr>
                   )}
@@ -440,7 +442,6 @@ const PvcQuotationPrintPage = () => {
 
                         <td style={{ textAlign: 'right', fontWeight: 700, verticalAlign: 'top', paddingTop: '8px', paddingRight: '8px', border: '1px solid #cbd5e1', color: (item.is_selected !== false) ? '#000' : '#64748b' }}>
                           {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
                         </td>
                       </tr>
                     );
@@ -496,6 +497,7 @@ const PvcQuotationPrintPage = () => {
               </tr>
             )}
 
+            {!hasOptions && (
             <tr style={{ background: '#d1d5db' }}>
               <td colSpan={5} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#000', padding: '6px 12px', border: '1px solid #9ca3af' }}>
                 Sub Total
@@ -504,6 +506,7 @@ const PvcQuotationPrintPage = () => {
                 {calculatedNetTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
+            )}
           </tbody>
         </table>
         </div>
@@ -568,6 +571,7 @@ const PvcQuotationPrintPage = () => {
         )}
 
         {/* Amount in Words */}
+        {!hasOptions && (
         <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', border: '1px solid #d1d5db', margin: '10px 0', fontSize: '12px', borderRadius: '2px' }}>
           <div style={{ background: '#f3f4f6', padding: '6px 12px', fontWeight: 'bold', color: '#111', borderRight: '1px solid #d1d5db' }}>
             Amount in Words
@@ -576,6 +580,7 @@ const PvcQuotationPrintPage = () => {
             {numberToWords(calculatedNetTotal)}
           </div>
         </div>
+        )}
 
         {/* Remarks - now edited as rich text, so it prints through
             renderRichText() (which also still handles the plain strings

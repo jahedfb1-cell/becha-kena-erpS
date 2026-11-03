@@ -188,6 +188,8 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
   const isDetailed = activePrintType === 'detailed' || activePrintType === 'pad-detailed';
   const isPad = activePrintType === 'pad-detailed' || activePrintType === 'pad-simplified';
   const printGroupList = buildGroups(items);
+  // With Option 1 / 2 / 3 there is no single total until the customer picks one.
+  const hasOptions = !isOrder && items.some((i) => i.option_group_id);
 
   const documentTitle = isOrder ? (hidePrices ? 'Work Order Sheet' : 'Sales Order') : 'Quotation';
   const documentNoLabel = isOrder ? 'Order No.' : 'Quotation No.';
@@ -575,13 +577,13 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                               padding: '8px 12px',
                               fontSize: '14px',
                               fontWeight: '700',
-                              color: isSelectedChoice ? '#111827' : '#475569',
+                              color: '#111827',
                               borderTop: '1px solid #cbd5e1',
                               borderBottom: '1px solid #cbd5e1',
-                              background: isSelectedChoice ? '#ffffff' : '#f8fafc'
+                              background: '#ffffff'
                             }}
                           >
-                            {optionLabel}: {isSelectedChoice ? '✔ Selected Choice' : '⚪ Alternative Choice'}
+                            {optionLabel}
                           </td>
                         </tr>
                       )}
@@ -693,7 +695,6 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                                 {isFirst && (
                                   <>
                                     {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
                                   </>
                                 )}
                               </td>
@@ -753,6 +754,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                     )}
 
                     {/* Sub Total Row */}
+                    {!hasOptions && (
                     <tr style={{ background: '#d1d5db' }}>
                       <td colSpan={isDetailed ? 8 : 5} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#000', padding: '6px 12px' }}>
                         Sub Total
@@ -761,6 +763,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
                         {calculatedNetTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
+                    )}
                   </>
                 )}
               </tbody>
@@ -775,7 +778,7 @@ const QuotationPrintModal = ({ isOpen, onClose, quotation, printType = 'detailed
             )}
 
             {/* Amount in Words (Shown only if prices are NOT hidden) */}
-            {!hidePrices && (
+            {!hidePrices && !hasOptions && (
               <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', border: '1px solid #d1d5db', margin: '16px 0', fontSize: '12px', borderRadius: '2px' }}>
                 <div style={{ background: '#f3f4f6', padding: '8px 12px', fontWeight: 'bold', color: '#111', borderRight: '1px solid #d1d5db' }}>
                   Amount in Words

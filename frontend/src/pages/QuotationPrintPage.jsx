@@ -181,6 +181,9 @@ const QuotationPrintPage = () => {
   const buildGroups = (rawItems) => buildPrintGroups(rawItems, { specificationKey, displayWidth: getDisplayWidth });
 
   const calculatedNetTotal = quotationNetTotal(quotation);
+  // Option 1 / 2 / 3 quotations print each option's own total; a single Sub Total
+  // (and its words) would be meaningless until the customer picks one.
+  const hasOptions = items.some((i) => Boolean(i.option_group_id) || Boolean(i.group_id));
 
   const hasMultipleSectionsOrOptions = items.some(i => i.option_group_id || i.group_id);
 
@@ -587,12 +590,12 @@ const QuotationPrintPage = () => {
                           padding: '8px 12px',
                           fontSize: '14px',
                           fontWeight: '700',
-                          color: isSelectedChoice ? '#111827' : '#475569',
+                          color: '#111827',
                           border: '1px solid #cbd5e1',
-                          background: isSelectedChoice ? '#ffffff' : '#f8fafc'
+                          background: '#ffffff'
                         }}
                       >
-                        {optionLabel}: {isSelectedChoice ? '✔ Selected Choice' : '⚪ Alternative Choice'}
+                        {optionLabel}
                       </td>
                     </tr>
                   )}
@@ -679,7 +682,6 @@ const QuotationPrintPage = () => {
                           {isFirst && (
                             <>
                               {groupTotalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              {(item.is_selected === false) && <div style={{ fontSize: '10px', fontWeight: 'normal', fontStyle: 'italic', color: '#64748b' }}>(Alternative Choice)</div>}
                             </>
                           )}
                         </td>
@@ -754,6 +756,7 @@ const QuotationPrintPage = () => {
             )}
 
             {/* Sub Total Row */}
+            {!hasOptions && (
             <tr style={{ background: '#d1d5db' }}>
               <td colSpan={isDetailed ? 8 : 5} style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px', color: '#000', padding: '6px 12px', border: '1px solid #9ca3af' }}>
                 Sub Total
@@ -762,12 +765,14 @@ const QuotationPrintPage = () => {
                 {calculatedNetTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
             </tr>
+            )}
           </tbody>
         </table>
         </div>
 
         {/* Amount in Words */}
         {/* Amount in Words (Matching Reference Layout) */}
+        {!hasOptions && (
         <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', border: '1px solid #d1d5db', margin: '10px 0', fontSize: '12px', borderRadius: '2px' }}>
           <div style={{ background: '#f3f4f6', padding: '6px 12px', fontWeight: 'bold', color: '#111', borderRight: '1px solid #d1d5db' }}>
             Amount in Words
@@ -776,6 +781,7 @@ const QuotationPrintPage = () => {
             {numberToWords(calculatedNetTotal)}
           </div>
         </div>
+        )}
 
         {/* Remarks - now edited as rich text, so it prints through
             renderRichText() (which also still handles the plain strings
